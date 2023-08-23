@@ -6,7 +6,7 @@ WBPT. Their fits have been reproduced using a slightly more accurate equation
 for the pseudoadiabatic lapse rate from Bakhshaii and Stull (2013). The 
 resulting polynomial coefficients are contained in `alpha.txt`, `beta.txt`, 
 `a.txt`, and `b.txt`. The fit for WBPT is valid for temperatures in the range
--100 <= T <= 50degC. The fit for T is valid for WBPTs in the range
+-100 <= T <= 50degC. The fit for temperature is valid for WBPTs in the range
 -50 <= thw <= 50degC. Both fits are valid for pressures in the range
 1100 <= p <= 100 hPa.
 
