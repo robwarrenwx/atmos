@@ -138,6 +138,23 @@ def dry_air_density(p, T, q):
     return rhod
 
 
+def virtual_temperature(T, q):
+    """
+    Computes virtual temperature.
+
+    Args:
+        T: temperature (K)
+        q: specific humidity (kg/kg)
+
+    Returns:
+        Tv: virtual temperature (K)
+
+    """
+    Tv = T * (1 + (1/eps - 1) * q)
+
+    return Tv
+
+
 def mixing_ratio(q):
     """
     Computes water vapour mixing ratio from specific humidity.
@@ -171,127 +188,109 @@ def vapour_pressure(p, q):
     return e
 
 
-def saturation_vapour_pressure(T):
+def saturation_vapour_pressure(T, phase='liquid', Tl=273.15, Ti=253.15):
     """
-    Computes saturation vapour pressure for a given temperature using
-    equation from Ambaum (2020).
+    Computes saturation vapour pressure (SVP) over liquid, ice, or mixed-phase
+    water for a given temperature using equations from Ambaum (2020)
 
     Args:
         T: temperature (K)
+        phase (optional): condensed water phase (liquid, ice, or mixed)
+        Tl (optional): temperature above which condensate is all liquid (K)
+        Ti (optional): temperature below which condensate is all ice (K)
 
     Returns:
         es: saturation vapour pressure (Pa)
 
     """
 
-    # Compute latent heat of vaporisation
-    Lv = latent_heat_of_vaporisation(T)
+    if phase not in ['liquid', 'ice', 'mixed']:
+        raise ValueError("Phase must be one of 'liquid', 'solid', or 'ice'")
+    
+    if Ti >= Tl:
+        # TODO: Allow for case where Tl == Ti
+        raise ValueError('Ti must be less than Tl')
+    
+    if phase == 'liquid':
+        
+        # Compute latent heat of vaporisation
+        Lv = latent_heat_of_vaporisation(T)
 
-    # Compute saturation vapour pressure (Ambaum 2020, Eq. 13)
-    es = es0 * np.power((T0 / T), ((cpl - cpv) / Rv)) * \
-        np.exp((Lv0 / (Rv * T0)) - (Lv / (Rv * T)))
+        # Compute SVP over liquid water (Ambaum 2020, Eq. 13)
+        es = es0 * np.power((T0 / T), ((cpl - cpv) / Rv)) * \
+            np.exp((Lv0 / (Rv * T0)) - (Lv / (Rv * T)))
+        
+    elif phase == 'ice':
+        
+        # Compute latent heat of sublimation
+        Ls = latent_heat_of_sublimation(T)
+
+        # Compute SVP over ice (Ambaum 2020, Eq. 17)
+        es = es0 * np.power((T0 / T), ((cpi - cpv) / Rv)) * \
+            np.exp((Ls0 / (Rv * T0)) - (Ls / (Rv * T)))
+        
+    else:
+        
+        # Compute the ice fraction
+        icefrac = (Tl - T) / (Tl - Ti)
+        
+        # Compute mixed-phase specific heat
+        cpx = (1 - icefrac) * cpl + icefrac * cpi
+        
+        # Compute mixed-phase latent heat
+        Lx0 = (1 - icefrac) * Lv0 + icefrac * Ls0
+        Lx = Lx0 + (cpv - cpx) * (T - T0)
+        
+        # Compute mixed-phase SVP
+        es = es0 * np.power((T0 / T), ((cpx - cpv) / Rv)) * \
+            np.exp((Lx0 / (Rv * T0)) - (Lx / (Rv * T)))
 
     return es
 
 
-def saturation_vapour_pressure_wrt_ice(T):
-    """
-    Computes saturation vapour pressure with respect to ice for a given 
-    temperature using equation from Ambaum (2020).
-
-    Args:
-        T: temperature (K)
-
-    Returns:
-        es: saturation vapour pressure (Pa)
-
-    """
-
-    # Compute latent heat of sublimation
-    Ls = latent_heat_of_sublimation(T)
-
-    # Compute saturation vapour pressure wrt ice (Ambaum 2020, Eq. 17)
-    es = es0 * np.power((T0 / T), ((cpi - cpv) / Rv)) * \
-        np.exp((Ls0 / (Rv * T0)) - (Ls / (Rv * T)))
-
-    return es
-
-
-def saturation_specific_humidity(p, T):
+def saturation_specific_humidity(p, T, phase='liquid', Tl=273.15, Ti=253.15):
     """
     Computes saturation specific humidity from pressure and temperature.
 
     Args:
         p: pressure (Pa)
         T: temperature (K)
+        phase (optional): condensed water phase (liquid, ice, or mixed)
+        Tl (optional): temperature above which condensate is all liquid (K)
+        Ti (optional): temperature below which condensate is all ice (K)
 
     Returns:
         qs: saturation specific humidity (kg/kg)
 
     """
-    es = saturation_vapour_pressure(T)
+    es = saturation_vapour_pressure(T, phase=phase, Tl=Tl, Ti=Ti)
     qs = eps * es / (p - (1 - eps) * es)
 
     return qs
 
 
-def sat_specific_humidity_wrt_ice(p, T):
-    """
-    Computes saturation specific humidity with respect to ice from pressure
-    and temperature.
-
-    Args:
-        p: pressure (Pa)
-        T: temperature (K)
-
-    Returns:
-        qsi: saturation specific humidity (kg/kg)
-
-    """
-    esi = saturation_vapour_pressure_wrt_ice(T)
-    qsi = eps * esi / (p - (1 - eps) * esi)
-
-    return qsi
-
-
-def saturation_mixing_ratio(p, T):
+def saturation_mixing_ratio(p, T, phase='liquid', Tl=273.15, Ti=253.15):
     """
     Computes saturation mixing ratio from pressure and temperature.
 
     Args:
         p: pressure (Pa)
         T: temperature (K)
+        phase (optional): condensed water phase (liquid, ice, or mixed)
+        Tl (optional): temperature above which condensate is all liquid (K)
+        Ti (optional): temperature below which condensate is all ice (K)
 
     Returns:
         rs: saturation mixing ratio (kg/kg)
 
     """
-    es = saturation_vapour_pressure(T)
+    es = saturation_vapour_pressure(T, phase=phase, Tl=Tl, Ti=Ti)
     rs = eps * es / (p - es)
 
     return rs
 
 
-def saturation_mixing_ratio_wrt_ice(p, T):
-    """
-    Computes saturation mixing ratio with respect to ice from pressure and
-    temperature.
-
-    Args:
-        p: pressure (Pa)
-        T: temperature (K)
-
-    Returns:
-        rsi: saturation mixing ratio with respect to ice (kg/kg)
-
-    """
-    esi = saturation_vapour_pressure_wrt_ice(T)
-    rsi = eps * esi / (p - esi)
-
-    return rsi
-
-
-def relative_humidity(p, T, q):
+def relative_humidity(p, T, q, phase='liquid', Tl=273.15, Ti=253.15):
     """
     Computes relative humidity from pressure, temperature, and specific 
     humidity.
@@ -300,37 +299,19 @@ def relative_humidity(p, T, q):
         p: pressure (Pa)
         T: temperature (K)
         q: specific humidity (kg/kg)
-
+        phase (optional): condensed water phase (liquid, ice, or mixed)
+        Tl (optional): temperature above which condensate is all liquid (K)
+        Ti (optional): temperature below which condensate is all ice (K)
+        
     Returns:
         RH: relative humidity (fraction)
 
     """
     e = vapour_pressure(p, q)
-    es = saturation_vapour_pressure(T)
+    es = saturation_vapour_pressure(T, phase=phase, Tl=Tl, Ti=Ti)
     RH = e / es
 
     return RH
-
-
-def relative_humidity_wrt_ice(p, T, q):
-    """
-    Computes relative humidity with respect to ice from pressure, temperature,
-    and specific humidity.
-
-    Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-
-    Returns:
-        RHi: relative humidity with respect to ice (fraction)
-
-    """
-    e = vapour_pressure(p, q)
-    esi = saturation_vapour_pressure_wrt_ice(T)
-    RHi = e / esi
-
-    return RHi
 
 
 def dewpoint_temperature(p, T, q):
@@ -348,8 +329,8 @@ def dewpoint_temperature(p, T, q):
 
     """
 
-    # Compute relative humidity
-    RH = relative_humidity(p, T, q)
+    # Compute relative humidity over liquid water
+    RH = relative_humidity(p, T, q, phase='liquid')
     RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Set constant (Romps 2021, Eq. 6)
@@ -377,11 +358,11 @@ def frostpoint_temperature(p, T, q):
         q: specific humidity (kg/kg)
 
     Returns:
-        Tf: frost point temperature (K)
+        Tf: frost-point temperature (K)
 
     """    
-    # Compute relative humidity wrt ice
-    RH = relative_humidity_wrt_ice(p, T, q)
+    # Compute relative humidity over ice
+    RH = relative_humidity(p, T, q, phase='ice')
     RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Set constant (Romps 2021, Eq. 8)
@@ -396,23 +377,6 @@ def frostpoint_temperature(p, T, q):
     Tf = np.minimum(Tf, T)
 
     return Tf
-   
-
-def virtual_temperature(T, q):
-    """
-    Computes virtual temperature.
-
-    Args:
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-
-    Returns:
-        Tv: virtual temperature (K)
-
-    """
-    Tv = T * (1 + (1/eps - 1) * q)
-
-    return Tv
 
 
 def lifting_condensation_level(p, T, q):
@@ -431,8 +395,8 @@ def lifting_condensation_level(p, T, q):
 
     """
     
-    # Compute relative humidity
-    RH = relative_humidity(p, T, q)
+    # Compute relative humidity with respect to liquid water
+    RH = relative_humidity(p, T, q, phase='liquid')
     RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Compute effective gas constant and specific heat
@@ -475,8 +439,8 @@ def lifting_deposition_level(p, T, q):
 
     """
     
-    # Compute relative humidity wrt ice
-    RH = relative_humidity_wrt_ice(p, T, q)
+    # Compute relative humidity with respect to ice
+    RH = relative_humidity(p, T, q, phase='ice')
     RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Compute effective gas constant and specific heat
