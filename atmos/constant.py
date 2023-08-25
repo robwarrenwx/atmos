@@ -47,8 +47,8 @@ es0 = 611.655  # Wagner and Pruß (2002)
 # latent heat of vaporisation at the triple point (J/kg)
 Lv0 = 2.501e6  # Ambaum (2020)
 
-# latent heat of melting at the triple point (J/kg)
-Lm0 = 3.334e5  # Ambaum (2020)
+# latent heat of freezing at the triple point (J/kg)
+Lf0 = 3.334e5  # Ambaum (2020)
 
 # Latent heat of sublimation at the triple point (J/kg)
-Ls0 = Lv0 + Lm0  
+Ls0 = Lv0 + Lf0  

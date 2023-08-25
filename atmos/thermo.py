@@ -17,7 +17,7 @@ Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
 import numpy as np
 from scipy.special import lambertw
 from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, 
-                            T0, es0, Lv0, Lm0, Ls0)
+                            T0, es0, Lv0, Lf0, Ls0)
 import atmos.pseudoadiabat as pseudoadiabat
 
 
@@ -69,20 +69,20 @@ def latent_heat_of_vaporisation(T):
     return Lv
 
 
-def latent_heat_of_melting(T):
+def latent_heat_of_freezing(T):
     """
-    Computes latent heat of melting for a given temperature.
+    Computes latent heat of freezing for a given temperature.
 
     Args:
         T: temperature (K)
 
     Returns:
-        Lm: latent heat of melting (J/kg)
+        Lf: latent heat of freezing (J/kg)
 
     """
-    Lm = Lm0 - (cpi - cpl) * (T - T0)
+    Lf = Lf0 - (cpi - cpl) * (T - T0)
 
-    return Lm
+    return Lf
 
 
 def latent_heat_of_sublimation(T):
