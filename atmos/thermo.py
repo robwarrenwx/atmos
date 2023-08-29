@@ -338,7 +338,7 @@ def dewpoint_temperature(p, T, q):
 
     # Compute dewpoint temperature (Romps 2021, Eq. 5)
     fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
+    W = lambertw(fn, k=-1).real  # -1 branch because cpl > cpv
     Td = c * (1 / W) * T
     
     # Ensure that Td does not exceed T
@@ -368,9 +368,9 @@ def frostpoint_temperature(p, T, q):
     # Set constant (Romps 2021, Eq. 8)
     c = (Ls0 - (cpv - cpi) * T0) / ((cpv - cpi) * T)
 
-    # Compute dewpoint temperature (Romps 2021, Eq. 7)
+    # Compute frost-point temperature (Romps 2021, Eq. 7)
     fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=0).real
+    W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
     Tf = c * (1 / W) * T
     
     # Ensure that Tf does not exceed T
