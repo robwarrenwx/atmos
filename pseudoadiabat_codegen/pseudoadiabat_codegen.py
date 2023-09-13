@@ -119,7 +119,7 @@ def wbpt(p, T):
     T_ = T - 273.15
 
     # Check that values fall in the permitted range
-    if (T_ < -100.) or (T_ > 50.) or (p_ > 1100.) or (p_ < 100.):
+    if (T_ < -100.) or (T_ > 50.) or (p_ > 1100.) or (p_ < 50.):
         # print('T or p outside limits of polynomial fit', T_, p_)
         return np.nan
 
@@ -157,7 +157,7 @@ def temp(p, thw):
     thw_ = thw - 273.15
 
     # Check that values fall in the permitted range
-    if (thw_ < -50.) or (thw_ > 50.) or (p_ > 1100.) or (p_ < 100.):
+    if (thw_ < -70.) or (thw_ > 50.) or (p_ > 1100.) or (p_ < 50.):
         # print('thw or p outside limits of polynomial fit', thw_, p_)
         return np.nan
 
