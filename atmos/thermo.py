@@ -188,6 +188,15 @@ def vapour_pressure(p, q):
     return e
 
 
+def ice_fraction(T, Tl=273.15, Ti=253.15):
+
+    a = 12.
+    f = a * ((Tl - T) / (Tl - Ti) - 0.5)
+    icefrac = 1 - 1 / (1 + np.exp(f))
+
+    return icefrac
+
+
 def saturation_vapour_pressure(T, phase='liquid', Tl=273.15, Ti=253.15):
     """
     Computes saturation vapour pressure (SVP) over liquid, ice, or mixed-phase
@@ -232,14 +241,15 @@ def saturation_vapour_pressure(T, phase='liquid', Tl=273.15, Ti=253.15):
     else:
         
         # Compute the ice fraction
-        icefrac = (Tl - T) / (Tl - Ti)
+        #icefrac = np.maximum(0, np.minimum(1, (Tl - T) / (Tl - Ti)))
+        icefrac = ice_fraction(T, Tl=Tl, Ti=Ti)
         
         # Compute mixed-phase specific heat
         cpx = (1 - icefrac) * cpl + icefrac * cpi
         
         # Compute mixed-phase latent heat
         Lx0 = (1 - icefrac) * Lv0 + icefrac * Ls0
-        Lx = Lx0 + (cpv - cpx) * (T - T0)
+        Lx = Lx0 - (cpx - cpv) * (T - T0)
         
         # Compute mixed-phase SVP
         es = es0 * np.power((T0 / T), ((cpx - cpv) / Rv)) * \
