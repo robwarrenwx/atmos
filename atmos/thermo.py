@@ -190,9 +190,9 @@ def vapour_pressure(p, q):
 
 def ice_fraction(T, Tl=273.15, Ti=253.15):
 
-    a = 12.
-    f = a * ((Tl - T) / (Tl - Ti) - 0.5)
-    icefrac = 1 - 1 / (1 + np.exp(f))
+    icefrac = 0.5 * (1 - np.cos(np.pi * ((Tl - T) / (Tl - Ti))))
+    icefrac[T <= Ti] = 1.0
+    icefrac[T >= Tl] = 0.0
 
     return icefrac
 
