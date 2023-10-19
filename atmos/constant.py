@@ -2,17 +2,20 @@
 References:
 
 Ambaum, M. H., 2020. Accurate, simple equation for saturated vapour pressure
-    over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258.
+    over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
+    https://doi.org/10.1002/qj.3899.
 
 Feistel, R., and W. Wagner, 2006: A New Equation of State for H2O Ice Ih.
-    J. Phys. Chem. Ref. Data, 35, 2021-1047.
+    J. Phys. Chem. Ref. Data, 35, 2021-1047 https://doi.org/10.1063/1.2183324.
 
 Guildner, L. A., D. P. Johnson, and F. E. Jones, 1976: Vapor pressure of water
-    at its triple point.J. Res. Natl. Bur. Stand., 80A, 505-521.
+    at its triple point. J. Res. Natl. Bur. Stand., 80A, 505-521,
+    https://doi.org/10.6028/jres.080A.054.
 
 Wagner, W., and A. Pruß, 2002: The IAPWS Formulation 1995 for the 
     Thermodynamic Properties of Ordinary Water Substance for General and
-    Scientific Use. J. Phys. Chem. Ref. Data, 31, 387-535.
+    Scientific Use. J. Phys. Chem. Ref. Data, 31, 387-535,
+    https://doi.org/10.1063/1.1461829.
 
 """
 
@@ -25,7 +28,7 @@ Rd = 287.0
 # Specific gas constant for water vapour (J/kg/K)
 Rv = 461.5
 
-# Ratio of gas constants
+# Ratio of gas constants for dry air and water vapour
 eps = Rd / Rv
 
 # Isobaric specific heat of dry air (J/kg/K)
@@ -33,6 +36,9 @@ cpd = 1005.0
 
 # Isobaric specific heat of water vapour (J/kg/K)
 cpv = 2040.0  # Optimised value from Ambaum (2020)
+
+# Ratio of specific heats of dry air and water vapour
+gamma = cpd / cpv
 
 # Isobaric specific heat of liquid water (J/kg/K)
 cpl = 4220.0  # triple-point value from Wagner and Pruß (2002)
