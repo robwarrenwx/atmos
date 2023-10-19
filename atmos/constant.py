@@ -52,10 +52,10 @@ T0 = 273.16
 # Saturation vapour pressure at the triple point (Pa)
 es0 = 611.657  # Guildner et al. (1976)
 
-# latent heat of vaporisation at the triple point (J/kg)
+# Latent heat of vaporisation at the triple point (J/kg)
 Lv0 = 2.501e6  # Wagner and Pruß (2002)
 
-# latent heat of freezing at the triple point (J/kg)
+# Latent heat of freezing at the triple point (J/kg)
 Lf0 = 0.333e6  # Feistel and Wagner (2006)
 
 # Latent heat of sublimation at the triple point (J/kg)
