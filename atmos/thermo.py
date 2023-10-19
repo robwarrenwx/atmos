@@ -2,21 +2,26 @@
 References:
 
 Ambaum, M.H., 2020. Accurate, simple equation for saturated vapour
-    pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258.
+    pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
+    https://doi.org/10.1002/qj.3899.
+
+Bakhshaii, A., and R. Stull, 2013: Saturated Pseudoadiabats - A Noniterative
+    Approximation.  J. Appl. Meteor. Climatol., 52, 5-15,
+    https://doi.org/10.1175/JAMC-D-12-062.1.
 
 Romps, D.M., 2017. Exact expression for the lifting condensation level.
-    J. Atmos. Sci., 74, 3033-3057.
+    J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
         
 Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
-    2113-2116.
+    2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
 
 """
 
 
 import numpy as np
 from scipy.special import lambertw
-from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, 
+from atmos.constant import (Rd, Rv, eps, cpd, cpv, gamma, cpl, cpi,
                             T0, es0, Lv0, Lf0, Ls0)
 import atmos.pseudoadiabat as pseudoadiabat
 
@@ -188,7 +193,7 @@ def vapour_pressure(p, q):
     return e
 
 
-def saturation_vapour_pressure(T, phase='liquid', icefrac=None):
+def saturation_vapour_pressure(T, phase='liquid', omega=0.):
     """
     Computes saturation vapour pressure (SVP) over liquid, ice, or mixed-phase
     water for a given temperature using equations from Ambaum (2020).
@@ -196,7 +201,7 @@ def saturation_vapour_pressure(T, phase='liquid', icefrac=None):
     Args:
         T: temperature (K)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        icefrac (optional, required for mixed phase): ice fraction at saturation
+        omega (optional): ice fraction at saturation (fraction)
 
     Returns:
         es: saturation vapour pressure (Pa)
@@ -223,14 +228,11 @@ def saturation_vapour_pressure(T, phase='liquid', icefrac=None):
         
     elif phase == 'mixed':
         
-        if icefrac is None:
-            raise ValueError("icefrac must be provided for phase='mixed'")
-        
         # Compute mixed-phase specific heat
-        cpx = (1 - icefrac) * cpl + icefrac * cpi
+        cpx = (1 - omega) * cpl + omega * cpi
         
         # Compute mixed-phase latent heat
-        Lx0 = (1 - icefrac) * Lv0 + icefrac * Ls0
+        Lx0 = (1 - omega) * Lv0 + omega * Ls0
         Lx = Lx0 - (cpx - cpv) * (T - T0)
         
         # Compute mixed-phase SVP
@@ -244,7 +246,7 @@ def saturation_vapour_pressure(T, phase='liquid', icefrac=None):
     return es
 
 
-def saturation_specific_humidity(p, T, phase='liquid', icefrac=None):
+def saturation_specific_humidity(p, T, phase='liquid', omega=0.):
     """
     Computes saturation specific humidity from pressure and temperature.
 
@@ -252,19 +254,19 @@ def saturation_specific_humidity(p, T, phase='liquid', icefrac=None):
         p: pressure (Pa)
         T: temperature (K)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        icefrac (optional, required for mixed phase): ice fraction at saturation
+        omega (optional): ice fraction at saturation (fraction)
 
     Returns:
         qs: saturation specific humidity (kg/kg)
 
     """
-    es = saturation_vapour_pressure(T, phase=phase, icefrac=icefrac)
+    es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     qs = eps * es / (p - (1 - eps) * es)
 
     return qs
 
 
-def saturation_mixing_ratio(p, T, phase='liquid', icefrac=None):
+def saturation_mixing_ratio(p, T, phase='liquid', omega=0.):
     """
     Computes saturation mixing ratio from pressure and temperature.
 
@@ -272,19 +274,19 @@ def saturation_mixing_ratio(p, T, phase='liquid', icefrac=None):
         p: pressure (Pa)
         T: temperature (K)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        icefrac (optional, required for mixed phase): ice fraction at saturation
+        omega (optional): ice fraction at saturation (fraction)
 
     Returns:
         rs: saturation mixing ratio (kg/kg)
 
     """
-    es = saturation_vapour_pressure(T, phase=phase, icefrac=icefrac)
+    es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     rs = eps * es / (p - es)
 
     return rs
 
 
-def relative_humidity(p, T, q, phase='liquid', icefrac=None):
+def relative_humidity(p, T, q, phase='liquid', omega=0.):
     """
     Computes relative humidity from pressure, temperature, and specific 
     humidity.
@@ -294,14 +296,14 @@ def relative_humidity(p, T, q, phase='liquid', icefrac=None):
         T: temperature (K)
         q: specific humidity (kg/kg)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        icefrac (optional, required for mixed phase): ice fraction at saturation
+        omega (optional): ice fraction at saturation (fraction)
         
     Returns:
         RH: relative humidity with respect to specified phase (fraction)
 
     """
     e = vapour_pressure(p, q)
-    es = saturation_vapour_pressure(T, phase=phase, icefrac=icefrac)
+    es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     RH = e / es
 
     return RH
@@ -342,8 +344,8 @@ def dewpoint_temperature(p, T, q):
 
 def frost_point_temperature(p, T, q):
     """
-    Computes frost-point temperature from pressure, temperature, and 
-    specific humidity using equations from Romps (2021).
+    Computes frost-point temperature from pressure, temperature, and specific
+    humidity using equations from Romps (2021).
 
     Args:
         p: pressure (Pa)
@@ -372,7 +374,7 @@ def frost_point_temperature(p, T, q):
     return Tf
 
 
-def saturation_point_temperature(p, T, q, icefrac):
+def saturation_point_temperature(p, T, q, omega):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     specific humidity using equations similar to Romps (2021).
@@ -381,7 +383,7 @@ def saturation_point_temperature(p, T, q, icefrac):
         p: pressure (Pa)
         T: temperature (K)
         q: specific humidity (kg/kg)
-        icefrac: ice fraction at saturation (fraction)
+        omega: ice fraction at saturation (fraction)
 
     Returns:
         Ts: saturation-point temperature (K)
@@ -389,14 +391,14 @@ def saturation_point_temperature(p, T, q, icefrac):
     """
 
     # Compute the mixed-phase relative humidity
-    RH = relative_humidity(p, T, q, phase='mixed', icefrac=icefrac)
+    RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
     #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Compute mixed-phase specific heat
-    cpx = (1 - icefrac) * cpl + icefrac * cpi
+    cpx = (1 - omega) * cpl + omega * cpi
     
     # Compute mixed-phase latent heat at the triple point
-    Lx0 = (1 - icefrac) * Lv0 + icefrac * Ls0
+    Lx0 = (1 - omega) * Lv0 + omega * Ls0
 
     # Set constant (cf. Romps 2021, Eq. 6 and 8)
     c = (Lx0 - (cpv - cpx) * T0) / ((cpv - cpx) * T)
@@ -500,7 +502,7 @@ def lifting_deposition_level(p, T, q):
     return p_ldl, T_ldl
 
 
-def lifting_saturation_level(p, T, q, icefrac):
+def lifting_saturation_level(p, T, q, omega):
     """
     Computes pressure and parcel temperature at the lifting saturation level
     (LSL) using equations similar to Romps (2017).
@@ -509,7 +511,7 @@ def lifting_saturation_level(p, T, q, icefrac):
         p: pressure (Pa)
         T: temperature (K)
         q: specific humidity (kg/kg)
-        icefrac: ice fraction at saturation (fraction)
+        omega: ice fraction at saturation (fraction)
 
     Returns:
         p_lsl: pressure at the LSL (Pa)
@@ -522,14 +524,14 @@ def lifting_saturation_level(p, T, q, icefrac):
     cpm = effective_specific_heat(q)
 
     # Compute mixed-phase relative humidity
-    RH = relative_humidity(p, T, q, phase='mixed', icefrac=icefrac)
+    RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
     #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Compute mixed-phase specific heat
-    cpx = (1 - icefrac) * cpl + icefrac * cpi
+    cpx = (1 - omega) * cpl + omega * cpi
         
     # Compute mixed-phase latent heat at the triple point
-    Lx0 = (1 - icefrac) * Lv0 + icefrac * Ls0
+    Lx0 = (1 - omega) * Lv0 + omega * Ls0
     
     # Set constants (cf. Romps 2017, Eq. 22d-f and 23d-f)
     a = cpm / Rm + (cpx - cpv) / Rv
@@ -553,31 +555,61 @@ def lifting_saturation_level(p, T, q, icefrac):
 
 def ice_fraction(Tstar, Tliq=273.15, Tice=253.15):
     """
-    Computes ice fraction given temperature at saturation, Tstar.
+    Computes ice fraction given temperature at saturation.
+
+    Args:
+        Tstar: temperature at saturation (K)
+        Tliq (optional): temperature above which all condensate is liquid (K)
+        Tice (optional): temperature below which all condensate is ice (K)
+
+    Returns:
+        omega: ice fraction (fraction)
+
+    """
+    if Tice >= Tliq:
+        raise ValueError('Tice must be less than Tliq')
+
+    origshape = Tstar.shape
+    Tstar = np.atleast_1d(Tstar)
+
+    omega = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
+    omega[Tstar <= Tice] = 1.0
+    omega[Tstar >= Tliq] = 0.0
+
+    return omega.reshape(origshape)
+
+
+def ice_fraction_derivative(Tstar, Tliq=273.15, Tice=253.15):
+    """
+    Computes derivative of ice fraction with respect to temperature at
+    saturation.
     
     Args:
         Tstar: temperature at saturation (K)
-        Tliq (optional): temperature above which condensate is 100 % liquid (K)
-        Tice (optional): temperature below which condensate is 100 % ice (K)
+        Tliq (optional): temperature above which all condensate is liquid (K)
+        Tice (optional): temperature below which all condensate is ice (K)
 
     Returns:
-        icefrac: ice fraction (fraction)
+        domega_dTstar: derivative of ice fraction with respect to Tstar (K^-1)
        
     """
-    if Tice > Tliq:
-        raise ValueError('Tice must be less than or equal to Tliq')
-    elif Tliq < Tice:
-        icefrac = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
-    icefrac[Tstar <= Tice] = 1.0
-    icefrac[Tstar >= Tliq] = 0.0
+    if Tice >= Tliq:
+        raise ValueError('Tice must be less than Tliq')
 
-    return icefrac
+    origshape = Tstar.shape
+    Tstar = np.atleast_1d(Tstar)
+
+    domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
+            np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
+    domega_dTstar[(Tstar <= Tice) | (Tstar >= Tliq)] = 0.0
+
+    return domega_dTstar.reshape(origshape)
 
 
 def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
                                Tliq=273.15, Tice=253.15):
     """
-    Computes ice fraction at saturation following specified saturation process.
+    Computes ice fraction at saturation for specified saturation process.
 
     Args:
         p: pressure (Pa)
@@ -585,19 +617,22 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
         q: specific humidity (kg/kg)
         saturation (optional): saturation process (isobaric or adiabatic)
         converged (optional): target precision for Tstar (K)
-        Tliq (optional): temperature above which condensate is 100 % liquid (K)
-        Tice (optional): temperature below which condensate is 100 % ice (K)
+        Tliq (optional): temperature above which all condensate is liquid (K)
+        Tice (optional): temperature below which all condensate is ice (K)
 
     Returns:
-        icefrac: ice fraction at saturation (fraction)
+        omega: ice fraction at saturation (fraction)
 
     """
 
     # Initialise the temperature at saturation as the actual temperature
-    Tstar = T
+    Tstar = T.copy()
+
+    origshape = Tstar.shape
+    Tstar = np.atleast_1d(Tstar)
 
     # Compute the initial ice fraction
-    icefrac = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
+    omega = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
 
     # Iterate to convergence
     count = 0
@@ -610,33 +645,135 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
         if saturation == 'isobaric':
 
             # Compute saturation-point temperature
-            Tstar = saturation_point_temperature(p, T, q, icefrac)
+            Tstar = saturation_point_temperature(p, T, q, omega)
 
         elif saturation == 'adiabatic':
 
             # Compute lifting saturation level (LSL) temperature
-            _, Tstar = lifting_saturation_level(p, T, q, icefrac)
+            _, Tstar = lifting_saturation_level(p, T, q, omega)
 
         else:
 
-            raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
+            raise ValueError("saturation must be 'isobaric' or 'adiabatic'")
 
         # Update the ice fraction
-        icefrac = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
+        omega = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
 
         # Check if solution has converged
         delta = np.abs(Tstar - Tstar_prev)      
         count += 1
         if count > 20:
-            print("saturation temperature not converged after 20 iterations")
+            print("Tstar not converged after 20 iterations")
             break
 
-    return icefrac
+    return omega.reshape(origshape)
 
 
-def follow_dry_adiabat(p1, T1, p2, q=0):
+def dry_adiabatic_lapse_rate(p, T, q):
     """
-    Compute parcel temperature following a dry adiabat.
+    Computes dry adiabatic lapse rate in pressure coordinates.
+
+    Args:
+        p: pressure (Pa)
+        T: temperature (K)
+        q (optional): specific humidity (kg/kg)
+
+    Returns:
+        dT_dp: dry adiabatic lapse rate in pressure coordinates (K/Pa)
+
+    """
+
+    # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
+    b = (1 - q + q / eps) / (1 - q + q / gamma)
+
+    # Compute dry adiabatic lapse rate (Bakshaii and Stull 2013, Eq. 3)
+    dT_dp = b * (Rd * T) / (cpd * p)
+
+    return dT_dp
+
+
+def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
+    """
+    Computes pseudoadiabatic lapse rate in pressure coordinates.
+
+    Args:
+        p: pressure (Pa)
+        T: temperature (K)
+        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
+        Tliq (optional): temperature above which all condensate is liquid (K)
+        Tice (optional): temperature below which all condensate is ice (K)
+
+    Returns:
+        dT_dp: pseudoadiabatic lapse rate in pressure coordinates (K/Pa)
+
+    """
+
+    if phase == 'liquid':
+
+        # Compute saturation specific humidity with respect to liquid water
+        qs = saturation_specific_humidity(p, T, phase='liquid')
+
+        # Compute latent heat of vaporisation
+        Lv = latent_heat_of_vaporisation(T)
+
+        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
+        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
+
+        # Compute liquid pseudoadiabatic lapse rate (Bakshaii and Stull 2013,
+        # Eq. 8)
+        dT_dp = (b / p) * (Rd * T + Lv * qs) / \
+            (cpd + b * (Lv**2 * qs) / (Rv * T**2))
+
+    elif phase == 'ice':
+
+        # Compute saturation specific humidity with respect to ice
+        qs = saturation_specific_humidity(p, T, phase='ice')
+
+        # Compute latent heat of sublimation
+        Ls = latent_heat_of_sublimation(T)
+
+        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
+        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
+
+        # Compute ice pseudoadiabatic lapse rate (cf. Bakshaii and Stull 2013,
+        # Eq. 8)
+        dT_dp = (b / p) * (Rd * T + Ls * qs) / \
+            (cpd + b * (Ls**2 * qs) / (Rv * T**2))
+
+    elif phase == 'mixed':
+
+        # Compute ice fraction, omega
+        omega = ice_fraction(T, Tliq=Tliq, Tice=Tice)
+
+        # Compute the derivative of omega with respect to temperature
+        domega_dT = ice_fraction_derivative(T, Tliq=Tliq, Tice=Tice)
+
+        # Compute mixed-phase saturation specific humidity
+        qs = saturation_specific_humidity(p, T, phase='mixed', omega=omega)
+
+        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
+        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
+
+        # Compute mixed-phase latent heat
+        cpx = (1 - omega) * cpl + omega * cpi
+        Lx0 = (1 - omega) * Lv0 + omega * Ls0
+        Lx = Lx0 - (cpx - cpv) * (T - T0)
+
+        # Compute saturation vapour pressues over liquid and ice
+        esl = saturation_vapour_pressure(T, phase='liquid')
+        esi = saturation_vapour_pressure(T, phase='ice')
+
+        # Compute mixed-phase pseudoadiabatic lapse rate
+        dT_dp = (b / p) * (Rd * T + Lx * qs) / \
+            (cpd + b * (Lx**2 * qs) / (Rv * T**2) +
+             b * Lx * qs * np.log(esi / esl) * domega_dT)
+
+    return dT_dp
+
+
+def follow_dry_adiabat(p1, T1, p2, q=0.):
+    """
+    Computes parcel temperature following a dry adiabat.
 
     Args:
         p1: initial pressure (Pa)
@@ -661,7 +798,7 @@ def follow_dry_adiabat(p1, T1, p2, q=0):
 
 def follow_pseudoadiabat(p1, T1, p2):
     """
-    Compute parcel temperature following a pseudoadiabat.
+    Computes parcel temperature following a pseudoadiabat.
 
     Args:
         p1: initial pressure (Pa)
@@ -683,7 +820,7 @@ def follow_pseudoadiabat(p1, T1, p2):
     return T2
 
 
-def potential_temperature(p, T, q=0):
+def potential_temperature(p, T, q=0.):
     """
     Computes potential temperature, optionally including moisture
     contribution to dry adiabatic lapse rate.
@@ -708,10 +845,10 @@ def adiabatic_wet_bulb_temperature(p, T, q):
     """
     Computes adiabatic wet-bulb temperature.
 
-    Adiabatic wet-bulb temperature is the temperature of a parcel of air lifted 
-    dry adiabatically to saturation and then brought (pseudo)adiabatically at
-    saturation back to its original pressure. It is always less than the
-    isobaric wet-bulb temperature.
+    Adiabatic (or pseudo) wet-bulb temperature is the temperature of a parcel
+    of air lifted adiabatically to saturation and then brought
+    (pseudo)adiabatically at saturation back to its original pressure. It is
+    always less than the isobaric wet-bulb temperature.
 
     See https://glossary.ametsoc.org/wiki/Wet-bulb_temperature.
 
@@ -779,8 +916,11 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         # Compute saturation specific humidity at Tw
         qs_Tw = saturation_specific_humidity(p, Tw)
 
-        # Compute effective specific heat at qs_Tw
+        # Compute effective specific heat at qs(Tw)
         cpm_qs_Tw = effective_specific_heat(qs_Tw)
+
+        # Compute factor b at Tw
+        b_Tw = (1 - qs_Tw + qs_Tw / eps) / (1 - qs_Tw + qs_Tw / gamma)
 
         # Compute latent heat at Tw
         Lv_Tw = latent_heat_of_vaporisation(Tw)
@@ -788,8 +928,7 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         # Compute f and fprime
         f = (1 / (cpv - cpl)) * np.log(Lv_Tw / Lv_T) + \
             (1 / (cpv - cpd)) * np.log(cpm_qs_Tw / cpm_q)
-        fprime = (1 / Lv_Tw) * (qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw /
-                                (cpm_qs_Tw * Rv * Tw**2))
+        fprime = (1 / Lv_Tw) + b_Tw * (Lv_Tw * qs_Tw) / (cpd * Rv * Tw**2)
         
         # Update Tw using Newton's method
         Tw = Tw - f / fprime
@@ -798,7 +937,7 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         delta = np.abs(Tw - Tw_prev)
         count += 1
         if count > 20:
-            print("isobaric wet-bulb temperature not converged after 20 iterations")
+            print("Tw not converged after 20 iterations")
             break
 
     return Tw
@@ -806,7 +945,7 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
 
 def wet_bulb_temperature(p, T, q, saturation='adiabatic', converged=0.001):
     """
-    Computes wet-bulb temperature following specified saturation process.
+    Computes wet-bulb temperature for specified saturation process.
 
     Args:
         p: pressure (Pa)
@@ -821,9 +960,9 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', converged=0.001):
     """
 
     if saturation == 'adiabatic':
-        Tw = isobaric_wet_bulb_temperature(p, T, q, converged=converged)
-    elif saturation == 'isobaric':
         Tw = adiabatic_wet_bulb_temperature(p, T, q)
+    elif saturation == 'isobaric':
+        Tw = isobaric_wet_bulb_temperature(p, T, q, converged=converged)
     else:
         raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
 
