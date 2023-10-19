@@ -36,11 +36,11 @@ def wind_direction(u, v):
     wdir = np.atleast_1d(wdir)
     
     # Correct negative values
-    neg_mask = np.array(wdir <= 0.)
+    neg_mask = np.array(wdir < 0.)
     if np.any(neg_mask):
         wdir[neg_mask] += 360.
 
-    # Set to 360 where wind speed is zero
+    # Set to 0 where wind speed is zero
     calm_mask = (np.asanyarray(u) == 0.) & (np.asanyarray(v) == 0.)
     if np.any(calm_mask):
         wdir[calm_mask] = 0.
