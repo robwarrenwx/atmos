@@ -6,11 +6,11 @@ def wind_speed(u, v):
     Computes wind speed from wind components.
 
     Args:
-        u: zonal wind velocity (m/s)
-        v: meridional wind velocity (m/s)
+        u (float or ndarray): zonal wind velocity (m/s)
+        v (float or ndarray): meridional wind velocity (m/s)
 
     Returns:
-        wspd: wind speed (m/s)
+        wspd (float or ndarray): wind speed (m/s)
 
     """
     wspd = np.hypot(u, v)
@@ -23,17 +23,17 @@ def wind_direction(u, v):
     Computes wind direction from wind components.
 
     Args:
-        u: zonal wind velocity (m/s)
-        v: meridional wind velocity (m/s)
+        u (float or ndarray): zonal wind velocity (m/s)
+        v (float or ndarray): meridional wind velocity (m/s)
 
     Returns:
-        wdir: wind direciton (deg)
+        wdir (float or ndarray): wind direciton (deg)
 
     """
     wdir = 90. - np.degrees(np.arctan2(-v, -u))
     
-    origshape = wdir.shape
     wdir = np.atleast_1d(wdir)
+
     
     # Correct negative values
     neg_mask = np.array(wdir < 0.)
@@ -45,7 +45,10 @@ def wind_direction(u, v):
     if np.any(calm_mask):
         wdir[calm_mask] = 0.
         
-    return wdir.reshape(origshape)
+    if len(wdir) == 1:
+        wdir = wdir[0]
+
+    return wdir
     
 
 def wind_components(wspd, wdir):
@@ -53,12 +56,12 @@ def wind_components(wspd, wdir):
     Computes wind components from wind speed and direction.
 
     Args:
-        wspd: wind speed (m/s)
-        wdir: wind direciton (deg)
+        wspd (float or ndarray): wind speed (m/s)
+        wdir (float or ndarray): wind direciton (deg)
 
     Returns:
-        u: zonal wind velocity (m/s)
-        v: meridional wind velocity (m/s)
+        u (float or ndarray): zonal wind velocity (m/s)
+        v (float or ndarray): meridional wind velocity (m/s)
 
     """
     u = -wspd * np.sin(np.radians(wdir))

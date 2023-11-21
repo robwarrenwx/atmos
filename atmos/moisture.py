@@ -15,10 +15,10 @@ def specific_humidity_from_mixing_ratio(r):
     Computes specific humidity from water vapour mixing ratio.
 
     Args:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """
     
@@ -32,11 +32,11 @@ def specific_humidity_from_vapour_pressure(p, e):
     Computes specific humidity from pressure and vapour pressure.
 
     Args:
-        p: pressure (Pa)
-        e: vapour pressure (Pa)
+        p (float or ndarray): pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """
     q = eps * e / (p - (1 - eps) * e)
@@ -45,20 +45,22 @@ def specific_humidity_from_vapour_pressure(p, e):
 
 
 def specific_humidity_from_relative_humidity(p, T, RH, phase='liquid', 
-                                             omega=0.):
+                                             omega=0.0):
     """
     Computes specific humidity from pressure, temperature, and relative 
-    humidity.
+    humidity with respect to specified phase.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        RH: relative humidity with respect to specified phase (fraction)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation 
+            (default is 0.0)
         
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -73,11 +75,11 @@ def specific_humidity_from_dewpoint_temperature(p, Td):
     Computes specific humidity from pressure and dewpoint temperature.
 
     Args:
-        p: pressure (Pa)
-        Td: dewpoint temperature (K)
+        p (float or ndarray): pressure (Pa)
+        Td (float or ndarray): dewpoint temperature (K)
 
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """    
     q = saturation_specific_humidity(p, Td, phase='liquid')
@@ -90,11 +92,11 @@ def specific_humidity_from_frost_point_temperature(p, Tf):
     Computes specific humidity from pressure and frost-point temperature.
 
     Args:
-        p: pressure (Pa)
-        Tf: frost-point temperature (K)
+        p (float or ndarray): pressure (Pa)
+        Tf (float or ndarray): frost-point temperature (K)
 
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """    
     q = saturation_specific_humidity(p, Tf, phase='ice')
@@ -107,12 +109,12 @@ def specific_humidity_from_saturation_point_temperature(p, Ts, omega):
     Computes specific humidity from pressure and saturation-point temperature.
 
     Args:
-        p: pressure (Pa)
-        Ts: saturation-point temperature (K)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     """    
     q = saturation_specific_humidity(p, Ts, phase='mixed', omega=omega)
@@ -125,10 +127,10 @@ def mixing_ratio_from_specific_humidity(q):
     Computes mixing ratio from specific humidity.
 
     Args:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """
     r = mixing_ratio(q)
@@ -141,11 +143,11 @@ def mixing_ratio_from_vapour_pressure(p, e):
     Computes mixing ratio from pressure and vapour pressure.
 
     Args:
-        p: pressure (Pa)
-        e: vapour pressure (Pa)
+        p (float or ndarray): pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """
     r = eps * e / (p - e)
@@ -153,19 +155,22 @@ def mixing_ratio_from_vapour_pressure(p, e):
     return r
 
 
-def mixing_ratio_from_relative_humidity(p, T, RH, phase='liquid', omega=0.):
+def mixing_ratio_from_relative_humidity(p, T, RH, phase='liquid', omega=0.0):
     """
-    Computes mixing ratio from pressure, temperature, and relative humidity.
+    Computes mixing ratio from pressure, temperature, and relative humidity
+    with respect to specified phase.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        RH: relative humidity with respect to specified phase (fraction)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation 
+            (default is 0.0)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -180,11 +185,11 @@ def mixing_ratio_from_dewpoint_temperature(p, Td):
     Computes mixing ratio from pressure and dewpoint temperature.
 
     Args:
-        p: pressure (Pa)
-        Td: dewpoint temperature (K)
+        p (float or ndarray): pressure (Pa)
+        Td (float or ndarray): dewpoint temperature (K)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """    
     r = saturation_mixing_ratio(p, Td, phase='liquid')
@@ -197,11 +202,11 @@ def mixing_ratio_from_frost_point_temperature(p, Tf):
     Computes mixing ratio from pressure and frost-point temperature.
 
     Args:
-        p: pressure (Pa)
-        Tf: frost-point temperature (K)
+        p (float or ndarray): pressure (Pa)
+        Tf (float or ndarray): frost-point temperature (K)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """    
     r = saturation_mixing_ratio(p, Tf, phase='ice')
@@ -214,12 +219,12 @@ def mixing_ratio_from_saturation_point_temperature(p, Ts, omega):
     Computes mixing ratio from pressure and saturation-point temperature.
 
     Args:
-        p: pressure (Pa)
-        Ts: saturation-point temperature (K)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """    
     r = saturation_mixing_ratio(p, Ts, phase='mixed', omega=omega)
@@ -232,11 +237,11 @@ def vapour_pressure_from_specific_humidity(p, q):
     Computes vapour pressure from pressure and specific humidity.
 
     Args:
-        p: pressure (Pa)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = vapour_pressure(p, q)
@@ -249,11 +254,11 @@ def vapour_pressure_from_mixing_ratio(p, r):
     Computes vapour pressure from pressure and mixing ratio.
 
     Args:
-        p: pressure (Pa)
-        r: mixing ratio (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = p * r / (r + eps)
@@ -261,18 +266,21 @@ def vapour_pressure_from_mixing_ratio(p, r):
     return e
 
 
-def vapour_pressure_from_relative_humidity(T, RH, phase='liquid', omega=0.):
+def vapour_pressure_from_relative_humidity(T, RH, phase='liquid', omega=0.0):
     """
-    Computes vapour pressure from temperature and relative humidity.
+    Computes vapour pressure from temperature and relative humidity with
+    respect to specified phase.
 
     Args:
-        T: temperature (K)
-        RH: relative humidity with respect to specified phase (fraction)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation 
+            (default is 0.0)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -286,10 +294,10 @@ def vapour_pressure_from_dewpoint_temperature(Td):
     Computes vapour pressure from dewpoint temperature.
 
     Args:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = saturation_vapour_pressure(Td, phase='liquid')
@@ -302,10 +310,10 @@ def vapour_pressure_from_frost_point_temperature(Tf):
     Computes vapour pressure from frost-point temperature.
 
     Args:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = saturation_vapour_pressure(Tf, phase='ice')
@@ -318,11 +326,11 @@ def vapour_pressure_from_saturation_point_temperature(Ts, omega):
     Computes vapour pressure from saturation-point temperature.
 
     Args:
-        Ts: saturation-point temperature (K)
-        omega: ice fraction at saturation (fraction)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = saturation_vapour_pressure(Ts, phase='mixed', omega=omega)
@@ -331,20 +339,20 @@ def vapour_pressure_from_saturation_point_temperature(Ts, omega):
 
 
 def relative_humidity_from_specific_humidity(p, T, q, phase='liquid', 
-                                             omega=0.):
+                                             omega=0.0):
     """
-    Computes relative humidity from pressure, temperature, and specific 
-    humidity.
+    Computes relative humidity with respect to specified phase from pressure, 
+    temperature, and specific humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        omega (optional): ice fraction at saturation
 
     Returns:
-        RH: relative humidity with respect to specified phase (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     RH = relative_humidity(p, T, q, phase=phase, omega=omega)
@@ -352,19 +360,21 @@ def relative_humidity_from_specific_humidity(p, T, q, phase='liquid',
     return RH
     
     
-def relative_humidity_from_mixing_ratio(p, T, r, phase='liquid', omega=0.):
+def relative_humidity_from_mixing_ratio(p, T, r, phase='liquid', omega=0.0):
     """
-    Computes relative humidity from pressure, temperature, and mixing ratio.
+    Computes relative humidity with respect to specified phase from pressure, 
+    temperature, and mixing ratio.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        r: mixing ratio (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        r (float or ndarray): mixing ratio (kg/kg)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        omega (float or ndarray, optional): ice fraction at saturation 
+            (default is 0.0)
 
     Returns:
-        RH: relative humidity with respect to specified phase (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     q = specific_humidity_from_mixing_ratio(r)
@@ -373,18 +383,19 @@ def relative_humidity_from_mixing_ratio(p, T, r, phase='liquid', omega=0.):
     return RH
     
     
-def relative_humidity_from_vapour_pressure(T, e, phase='liquid', omega=0.):
+def relative_humidity_from_vapour_pressure(T, e, phase='liquid', omega=0.0):
     """
-    Computes relative humidity from temperature and vapour pressure.
+    Computes relative humidity with respect to specified phase from temperature
+    and vapour pressure.
 
     Args:
-        T: temperature (K)
-        e: vapour pressure (Pa)
+        T (float or ndarray): temperature (K)
+        e (float or ndarray): vapour pressure (Pa)
         phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        omega (optional): ice fraction at saturation
 
     Returns:
-        RH: relative humidity with respect to specified phase (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -395,14 +406,15 @@ def relative_humidity_from_vapour_pressure(T, e, phase='liquid', omega=0.):
     
 def relative_humidity_from_dewpoint_temperature(T, Td):
     """
-    Computes relative humidity from temperature and dewpoint temperature.
+    Computes relative humidity with respect to liquid water from temperature
+    and dewpoint temperature.
 
     Args:
-        T: temperature (K)
-        Td: dewpoint temperature (K)
+        T (float or ndarray): temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     Returns:
-        RH: relative humidity with respect to liquid water (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     e = saturation_vapour_pressure(Td, phase='liquid')
@@ -414,14 +426,15 @@ def relative_humidity_from_dewpoint_temperature(T, Td):
     
 def relative_humidity_from_frost_point_temperature(T, Tf):
     """
-    Computes relative humidity from temperature and frost-point temperature.
+    Computes relative humidity with respect to ice from temperature and frost-
+    point temperature.
 
     Args:
-        T: temperature (K)
-        Tf: frost-point temperature (K)
+        T (float or ndarray): temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     Returns:
-        RH: relative humidity with respect to ice (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     e = saturation_vapour_pressure(Tf, phase='ice')
@@ -433,16 +446,16 @@ def relative_humidity_from_frost_point_temperature(T, Tf):
 
 def relative_humidity_from_saturation_point_temperature(T, Ts, omega):
     """
-    Computes relative humidity from temperature and saturation-point 
-    temperature.
+    Computes mixed-phase relative humidity from temperature and saturation-
+    point temperature.
 
     Args:
-        T: temperature (K)
-        Ts: saturation-point temperature (K)
-        omega: ice fraction at saturation (fraction)
+        T (float or ndarray): temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        RH: mixed-phase relative humidity (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     e = saturation_vapour_pressure(Ts, phase='mixed', omega=omega)
@@ -458,12 +471,12 @@ def dewpoint_temperature_from_specific_humidity(p, T, q):
     humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     """
     Td = dewpoint_temperature(p, T, q)
@@ -477,12 +490,12 @@ def dewpoint_temperature_from_mixing_ratio(p, T, r):
     ratio.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        r: mixing ratio (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     Returns:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     """
     q = specific_humidity_from_mixing_ratio(r)
@@ -497,12 +510,12 @@ def dewpoint_temperature_from_vapour_pressure(p, T, e):
     pressure.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        e: vapour pressure (Pa)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        e (float or ndarray): vapour pressure (Pa)
 
     Returns:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     """
     q = specific_humidity_from_vapour_pressure(p, e)
@@ -514,15 +527,15 @@ def dewpoint_temperature_from_vapour_pressure(p, T, e):
 def dewpoint_temperature_from_relative_humidity(p, T, RH):
     """
     Computes dewpoint temperature from pressure, temperature, and relative
-    humidity.
+    humidity with respect to liquid water.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        RH: relative humidity with respect to liquid water (Pa)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
 
     Returns:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     """
     q = specific_humidity_from_relative_humidity(p, T, RH, phase='liquid')
@@ -537,12 +550,12 @@ def frost_point_temperature_from_specific_humidity(p, T, q):
     humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     """
     Tf = frost_point_temperature(p, T, q)
@@ -556,12 +569,12 @@ def frost_point_temperature_from_mixing_ratio(p, T, r):
     ratio.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        r: mixing ratio (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     Returns:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     """
     q = specific_humidity_from_mixing_ratio(r)
@@ -576,12 +589,12 @@ def frost_point_temperature_from_vapour_pressure(p, T, e):
     pressure.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        e: vapour pressure (Pa)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        e (float or ndarray): vapour pressure (Pa)
 
     Returns:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     """
     q = specific_humidity_from_vapour_pressure(p, e)
@@ -593,15 +606,15 @@ def frost_point_temperature_from_vapour_pressure(p, T, e):
 def frost_point_temperature_from_relative_humidity(p, T, RH):
     """
     Computes frost-point temperature from pressure, temperature, and relative
-    humidity.
+    humidity with respect to ice.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        RH: relative humidity with respect to ice (Pa)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (Pa)
 
     Returns:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     """
     q = specific_humidity_from_relative_humidity(p, T, RH, phase='ice')
@@ -616,13 +629,13 @@ def saturation_point_temperature_from_specific_humidity(p, T, q, omega):
     specific humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        Ts: saturation-point temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
 
     """
     Ts = saturation_point_temperature(p, T, q, omega)
@@ -636,13 +649,13 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, omega):
     mixing ratio.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        r: mixing ratio (kg/kg)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        r (float or ndarray): mixing ratio (kg/kg)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        Ts: saturation-point temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
 
     """
     q = specific_humidity_from_mixing_ratio(r)
@@ -657,13 +670,13 @@ def saturation_point_temperature_from_vapour_pressure(p, T, e, omega):
     vapour pressure.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        e: vapour pressure (Pa)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        e (float or ndarray): vapour pressure (Pa)
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
-        Ts: saturation-point temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
 
     """
     q = specific_humidity_from_vapour_pressure(p, e)
@@ -675,16 +688,16 @@ def saturation_point_temperature_from_vapour_pressure(p, T, e, omega):
 def saturation_point_temperature_from_relative_humidity(p, T, RH, omega):
     """
     Computes saturation-point temperature from pressure, temperature, and
-    relative humidity.
+    mixed-phase relative humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        RH: mixed-phase relative humidity (fraction)
-        omega: ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+        omega (float or ndarray): ice fraction at saturation
     
     Returns:
-        Ts: saturation-point temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
 
     """
     q = specific_humidity_from_relative_humidity(p, T, RH, phase='mixed', 
@@ -694,20 +707,23 @@ def saturation_point_temperature_from_relative_humidity(p, T, RH, omega):
     return Ts
 
 
-def convert_relative_humidity(T, RH_in, phase_in, phase_out, omega=0.):
+def convert_relative_humidity(T, RH_in, phase_in, phase_out, omega=0.0):
     """
     Converts relative humidity with respect to one phase to relative humidity
     with respect to another phase.
 
     Args:
-        T: temperature (K)
-        RH_in: relative humidity with respect to phase_in (fraction)
-        phase_in: input condensed water phase ('liquid', 'ice', or 'mixed')
-        phase_out: output condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        T (float or ndarray): temperature (K)
+        RH_in (float or ndarray): input relative humidity (fraction)
+        phase_in (str): input condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed')
+        phase_out (str): output condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed')
+        omega (float or ndarray, optional): ice fraction at saturation
+            (default is 0.0)
     
     Returns:
-        RH_out: relative humidity with respect to phase_out (K)
+        RH_out (float or ndarray): output relative humidity (fraction)
 
     """
     es_in = saturation_vapour_pressure(T, phase=phase_in, omega=omega)

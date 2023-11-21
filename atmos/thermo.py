@@ -31,10 +31,10 @@ def effective_gas_constant(q):
     Computes effective gas constant for moist air.
 
     Args:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Rm: effective gas constant for moist air (J/kg/K)
+        Rm (float or ndarray): effective gas constant (J/kg/K)
 
     """
     Rm = (1 - q) * Rd + q * Rv
@@ -47,10 +47,10 @@ def effective_specific_heat(q):
     Computes effective isobaric specific heat for moist air (J/kg/K).
 
     Args:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        cpm: effective isobaric specific heat for moist air (J/kg/K)
+        cpm (float or ndarray): effective isobaric specific heat (J/kg/K)
 
     """
     cpm = (1 - q) * cpd + q * cpv
@@ -63,10 +63,10 @@ def latent_heat_of_vaporisation(T):
     Computes latent heat of vaporisation for a given temperature.
 
     Args:
-        T: temperature (K)
+        T (float or ndarray): temperature (K)
 
     Returns:
-        Lv: latent heat of vaporisation (J/kg)
+        Lv (float or ndarray): latent heat of vaporisation (J/kg)
 
     """
     Lv = Lv0 - (cpl - cpv) * (T - T0)
@@ -79,10 +79,10 @@ def latent_heat_of_freezing(T):
     Computes latent heat of freezing for a given temperature.
 
     Args:
-        T: temperature (K)
+        T (float or ndarray): temperature (K)
 
     Returns:
-        Lf: latent heat of freezing (J/kg)
+        Lf (float or ndarray): latent heat of freezing (J/kg)
 
     """
     Lf = Lf0 - (cpi - cpl) * (T - T0)
@@ -95,10 +95,10 @@ def latent_heat_of_sublimation(T):
     Computes latent heat of sublimation for a given temperature.
 
     Args:
-        T: temperature (K)
+        T (float or ndarray): temperature (K)
 
     Returns:
-        Ls: latent heat of sublimation (J/kg)
+        Ls (float or ndarray): latent heat of sublimation (J/kg)
 
     """
     Ls = Ls0 - (cpi - cpv) * (T - T0)
@@ -111,12 +111,12 @@ def air_density(p, T, q):
     Computes density of air using the ideal gas equation.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        rho: air density (kg/m3)
+        rho (float or ndarray): air density (kg/m3)
 
     """
     Rm = effective_gas_constant(q)
@@ -130,12 +130,12 @@ def dry_air_density(p, T, q):
     Computes density of dry air using the ideal gas equation.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        rhod: dry air density (kg/m3)
+        rhod (float or ndarray): dry air density (kg/m3)
 
     """
     rhod = (1 - q) * air_density(p, T, q)
@@ -148,11 +148,11 @@ def virtual_temperature(T, q):
     Computes virtual temperature.
 
     Args:
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Tv: virtual temperature (K)
+        Tv (float or ndarray): virtual temperature (K)
 
     """
     Tv = T * (1 + (1/eps - 1) * q)
@@ -165,10 +165,10 @@ def mixing_ratio(q):
     Computes water vapour mixing ratio from specific humidity.
 
     Args:
-        q: specific humidity (kg/kg)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        r: mixing ratio (kg/kg)
+        r (float or ndarray): mixing ratio (kg/kg)
 
     """
     r = q / (1 - q)
@@ -181,11 +181,11 @@ def vapour_pressure(p, q):
     Computes vapour pressure from pressure and specific humidity.
 
     Args:
-        p: pressure (Pa)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        e: vapour pressure (Pa)
+        e (float or ndarray): vapour pressure (Pa)
 
     """
     e = p * q / ((1 - eps) * q + eps)
@@ -193,18 +193,20 @@ def vapour_pressure(p, q):
     return e
 
 
-def saturation_vapour_pressure(T, phase='liquid', omega=0.):
+def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
     """
     Computes saturation vapour pressure (SVP) over liquid, ice, or mixed-phase
     water for a given temperature using equations from Ambaum (2020).
 
     Args:
-        T: temperature (K)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        T (float or ndarray): temperature (K)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation
+            (default is 0.0)
 
     Returns:
-        es: saturation vapour pressure (Pa)
+        es (float or ndarray): saturation vapour pressure (Pa)
 
     """
    
@@ -246,18 +248,20 @@ def saturation_vapour_pressure(T, phase='liquid', omega=0.):
     return es
 
 
-def saturation_specific_humidity(p, T, phase='liquid', omega=0.):
+def saturation_specific_humidity(p, T, phase='liquid', omega=0.0):
     """
     Computes saturation specific humidity from pressure and temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation
+            (default is 0.0)
 
     Returns:
-        qs: saturation specific humidity (kg/kg)
+        qs (float or ndarray): saturation specific humidity (kg/kg)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -266,18 +270,20 @@ def saturation_specific_humidity(p, T, phase='liquid', omega=0.):
     return qs
 
 
-def saturation_mixing_ratio(p, T, phase='liquid', omega=0.):
+def saturation_mixing_ratio(p, T, phase='liquid', omega=0.0):
     """
     Computes saturation mixing ratio from pressure and temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation
+            (default is 0.0)
 
     Returns:
-        rs: saturation mixing ratio (kg/kg)
+        rs (float or ndarray): saturation mixing ratio (kg/kg)
 
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
@@ -286,20 +292,22 @@ def saturation_mixing_ratio(p, T, phase='liquid', omega=0.):
     return rs
 
 
-def relative_humidity(p, T, q, phase='liquid', omega=0.):
+def relative_humidity(p, T, q, phase='liquid', omega=0.0):
     """
-    Computes relative humidity from pressure, temperature, and specific 
-    humidity.
+    Computes relative humidity with respect to specified phase from pressure, 
+    temperature, and specific humidity.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        omega (optional): ice fraction at saturation (fraction)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction at saturation 
+            (default is 0.0)
         
     Returns:
-        RH: relative humidity with respect to specified phase (fraction)
+        RH (float or ndarray): relative humidity (fraction)
 
     """
     e = vapour_pressure(p, q)
@@ -315,12 +323,12 @@ def dewpoint_temperature(p, T, q):
     humidity using equations from Romps (2021).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Td: dewpoint temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
 
     """
 
@@ -348,12 +356,12 @@ def frost_point_temperature(p, T, q):
     humidity using equations from Romps (2021).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Tf: frost-point temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
 
     """    
     # Compute relative humidity over ice
@@ -380,13 +388,13 @@ def saturation_point_temperature(p, T, q, omega):
     specific humidity using equations similar to Romps (2021).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
         omega: ice fraction at saturation (fraction)
 
     Returns:
-        Ts: saturation-point temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
 
     """
 
@@ -420,13 +428,13 @@ def lifting_condensation_level(p, T, q):
     (LCL) using equations from Romps (2017).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        p_lcl: pressure at the LCL (Pa)
-        T_lcl: temperature at the LCL (K)
+        p_lcl (float or ndarray): pressure at the LCL (Pa)
+        T_lcl (float or ndarray): temperature at the LCL (K)
 
     """
     
@@ -464,13 +472,13 @@ def lifting_deposition_level(p, T, q):
     (LDL) using equations from Romps (2017).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        p_ldl: pressure at the LDL (Pa)
-        T_ldl: temperature at the LDL (K)
+        p_ldl (float or ndarray): pressure at the LDL (Pa)
+        T_ldl (float or ndarray): temperature at the LDL (K)
 
     """
 
@@ -508,14 +516,14 @@ def lifting_saturation_level(p, T, q, omega):
     (LSL) using equations similar to Romps (2017).
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
         omega: ice fraction at saturation (fraction)
 
     Returns:
-        p_lsl: pressure at the LSL (Pa)
-        T_lsl: temperature at the LSL (K)
+        p_lsl (float or ndarray): pressure at the LSL (Pa)
+        T_lsl (float or ndarray): temperature at the LSL (K)
 
     """
 
@@ -558,25 +566,29 @@ def ice_fraction(Tstar, Tliq=273.15, Tice=253.15):
     Computes ice fraction given temperature at saturation.
 
     Args:
-        Tstar: temperature at saturation (K)
-        Tliq (optional): temperature above which all condensate is liquid (K)
-        Tice (optional): temperature below which all condensate is ice (K)
+        Tstar (float or ndarray): temperature at saturation (K)
+        Tliq (float, optional): temperature above which all condensate is 
+            assumed to be liquid (K) (default is 273.15 K = 0 degC)
+        Tice (float, optional): temperature below which all condensate is 
+            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
-        omega: ice fraction (fraction)
+        omega (float or ndarray): ice fraction
 
     """
     if Tice >= Tliq:
         raise ValueError('Tice must be less than Tliq')
 
-    origshape = Tstar.shape
     Tstar = np.atleast_1d(Tstar)
 
     omega = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
     omega[Tstar <= Tice] = 1.0
     omega[Tstar >= Tliq] = 0.0
 
-    return omega.reshape(origshape)
+    if len(Tstar) == 1:
+        Tstar = Tstar[0]
+
+    return omega
 
 
 def ice_fraction_derivative(Tstar, Tliq=273.15, Tice=253.15):
@@ -585,25 +597,29 @@ def ice_fraction_derivative(Tstar, Tliq=273.15, Tice=253.15):
     saturation.
     
     Args:
-        Tstar: temperature at saturation (K)
-        Tliq (optional): temperature above which all condensate is liquid (K)
-        Tice (optional): temperature below which all condensate is ice (K)
+        Tstar (float or ndarray): temperature at saturation (K)
+        Tliq (float, optional): temperature above which all condensate is 
+            assumed to be liquid (K) (default is 273.15 K = 0 degC)
+        Tice (float, optional): temperature below which all condensate is 
+            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
-        domega_dTstar: derivative of ice fraction with respect to Tstar (K^-1)
+        domega_dTstar (float or ndarray): derivative of ice fraction (K^-1)
        
     """
     if Tice >= Tliq:
         raise ValueError('Tice must be less than Tliq')
 
-    origshape = Tstar.shape
     Tstar = np.atleast_1d(Tstar)
 
     domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
             np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
     domega_dTstar[(Tstar <= Tice) | (Tstar >= Tliq)] = 0.0
 
-    return domega_dTstar.reshape(origshape)
+    if len(Tstar) == 1:
+        domega_dTstar = domega_dTstar[0]
+
+    return domega_dTstar
 
 
 def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
@@ -612,16 +628,19 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
     Computes ice fraction at saturation for specified saturation process.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-        saturation (optional): saturation process (isobaric or adiabatic)
-        converged (optional): target precision for Tstar (K)
-        Tliq (optional): temperature above which all condensate is liquid (K)
-        Tice (optional): temperature below which all condensate is ice (K)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        saturation (str, optional): saturation process (valid options are 
+            'isobaric' or 'adiabatic'; default is 'isobaric')
+        converged (float, optional): target precision for Tstar (K)
+        Tliq (float, optional): temperature above which all condensate is 
+            assumed to be liquid (K) (default is 273.15 K = 0 degC)
+        Tice (float, optional): temperature below which all condensate is 
+            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
-        omega: ice fraction at saturation (fraction)
+        omega (float or ndarray): ice fraction at saturation
 
     """
 
@@ -674,12 +693,12 @@ def dry_adiabatic_lapse_rate(p, T, q):
     Computes dry adiabatic lapse rate in pressure coordinates.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q (optional): specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        dT_dp: dry adiabatic lapse rate in pressure coordinates (K/Pa)
+        dT_dp (float or ndarray): dry adiabatic lapse rate (K/Pa)
 
     """
 
@@ -697,14 +716,17 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
     Computes pseudoadiabatic lapse rate in pressure coordinates.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        phase (optional): condensed water phase ('liquid', 'ice', or 'mixed')
-        Tliq (optional): temperature above which all condensate is liquid (K)
-        Tice (optional): temperature below which all condensate is ice (K)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        Tliq (float, optional): temperature above which all condensate is 
+            assumed to be liquid (K) (default is 273.15 K = 0 degC)
+        Tice (float, optional): temperature below which all condensate is 
+            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
-        dT_dp: pseudoadiabatic lapse rate in pressure coordinates (K/Pa)
+        dT_dp (float or ndarray): pseudoadiabatic lapse rate (K/Pa)
 
     """
 
@@ -771,18 +793,18 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
     return dT_dp
 
 
-def follow_dry_adiabat(p1, T1, p2, q=0.):
+def follow_dry_adiabat(p1, p2, T1, q):
     """
     Computes parcel temperature following a dry adiabat.
 
     Args:
-        p1: initial pressure (Pa)
-        T1: initial temperature (K)
-        p2: final pressure (Pa)
-        q (optional): specific humidity (kg/kg)
+        p1 (float or ndarray): initial pressure (Pa)
+        p2 (float or ndarray): final pressure (Pa)
+        T1 (float or ndarray): initial temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        T2: final temperature (K)
+        T2 (float or ndarray): final temperature (K)
 
     """
 
@@ -796,17 +818,17 @@ def follow_dry_adiabat(p1, T1, p2, q=0.):
     return T2
 
 
-def follow_pseudoadiabat(p1, T1, p2):
+def follow_pseudoadiabat(p1, p2, T1):
     """
     Computes parcel temperature following a pseudoadiabat.
 
     Args:
-        p1: initial pressure (Pa)
-        T1: initial temperature (K)
-        p2: final pressure (Pa)
+        p1 (float or ndarray): initial pressure (Pa)
+        p2 (float or ndarray): final pressure (Pa)
+        T1 (float or ndarray): initial temperature (K)
 
     Returns:
-        T2: final temperature (K)
+        T2 (float or ndarray): final temperature (K)
 
     """
 
@@ -820,23 +842,23 @@ def follow_pseudoadiabat(p1, T1, p2):
     return T2
 
 
-def potential_temperature(p, T, q=0.):
+def potential_temperature(p, T, q=0.0):
     """
     Computes potential temperature, optionally including moisture
     contribution to dry adiabatic lapse rate.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q (optional): specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray, optional): specific humidity (kg/kg)
 
     Returns:
-        th: potential temperature (K)
+        th (float or ndarray): potential temperature (K)
 
     """
 
     # Follow a dry adiabat to 1000hPa reference
-    th = follow_dry_adiabat(p, T, 100000., q)
+    th = follow_dry_adiabat(p, 100000., T, q)
 
     return th
 
@@ -853,12 +875,12 @@ def adiabatic_wet_bulb_temperature(p, T, q):
     See https://glossary.ametsoc.org/wiki/Wet-bulb_temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        Tw: adiabatic wet-bulb temperature (K)
+        Tw (float or ndarray): adiabatic wet-bulb temperature (K)
 
     """
 
@@ -866,7 +888,7 @@ def adiabatic_wet_bulb_temperature(p, T, q):
     p_lcl, Tp_lcl = lifting_condensation_level(p, T, q)
 
     # Follow a pseudoadiabat from the LCL to the original pressure
-    Tw = follow_pseudoadiabat(p_lcl, Tp_lcl, p)
+    Tw = follow_pseudoadiabat(p_lcl, p, Tp_lcl)
 
     return Tw
 
@@ -884,13 +906,14 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
     See https://glossary.ametsoc.org/wiki/Wet-bulb_temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-        converged (optional): target precision for Tw (K)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        converged (float, optional): target precision for iterative solution
+            (default is 0.001 K)
 
     Returns:
-        Tw: isobaric wet-bulb temperature (K)
+        Tw (float or ndarray): isobaric wet-bulb temperature (K)
 
     """
 
@@ -948,11 +971,13 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', converged=0.001):
     Computes wet-bulb temperature for specified saturation process.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
-        saturation (optional): saturation process (isobaric or adiabatic)
-        converged (optional): target precision for isobaric Tw (K)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        saturation (str, optional): saturation process (valid options are 
+        'isobaric' or 'adiabatic'; deault is 'adiabatic')
+        converged (float, optional): target precision for iterative solution
+            of isobaric Tw (K) (default is 0.001 K)
 
     Returns:
         Tw: wet-bulb temperature (K)
@@ -974,12 +999,12 @@ def wet_bulb_potential_temperature(p, T, q):
     Computes wet-bulb potential temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
-        q: specific humidity (kg/kg)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        thw: wet-bulb potential temperature (K)
+        thw (float or ndarray): wet-bulb potential temperature (K)
 
     """
 
@@ -998,11 +1023,11 @@ def saturated_wet_bulb_potential_temperature(p, T):
     Computes saturation wet-bulb potential temperature.
 
     Args:
-        p: pressure (Pa)
-        T: temperature (K)
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
 
     Returns:
-        thws: wet-bulb potential temperature (K)
+        thws (float or ndarray): wet-bulb potential temperature (K)
 
     """
 
