@@ -917,9 +917,6 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
 
     """
 
-    # Compute effective specific heat at specific humidity q
-    cpm_q = effective_specific_heat(q)
-
     # Compute latent heat at temperature T
     Lv_T = latent_heat_of_vaporisation(T)
 
@@ -939,19 +936,16 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         # Compute saturation specific humidity at Tw
         qs_Tw = saturation_specific_humidity(p, Tw)
 
-        # Compute effective specific heat at qs(Tw)
+        # Compute the effective specific heat at qs(Tw)
         cpm_qs_Tw = effective_specific_heat(qs_Tw)
-
-        # Compute factor b at Tw
-        b_Tw = (1 - qs_Tw + qs_Tw / eps) / (1 - qs_Tw + qs_Tw / gamma)
 
         # Compute latent heat at Tw
         Lv_Tw = latent_heat_of_vaporisation(Tw)
 
         # Compute f and fprime
-        f = (1 / (cpv - cpl)) * np.log(Lv_Tw / Lv_T) + \
-            (1 / (cpv - cpd)) * np.log(cpm_qs_Tw / cpm_q)
-        fprime = (1 / Lv_Tw) + b_Tw * (Lv_Tw * qs_Tw) / (cpd * Rv * Tw**2)
+        f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
+        dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
+        fprime = ((T - Tw) * (cpv - cpd) - Lv_T) * dqs_dTw - cpm_qs_Tw
         
         # Update Tw using Newton's method
         Tw = Tw - f / fprime
