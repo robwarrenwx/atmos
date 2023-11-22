@@ -647,7 +647,6 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
     # Initialise the temperature at saturation as the actual temperature
     Tstar = T.copy()
 
-    origshape = Tstar.shape
     Tstar = np.atleast_1d(Tstar)
 
     # Compute the initial ice fraction
@@ -685,7 +684,7 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
             print("Tstar not converged after 20 iterations")
             break
 
-    return omega.reshape(origshape)
+    return omega
 
 
 def dry_adiabatic_lapse_rate(p, T, q):
@@ -793,18 +792,18 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
     return dT_dp
 
 
-def follow_dry_adiabat(p1, p2, T1, q):
+def follow_dry_adiabat(pi, pf, Ti, q):
     """
     Computes parcel temperature following a dry adiabat.
 
     Args:
-        p1 (float or ndarray): initial pressure (Pa)
-        p2 (float or ndarray): final pressure (Pa)
-        T1 (float or ndarray): initial temperature (K)
+        pi (float or ndarray): initial pressure (Pa)
+        pf (float or ndarray): final pressure (Pa)
+        Ti (float or ndarray): initial temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        T2 (float or ndarray): final temperature (K)
+        Tf (float or ndarray): final temperature (K)
 
     """
 
@@ -813,33 +812,131 @@ def follow_dry_adiabat(p1, p2, T1, q):
     cpm = effective_specific_heat(q)
 
     # Compute new temperature
-    T2 = T1 * np.power((p2 / p1), (Rm / cpm))
+    Tf = Ti * np.power((pf / pi), (Rm / cpm))
 
-    return T2
+    return Tf
 
 
-def follow_pseudoadiabat(p1, p2, T1):
+def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', Tliq=273.15, Tice=253.15,
+                         method='polynomial', pinc=500.0, converged=0.001):
     """
-    Computes parcel temperature following a pseudoadiabat.
+    Computes parcel temperature following a pseudoadiabat. By default, uses
+    polynomial fits to pseudoadiabats for fast calculations. Option to use
+    slower iterative calculation.
 
     Args:
-        p1 (float or ndarray): initial pressure (Pa)
-        p2 (float or ndarray): final pressure (Pa)
-        T1 (float or ndarray): initial temperature (K)
+        pi (float or ndarray): initial pressure (Pa)
+        pf (float or ndarray): final pressure (Pa)
+        Ti (float or ndarray): initial temperature (K)
+        phase (str, optional): condensed water phase (valid options are 
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        Tliq (float, optional): temperature above which all condensate is 
+            assumed to be liquid (K) (default is 273.15 K = 0 degC)
+        Tice (float, optional): temperature below which all condensate is 
+            assumed to be ice (K) (default is 253.15 K = -20 degC)
+        method (str, optional): method for computing parcel temperature (valid
+            options are 'polynomial' or 'iterative')
+        pinc (float, optional): pressure increment for iterative calculation
+            (default is 500 Pa = 5 hPa)
+        converged (float, optional): target precision for iterative solution
+            (default is 0.001 K)
 
     Returns:
-        T2 (float or ndarray): final temperature (K)
+        Tf (float or ndarray): final temperature (K)
 
     """
 
-    # Compute the wet-bulb potential temperature of the pseudoadiabat
-    # that passes through (p1, T1)
-    thw = pseudoadiabat.wbpt(p1, T1)
+    if method == 'polynomial':
 
-    # Compute the temperature on this pseudoadiabat at p2
-    T2 = pseudoadiabat.temp(p2, thw)
+        # Compute the wet-bulb potential temperature of the pseudoadiabat
+        # that passes through (pi, Ti)
+        thw = pseudoadiabat.wbpt(pi, Ti)
+
+        # Compute the temperature on this pseudoadiabat at pf
+        Tf = pseudoadiabat.temp(pf, thw)
+
+    elif method == 'iterative':
+
+        pi = np.atleast_1d(pi)
+        pf = np.atleast_1d(pf)
+        Ti = np.atleast_1d(Ti)
+
+        # Set the pressure increment based on whether the parcel is ascending
+        # or descending
+        pinc = np.abs(pinc)  # make sure pinc is positive
+        ascending = (pf < pi)
+        descending = np.logical_not(ascending)
+        dp = np.where(ascending, -pinc, pinc)
+
+        # Initialise the pressure and temperature at level 2
+        p2 = np.copy(pi)
+        T2 = np.copy(Ti)
+
+        #print(np.min(p2), np.max(p2))
+        #print(np.count_nonzero(ascending), np.count_nonzero(descending))
+        #print(np.min(dp), np.max(dp))
+
+        # Loop over pressure increments
+        while np.max(np.abs(p2 - pf)) > 0.0:
+
+            # Set level 1 values
+            p1 = p2.copy()
+            T1 = T2.copy()
+
+            # Update the pressure
+            p2 = p1 + dp
+
+            # Make sure we haven't overshot final pressure level
+            if np.any(ascending):
+                p2[ascending] = np.maximum(p2[ascending], pf[ascending])
+            if np.any(descending):
+                p2[descending] = np.minimum(p2[descending], pf[descending])
+
+            #print(np.min(p2), np.max(p2))
+
+            # Compute the layer-mean pressure
+            pbar = np.sqrt(p1 * p2)  # average of log(p)
     
-    return T2
+            # Initialise the temperature at level 2
+            T2 = T1
+
+            # Iterate to convergence
+            delta = np.full_like(p2, 10)
+            count = 0
+            while np.max(delta) > converged:
+
+                # Compute the layer-mean temperature
+                Tbar = 0.5 * (T1 + T2)
+
+                # Compute the lapse rate
+                dT_dp = pseudoadiabatic_lapse_rate(pbar, Tbar, phase=phase,
+                                                   Tliq=Tliq, Tice=Tice)
+
+                # Update the level 2 temperature
+                T2_new = T1 + dT_dp * (p2 - p1)
+
+                # Check if the solution has converged
+                delta = np.abs(T2_new - T2)
+                count += 1
+                if count == 20:
+                    # should converge in just a couple of iterations, provided
+                    # pinc is not too large
+                    print('Not converged after 20 iterations')
+                    break
+
+                # Update the level 2 temperature
+                T2 = T2_new.copy()
+
+            #print(count)
+
+        # Set the final temperature
+        Tf = T2
+
+    else:
+
+        raise ValueError("method must be one of 'polynomial' or 'iterative'")
+
+    return Tf
 
 
 def potential_temperature(p, T, q=0.0):
@@ -945,7 +1042,7 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         # Compute f and fprime
         f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
         dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
-        fprime = ((T - Tw) * (cpv - cpd) - Lv_T) * dqs_dTw - cpm_qs_Tw
+        fprime = ((cpv - cpd) * (T - Tw) - Lv_T) * dqs_dTw - cpm_qs_Tw
         
         # Update Tw using Newton's method
         Tw = Tw - f / fprime
