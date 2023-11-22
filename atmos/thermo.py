@@ -22,7 +22,7 @@ Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
 import numpy as np
 from scipy.special import lambertw
 from atmos.constant import (Rd, Rv, eps, cpd, cpv, gamma, cpl, cpi,
-                            T0, es0, Lv0, Lf0, Ls0)
+                            T0, es0, Lv0, Lf0, Ls0, Tliq, Tice)
 import atmos.pseudoadiabat as pseudoadiabat
 
 
@@ -561,23 +561,17 @@ def lifting_saturation_level(p, T, q, omega):
     return p_lsl, T_lsl
 
 
-def ice_fraction(Tstar, Tliq=273.15, Tice=253.15):
+def ice_fraction(Tstar):
     """
     Computes ice fraction given temperature at saturation.
 
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
-        Tliq (float, optional): temperature above which all condensate is 
-            assumed to be liquid (K) (default is 273.15 K = 0 degC)
-        Tice (float, optional): temperature below which all condensate is 
-            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
         omega (float or ndarray): ice fraction
 
     """
-    if Tice >= Tliq:
-        raise ValueError('Tice must be less than Tliq')
 
     Tstar = np.atleast_1d(Tstar)
 
@@ -591,24 +585,18 @@ def ice_fraction(Tstar, Tliq=273.15, Tice=253.15):
     return omega
 
 
-def ice_fraction_derivative(Tstar, Tliq=273.15, Tice=253.15):
+def ice_fraction_derivative(Tstar):
     """
     Computes derivative of ice fraction with respect to temperature at
     saturation.
     
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
-        Tliq (float, optional): temperature above which all condensate is 
-            assumed to be liquid (K) (default is 273.15 K = 0 degC)
-        Tice (float, optional): temperature below which all condensate is 
-            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
         domega_dTstar (float or ndarray): derivative of ice fraction (K^-1)
        
     """
-    if Tice >= Tliq:
-        raise ValueError('Tice must be less than Tliq')
 
     Tstar = np.atleast_1d(Tstar)
 
@@ -622,8 +610,7 @@ def ice_fraction_derivative(Tstar, Tliq=273.15, Tice=253.15):
     return domega_dTstar
 
 
-def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
-                               Tliq=273.15, Tice=253.15):
+def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001):
     """
     Computes ice fraction at saturation for specified saturation process.
 
@@ -634,10 +621,6 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
         saturation (str, optional): saturation process (valid options are 
             'isobaric' or 'adiabatic'; default is 'isobaric')
         converged (float, optional): target precision for Tstar (K)
-        Tliq (float, optional): temperature above which all condensate is 
-            assumed to be liquid (K) (default is 273.15 K = 0 degC)
-        Tice (float, optional): temperature below which all condensate is 
-            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
         omega (float or ndarray): ice fraction at saturation
@@ -650,7 +633,7 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
     Tstar = np.atleast_1d(Tstar)
 
     # Compute the initial ice fraction
-    omega = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
+    omega = ice_fraction(Tstar)
 
     # Iterate to convergence
     count = 0
@@ -675,7 +658,7 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001,
             raise ValueError("saturation must be 'isobaric' or 'adiabatic'")
 
         # Update the ice fraction
-        omega = ice_fraction(Tstar, Tliq=Tliq, Tice=Tice)
+        omega = ice_fraction(Tstar)
 
         # Check if solution has converged
         delta = np.abs(Tstar - Tstar_prev)      
@@ -710,7 +693,7 @@ def dry_adiabatic_lapse_rate(p, T, q):
     return dT_dp
 
 
-def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
+def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
     """
     Computes pseudoadiabatic lapse rate in pressure coordinates.
 
@@ -719,10 +702,6 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
         T (float or ndarray): temperature (K)
         phase (str, optional): condensed water phase (valid options are 
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        Tliq (float, optional): temperature above which all condensate is 
-            assumed to be liquid (K) (default is 273.15 K = 0 degC)
-        Tice (float, optional): temperature below which all condensate is 
-            assumed to be ice (K) (default is 253.15 K = -20 degC)
 
     Returns:
         dT_dp (float or ndarray): pseudoadiabatic lapse rate (K/Pa)
@@ -764,10 +743,10 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid', Tliq=273.15, Tice=253.15):
     elif phase == 'mixed':
 
         # Compute ice fraction, omega
-        omega = ice_fraction(T, Tliq=Tliq, Tice=Tice)
+        omega = ice_fraction(T)
 
         # Compute the derivative of omega with respect to temperature
-        domega_dT = ice_fraction_derivative(T, Tliq=Tliq, Tice=Tice)
+        domega_dT = ice_fraction_derivative(T)
 
         # Compute mixed-phase saturation specific humidity
         qs = saturation_specific_humidity(p, T, phase='mixed', omega=omega)
@@ -817,8 +796,8 @@ def follow_dry_adiabat(pi, pf, Ti, q):
     return Tf
 
 
-def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', Tliq=273.15, Tice=253.15,
-                         method='polynomial', pinc=500.0, converged=0.001):
+def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', method='polynomial',
+                         pinc=500.0, converged=0.001):
     """
     Computes parcel temperature following a pseudoadiabat. By default, uses
     polynomial fits to pseudoadiabats for fast calculations. Option to use
@@ -830,10 +809,6 @@ def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', Tliq=273.15, Tice=253.15,
         Ti (float or ndarray): initial temperature (K)
         phase (str, optional): condensed water phase (valid options are 
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        Tliq (float, optional): temperature above which all condensate is 
-            assumed to be liquid (K) (default is 273.15 K = 0 degC)
-        Tice (float, optional): temperature below which all condensate is 
-            assumed to be ice (K) (default is 253.15 K = -20 degC)
         method (str, optional): method for computing parcel temperature (valid
             options are 'polynomial' or 'iterative')
         pinc (float, optional): pressure increment for iterative calculation
@@ -909,8 +884,7 @@ def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', Tliq=273.15, Tice=253.15,
                 Tbar = 0.5 * (T1 + T2)
 
                 # Compute the lapse rate
-                dT_dp = pseudoadiabatic_lapse_rate(pbar, Tbar, phase=phase,
-                                                   Tliq=Tliq, Tice=Tice)
+                dT_dp = pseudoadiabatic_lapse_rate(pbar, Tbar, phase=phase)
 
                 # Update the level 2 temperature
                 T2_new = T1 + dT_dp * (p2 - p1)

@@ -35,7 +35,7 @@ eps = Rd / Rv
 cpd = 1005.0
 
 # Isobaric specific heat of water vapour (J/kg/K)
-cpv = 2040.0  # Optimised value from Ambaum (2020)
+cpv = 2040.0  # optimised value from Ambaum (2020)
 
 # Ratio of specific heats of dry air and water vapour
 gamma = cpd / cpv
@@ -60,3 +60,13 @@ Lf0 = 0.333e6  # Feistel and Wagner (2006)
 
 # Latent heat of sublimation at the triple point (J/kg)
 Ls0 = Lv0 + Lf0  
+
+# Temperature above which all condensate is assumed to be liquid (K)
+# (If you want to modify this, you will need to update the polynomial fits for
+# mixed-phase pseudoadiabats)
+Tliq = 273.15  
+
+# Temperature below which all condensate is assumed to be ice (K)
+# (If you want to modify this, you will need to update the polynomial fits for
+# mixed-phase pseudoadiabats)
+Tice = 253.15
