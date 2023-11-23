@@ -233,8 +233,10 @@ def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
         # Compute mixed-phase specific heat
         cpx = (1 - omega) * cpl + omega * cpi
         
-        # Compute mixed-phase latent heat
+        # Compute mixed-phase latent heat at the triple point
         Lx0 = (1 - omega) * Lv0 + omega * Ls0
+
+        # Compute mixed-phase latent heat
         Lx = Lx0 - (cpx - cpv) * (T - T0)
         
         # Compute mixed-phase SVP
@@ -956,7 +958,8 @@ def potential_temperature(p, T, q=0.0):
     return th
 
 
-def adiabatic_wet_bulb_temperature(p, T, q):
+def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
+                                   pseudoadiabat_method='polynomial'):
     """
     Computes adiabatic wet-bulb temperature.
 
@@ -971,22 +974,47 @@ def adiabatic_wet_bulb_temperature(p, T, q):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudoadiabat_method (str, optional): method for performing pseudo-
+            adiabatic descent (valid options are 'polynomial' or 'iterative')
 
     Returns:
         Tw (float or ndarray): adiabatic wet-bulb temperature (K)
 
     """
 
-    # Get pressure and temperature at the LCL
-    p_lcl, T_lcl = lifting_condensation_level(p, T, q)
+    if phase == 'liquid':
 
-    # Follow a pseudoadiabat from the LCL to the original pressure
-    Tw = follow_pseudoadiabat(p_lcl, p, T_lcl)
+        # Get pressure and temperature at the LCL
+        p_lcl, T_lcl = lifting_condensation_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LCL to the original pressure
+        Tw = follow_pseudoadiabat(p_lcl, p, T_lcl, phase='liquid',
+                                  method=pseudoadiabat_method)
+
+    elif phase == 'ice':
+
+        # Get pressure and temperature at the LDL
+        p_ldl, T_ldl = lifting_deposition_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LDL to the original pressure
+        Tw = follow_pseudoadiabat(p_ldl, p, T_ldl, phase='ice',
+                                  method=pseudoadiabat_method)
+
+    elif phase == 'mixed':
+
+        # Get pressure and temperature at the LSL
+        p_lsl, T_lsl = lifting_saturation_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LSL to the original pressure
+        Tw = follow_pseudoadiabat(p_lsl, p, T_lsl, phase='mixed',
+                                  method=pseudoadiabat_method)
 
     return Tw
 
 
-def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
+def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
     """
     Computes isobaric wet-bulb temperature.
 
@@ -1002,6 +1030,8 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
         converged (float, optional): target precision for iterative solution
             (default is 0.001 K)
 
@@ -1010,36 +1040,97 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
 
     """
 
-    # Compute latent heat at temperature T
-    Lv_T = latent_heat_of_vaporisation(T)
-
     # Compute dewpoint temperature
     Td = dewpoint_temperature(p, T, q)
 
     # Initialise Tw as mean of T and Td
     Tw = (T + Td) / 2
 
+    # Compute the latent heat
+    if phase == 'liquid':
+        Lv = latent_heat_of_vaporisation(T)
+    elif phase == 'ice':
+        Ls = latent_heat_of_sublimation(T)
+    elif phase == 'mixed':
+        omega_T = ice_fraction(T)
+        Lv = latent_heat_of_vaporisation(T)
+        Lf = latent_heat_of_freezing(T)
+        Lx = Lv + omega_T * Lf
+
     # Iterate to convergence
-    delta = np.full_like(p, 10.)
+    delta = np.full_like(T, 10.)
     count = 0
     while np.max(delta) > converged:
 
+        # Update the previous Tw value
         Tw_prev = Tw
 
-        # Compute saturation specific humidity at Tw
-        qs_Tw = saturation_specific_humidity(p, Tw)
+        if phase == 'liquid':
 
-        # Compute the effective specific heat at qs(Tw)
-        cpm_qs_Tw = effective_specific_heat(qs_Tw)
+            # Compute the latent heat of vaporisation at Tw
+            Lv_Tw = latent_heat_of_vaporisation(Tw)
 
-        # Compute latent heat at Tw
-        Lv_Tw = latent_heat_of_vaporisation(Tw)
+            # Compute saturation specific humidity at Tw
+            qs_Tw = saturation_specific_humidity(p, Tw, phase='liquid')
 
-        # Compute f and fprime
-        f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
-        dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
-        fprime = ((cpv - cpd) * (T - Tw) - Lv_T) * dqs_dTw - cpm_qs_Tw
-        
+            # Compute the effective specific heat at qs(Tw)
+            cpm_qs_Tw = effective_specific_heat(qs_Tw)
+
+            # Compute the derivative of qs with respect to Tw
+            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
+
+            # Compute f and f'
+            f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
+            fprime = ((cpv - cpd) * (T - Tw) - Lv_T) * dqs_dTw - cpm_qs_Tw
+
+        elif phase == 'ice':
+
+            # Compute the latent heat of sublimation at Tw
+            Lv_Tw = latent_heat_of_sublimation(Tw)
+
+            # Compute saturation specific humidity at Tw
+            qs_Tw = saturation_specific_humidity(p, Tw, phase='ice')
+
+            # Compute the effective specific heat at qs(Tw)
+            cpm_qs_Tw = effective_specific_heat(qs_Tw)
+
+            # Compute the derivative of qs with respect to Tw
+            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Ls_Tw / (Rv * Tw**2)
+
+            # Compute f and f'
+            f = cpm_qs_Tw * (T - Tw) - Ls_T * (qs_Tw - q)
+            fprime = ((cpv - cpd) * (T - Tw) - Ls_T) * dqs_dTw - cpm_qs_Tw
+
+        elif phase == 'mixed':
+
+            # Compute the ice fraction and its derivative at Tw
+            omega_Tw = ice_fraction(Tw)
+            domega_dTw = ice_fraction_derivative(Tw)
+
+            # Compute the mixed-phase latent heat at Tw
+            Lv_Tw = latent_heat_of_vaporisation(T)
+            Lf_Tw = latent_heat_of_freezing(T)
+            Lx_Tw = Lv_Tw + omega_T * Lf_Tw
+
+            # Compute saturation specific humidity at Tw
+            qs_Tw = saturation_specific_humidity(p, Tw, phase=phase,
+                                                 omega=omega_Tw)
+
+            # Compute the effective specific heat at qs(Tw)
+            cpm_qs_Tw = effective_specific_heat(qs_Tw)
+
+            # Compute the saturation vapour pressues over liquid and ice at Tw
+            esl_Tw = saturation_vapour_pressure(T, phase='liquid')
+            esi_Tw = saturation_vapour_pressure(T, phase='ice')
+
+            # Compute the derivative of qs with respect to Tw
+            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * \
+                (Ls_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
+
+            # Compute f and f'
+            f = cpm_qs_Tw * (T - Tw) - Lx_T * (qs_Tw - q)
+            fprime = ((cpv - cpd) * (T - Tw) - Lx_Tw) * dqs_dTw - cpm_qs_Tw
+       
         # Update Tw using Newton's method
         Tw = Tw - f / fprime
 
@@ -1053,7 +1144,8 @@ def isobaric_wet_bulb_temperature(p, T, q, converged=0.001):
     return Tw
 
 
-def wet_bulb_temperature(p, T, q, saturation='adiabatic', converged=0.001):
+def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
+                         pseudoadiabat_method='polynomial', converged=0.001):
     """
     Computes wet-bulb temperature for specified saturation process.
 
@@ -1062,9 +1154,14 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', converged=0.001):
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
         saturation (str, optional): saturation process (valid options are
-        'isobaric' or 'adiabatic'; deault is 'adiabatic')
+            'isobaric' or 'adiabatic'; default is 'adiabatic')
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudoadiabat_method (str, optional): method for performing pseudo-
+            adiabatic descent in calculation of adiabatic Tw (valid options are
+            'polynomial' or 'iterative')
         converged (float, optional): target precision for iterative solution
-            of isobaric Tw (K) (default is 0.001 K)
+            of isobaric Tw (default is 0.001 K)
 
     Returns:
         Tw: wet-bulb temperature (K)
