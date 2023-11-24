@@ -106,6 +106,26 @@ def latent_heat_of_sublimation(T):
     return Ls
 
 
+def mixed_phase_latent_heat(T, omega):
+    """
+    Computes mixed-phase latent heat for a given temperature and ice fraction.
+
+    Args:
+        T (float or ndarray): temperature (K)
+        omega (float or ndarray): ice fraction
+
+    Returns:
+        Ls (float or ndarray): latent heat of sublimation (J/kg)
+
+    """
+    cpx = (1 - omega) * cpl + omega * cpi
+    Lx0 = (1 - omega) * Lv0 + omega * Ls0  # = Lv0 + omega * Lf0
+    Lx = Lx0 - (cpx - cpv) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
+                                       # = Lv + omega * Lf
+
+    return Lx
+
+
 def air_density(p, T, q):
     """
     Computes density of air using the ideal gas equation.
@@ -775,13 +795,11 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         # Compute mixed-phase saturation specific humidity
         qs = saturation_specific_humidity(p, T, phase='mixed', omega=omega)
 
+        # Compute mixed-phase latent heat
+        Lx = mixed_phase_latent_heat(T, omega)
+
         # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
         b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
-
-        # Compute mixed-phase latent heat
-        cpx = (1 - omega) * cpl + omega * cpi
-        Lx0 = (1 - omega) * Lv0 + omega * Ls0
-        Lx = Lx0 - (cpx - cpv) * (T - T0)
 
         # Compute saturation vapour pressues over liquid and ice
         esl = saturation_vapour_pressure(T, phase='liquid')
@@ -1053,9 +1071,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         Ls_T = latent_heat_of_sublimation(T)
     elif phase == 'mixed':
         omega_T = ice_fraction(T)
-        cpx_T = (1 - omega_T) * cpl + omega_T * cpi
-        Lx0_T = (1 - omega_T) * Lv0 + omega_T * Ls0
-        Lx_T = Lx0_T - (cpx_T - cpv) * (T - T0)
+        Lx_T = mixed_phase_latent_heat(T, omega_T)
 
     # Iterate to convergence
     delta = np.full_like(T, 10.)
@@ -1108,9 +1124,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
             domega_dTw = ice_fraction_derivative(Tw)
 
             # Compute the mixed-phase latent heat at Tw
-            cpx_Tw = (1 - omega_Tw) * cpl + omega_Tw * cpi
-            Lx0_Tw = (1 - omega_Tw) * Lv0 + omega_Tw * Ls0
-            Lx_Tw = Lx0_Tw - (cpx_Tw - cpv) * (Tw - T0)
+            Lx_Tw = mixed_phase_latent_heat(Tw, omega_Tw)
 
             # Compute saturation specific humidity at Tw
             qs_Tw = saturation_specific_humidity(p, Tw, phase=phase,
