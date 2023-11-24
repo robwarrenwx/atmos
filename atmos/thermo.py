@@ -1046,16 +1046,16 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
     # Initialise Tw as mean of T and Td
     Tw = (T + Td) / 2
 
-    # Compute the latent heat
+    # Compute the latent heat at temperature T
     if phase == 'liquid':
-        Lv = latent_heat_of_vaporisation(T)
+        Lv_T = latent_heat_of_vaporisation(T)
     elif phase == 'ice':
-        Ls = latent_heat_of_sublimation(T)
+        Ls_T = latent_heat_of_sublimation(T)
     elif phase == 'mixed':
         omega_T = ice_fraction(T)
-        Lv = latent_heat_of_vaporisation(T)
-        Lf = latent_heat_of_freezing(T)
-        Lx = Lv + omega_T * Lf
+        cpx_T = (1 - omega_T) * cpl + omega_T * cpi
+        Lx0_T = (1 - omega_T) * Lv0 + omega_T * Ls0
+        Lx_T = Lx0_T - (cpx_T - cpv) * (T - T0)
 
     # Iterate to convergence
     delta = np.full_like(T, 10.)
@@ -1086,7 +1086,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         elif phase == 'ice':
 
             # Compute the latent heat of sublimation at Tw
-            Lv_Tw = latent_heat_of_sublimation(Tw)
+            Ls_Tw = latent_heat_of_sublimation(Tw)
 
             # Compute saturation specific humidity at Tw
             qs_Tw = saturation_specific_humidity(p, Tw, phase='ice')
@@ -1108,9 +1108,9 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
             domega_dTw = ice_fraction_derivative(Tw)
 
             # Compute the mixed-phase latent heat at Tw
-            Lv_Tw = latent_heat_of_vaporisation(T)
-            Lf_Tw = latent_heat_of_freezing(T)
-            Lx_Tw = Lv_Tw + omega_T * Lf_Tw
+            cpx_Tw = (1 - omega_Tw) * cpl + omega_Tw * cpi
+            Lx0_Tw = (1 - omega_Tw) * Lv0 + omega_Tw * Ls0
+            Lx_Tw = Lx0_Tw - (cpx_Tw - cpv) * (Tw - T0)
 
             # Compute saturation specific humidity at Tw
             qs_Tw = saturation_specific_humidity(p, Tw, phase=phase,
@@ -1125,11 +1125,11 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
 
             # Compute the derivative of qs with respect to Tw
             dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * \
-                (Ls_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
+                (Lx_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
 
             # Compute f and f'
             f = cpm_qs_Tw * (T - Tw) - Lx_T * (qs_Tw - q)
-            fprime = ((cpv - cpd) * (T - Tw) - Lx_Tw) * dqs_dTw - cpm_qs_Tw
+            fprime = ((cpv - cpd) * (T - Tw) - Lx_T) * dqs_dTw - cpm_qs_Tw
        
         # Update Tw using Newton's method
         Tw = Tw - f / fprime
@@ -1169,9 +1169,12 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
     """
 
     if saturation == 'adiabatic':
-        Tw = adiabatic_wet_bulb_temperature(p, T, q)
+        Tw = adiabatic_wet_bulb_temperature(p, T, q, phase=phase,
+                                            pseudoadiabat_method=\
+                                                pseudoadiabat_method)
     elif saturation == 'isobaric':
-        Tw = isobaric_wet_bulb_temperature(p, T, q, converged=converged)
+        Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase,
+                                           converged=converged)
     else:
         raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
 
