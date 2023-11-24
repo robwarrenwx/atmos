@@ -728,11 +728,14 @@ def dry_adiabatic_lapse_rate(p, T, q):
 
     """
 
-    # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
-    b = (1 - q + q / eps) / (1 - q + q / gamma)
+    # Compute the effective gas constant
+    Rm = effective_gas_constant(q)
 
-    # Compute dry adiabatic lapse rate (Bakshaii and Stull 2013, Eq. 3)
-    dT_dp = b * (Rd * T) / (cpd * p)
+    # Compute the effective specific heat
+    cpm = effective_specific_heat(q)
+
+    # Compute dry adiabatic lapse rate
+    dT_dp = (1 / p) * (Rm * T / cpm)
 
     return dT_dp
 
@@ -757,32 +760,42 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         # Compute saturation specific humidity with respect to liquid water
         qs = saturation_specific_humidity(p, T, phase='liquid')
 
+        # Compute Qv
+        Qv = qs * (1 - qs + qs / eps)
+
+        # Compute the effective gas constant
+        Rm = effective_gas_constant(qs)
+
+        # Compute the effective specific heat
+        cpm = effective_specific_heat(qs)
+
         # Compute latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
 
-        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
-        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
-
-        # Compute liquid pseudoadiabatic lapse rate (Bakshaii and Stull 2013,
-        # Eq. 8)
-        dT_dp = (b / p) * (Rd * T + Lv * qs) / \
-            (cpd + b * (Lv**2 * qs) / (Rv * T**2))
+        # Compute liquid pseudoadiabatic lapse rate
+        dT_dp = (1 / p) * (Rm * T + Lv * Qv) / \
+            (cpm + (Lv**2 * Qv) / (Rv * T**2))
 
     elif phase == 'ice':
 
         # Compute saturation specific humidity with respect to ice
         qs = saturation_specific_humidity(p, T, phase='ice')
 
+        # Compute Qv
+        Qv = qs * (1 - qs + qs / eps)
+
+        # Compute the effective gas constant
+        Rm = effective_gas_constant(qs)
+
+        # Compute the effective specific heat
+        cpm = effective_specific_heat(qs)
+
         # Compute latent heat of sublimation
         Ls = latent_heat_of_sublimation(T)
 
-        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
-        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
-
-        # Compute ice pseudoadiabatic lapse rate (cf. Bakshaii and Stull 2013,
-        # Eq. 8)
-        dT_dp = (b / p) * (Rd * T + Ls * qs) / \
-            (cpd + b * (Ls**2 * qs) / (Rv * T**2))
+        # Compute ice pseudoadiabatic lapse rate
+        dT_dp = (1 / p) * (Rm * T + Ls * Qv) / \
+            (cpm + (Ls**2 * Qv) / (Rv * T**2))
 
     elif phase == 'mixed':
 
@@ -795,20 +808,26 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         # Compute mixed-phase saturation specific humidity
         qs = saturation_specific_humidity(p, T, phase='mixed', omega=omega)
 
+        # Compute Qv
+        Qv = qs * (1 - qs + qs / eps)
+
+        # Compute the effective gas constant
+        Rm = effective_gas_constant(qs)
+
+        # Compute the effective specific heat
+        cpm = effective_specific_heat(qs)
+
         # Compute mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
-
-        # Compute factor b (Bakhshaii and Stull 2013, Eq. 2)
-        b = (1 - qs + qs / eps) / (1 - qs + qs / gamma)
 
         # Compute saturation vapour pressues over liquid and ice
         esl = saturation_vapour_pressure(T, phase='liquid')
         esi = saturation_vapour_pressure(T, phase='ice')
 
         # Compute mixed-phase pseudoadiabatic lapse rate
-        dT_dp = (b / p) * (Rd * T + Lx * qs) / \
-            (cpd + b * (Lx**2 * qs) / (Rv * T**2) +
-             b * Lx * qs * np.log(esi / esl) * domega_dT)
+        dT_dp = (1 / p) * (Rm * T + Lx * Qv) / \
+            (cpd + (Lx**2 * Qv) / (Rv * T**2) +
+             Lx * Qv * np.log(esi / esl) * domega_dT)
 
     return dT_dp
 
