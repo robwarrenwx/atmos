@@ -457,7 +457,7 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         delta = np.abs(Ts - Ts_prev)
         count += 1
         if count > 20:
-            print("T_lsl not converged after 20 iterations")
+            print("Ts not converged after 20 iterations")
             break
 
     # Ensure that Ts does not exceed T
@@ -646,7 +646,7 @@ def ice_fraction(Tstar):
     omega[Tstar >= Tliq] = 0.0
 
     if len(Tstar) == 1:
-        Tstar = Tstar[0]
+        omega = omega[0]
 
     return omega
 
@@ -826,8 +826,12 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
 
         # Compute mixed-phase pseudoadiabatic lapse rate
         dT_dp = (1 / p) * (Rm * T + Lx * Qv) / \
-            (cpd + (Lx**2 * Qv) / (Rv * T**2) +
+            (cpm + (Lx**2 * Qv) / (Rv * T**2) +
              Lx * Qv * np.log(esi / esl) * domega_dT)
+
+    else:
+
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     return dT_dp
 
@@ -919,7 +923,7 @@ def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', method='polynomial',
             p1 = p2.copy()
             T1 = T2.copy()
 
-            # Update the pressure
+            # Update the pressure at level 2
             p2 = p1 + dp
 
             # Make sure we haven't overshot final pressure level
@@ -931,12 +935,9 @@ def follow_pseudoadiabat(pi, pf, Ti, phase='liquid', method='polynomial',
             #print(np.min(p2), np.max(p2))
 
             # Compute the layer-mean pressure
-            pbar = np.sqrt(p1 * p2)  # average of log(p)
+            pbar = np.sqrt(p1 * p2)  # = np.exp(0.5 * (np.log(p1) + np.log(p2)))
     
-            # Initialise the temperature at level 2
-            T2 = T1
-
-            # Iterate to convergence
+            # Iterate to get the new temperature at level 2
             delta = np.full_like(p2, 10)
             count = 0
             while np.max(delta) > converged:
@@ -1048,6 +1049,10 @@ def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
         Tw = follow_pseudoadiabat(p_lsl, p, T_lsl, phase='mixed',
                                   method=pseudoadiabat_method)
 
+    else:
+
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+
     return Tw
 
 
@@ -1091,6 +1096,8 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
     elif phase == 'mixed':
         omega_T = ice_fraction(T)
         Lx_T = mixed_phase_latent_heat(T, omega_T)
+    else:
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     # Iterate to convergence
     delta = np.full_like(T, 10.)
@@ -1160,7 +1167,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
             dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * \
                 (Lx_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
 
-            # Compute f and f'
+            # Compute f(Tw) and f'(Tw)
             f = cpm_qs_Tw * (T - Tw) - Lx_T * (qs_Tw - q)
             fprime = ((cpv - cpd) * (T - Tw) - Lx_T) * dqs_dTw - cpm_qs_Tw
        
