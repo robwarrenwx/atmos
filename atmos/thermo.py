@@ -1229,16 +1229,25 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         # Update the previous Tw value
         Tw_prev = Tw
 
+        # Compute the ice fraction at Tw
+        if phase == 'liquid':
+            omega_Tw = 0.0
+        elif phase == 'ice':
+            omega_Tw = 1.0
+        elif phase == 'mixed':
+            omega_Tw = ice_fraction(Tw)
+
+        # Compute saturation specific humidity at Tw
+        qs_Tw = saturation_specific_humidity(p, Tw, phase=phase,
+                                             omega=omega_Tw)
+
+        # Compute the effective specific heat at qs(Tw)
+        cpm_qs_Tw = effective_specific_heat(qs_Tw)
+
         if phase == 'liquid':
 
             # Compute the latent heat of vaporisation at Tw
             Lv_Tw = latent_heat_of_vaporisation(Tw)
-
-            # Compute saturation specific humidity at Tw
-            qs_Tw = saturation_specific_humidity(p, Tw, phase='liquid')
-
-            # Compute the effective specific heat at qs(Tw)
-            cpm_qs_Tw = effective_specific_heat(qs_Tw)
 
             # Compute the derivative of qs with respect to Tw
             dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
@@ -1252,12 +1261,6 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
             # Compute the latent heat of sublimation at Tw
             Ls_Tw = latent_heat_of_sublimation(Tw)
 
-            # Compute saturation specific humidity at Tw
-            qs_Tw = saturation_specific_humidity(p, Tw, phase='ice')
-
-            # Compute the effective specific heat at qs(Tw)
-            cpm_qs_Tw = effective_specific_heat(qs_Tw)
-
             # Compute the derivative of qs with respect to Tw
             dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Ls_Tw / (Rv * Tw**2)
 
@@ -1267,19 +1270,11 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
 
         elif phase == 'mixed':
 
-            # Compute the ice fraction and its derivative at Tw
-            omega_Tw = ice_fraction(Tw)
+            # Compute the derivative of omega with respect to Tw
             domega_dTw = ice_fraction_derivative(Tw)
 
             # Compute the mixed-phase latent heat at Tw
             Lx_Tw = mixed_phase_latent_heat(Tw, omega_Tw)
-
-            # Compute saturation specific humidity at Tw
-            qs_Tw = saturation_specific_humidity(p, Tw, phase=phase,
-                                                 omega=omega_Tw)
-
-            # Compute the effective specific heat at qs(Tw)
-            cpm_qs_Tw = effective_specific_heat(qs_Tw)
 
             # Compute the saturation vapour pressues over liquid and ice at Tw
             esl_Tw = saturation_vapour_pressure(T, phase='liquid')
