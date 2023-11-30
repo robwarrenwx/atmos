@@ -973,7 +973,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo_method (str, optional): method for performing pseudoadiabatic
-            ascent/descent (valid options are 'polynomial' or 'iterative')
+            ascent/descent (valid options are 'polynomial' or 'iterative';
+            default is 'polynomial')
         pinc (float, optional): pressure increment for iterative calculation
             (default is 500 Pa = 5 hPa)
         converged (float, optional): target precision for iterative solution
@@ -1137,7 +1138,8 @@ def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo_method (str, optional): method for performing pseudoadiabatic
-            descent (valid options are 'polynomial' or 'iterative')
+            descent (valid options are 'polynomial' or 'iterative'; default
+            is 'polynomial')
 
     Returns:
         Tw (float or ndarray): adiabatic wet-bulb temperature (K)
@@ -1316,7 +1318,7 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo_method (str, optional): method for performing pseudoadiabatic
             descent in calculation of adiabatic Tw (valid options are
-            'polynomial' or 'iterative')
+            'polynomial' or 'iterative'; default is 'polynomial')
         converged (float, optional): target precision for iterative solution
             of isobaric Tw (default is 0.001 K)
 
@@ -1337,7 +1339,8 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
     return Tw
 
 
-def wet_bulb_potential_temperature(p, T, q):
+def wet_bulb_potential_temperature(p, T, q, phase='liquid',
+                                   pseudo_method='polynomial'):
     """
     Computes wet-bulb potential temperature.
 
@@ -1345,37 +1348,72 @@ def wet_bulb_potential_temperature(p, T, q):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudo_method (str, optional): method for performing pseudoadiabatic
+            ascent/descent (valid options are 'polynomial' or 'iterative';
+            default is 'polynomial')
 
     Returns:
         thw (float or ndarray): wet-bulb potential temperature (K)
 
     """
 
-    # Get pressure and parcel temperature at the LCL
-    p_lcl, Tp_lcl = lifting_condensation_level(p, T, q)
+    if phase == 'liquid':
 
-    # Compute the wet-bulb potential temperature of the pseudoadiabat
-    # that passes through (p_lcl, Tp_lcl)
-    thw = pseudoadiabat.wbpt(p_lcl, Tp_lcl)
+        # Get pressure and temperature at the LCL
+        p_lcl, T_lcl = lifting_condensation_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LCL to 1000 hPa
+        thw = follow_moist_adiabat(p_lcl, 100000.0, T_lcl, phase='liquid',
+                                   pseudo=True, pseudo_method=pseudo_method)
+
+    elif phase == 'ice':
+
+        # Get pressure and temperature at the LDL
+        p_ldl, T_ldl = lifting_deposition_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LDL to 1000 hPa
+        thw = follow_moist_adiabat(p_ldl, 100000.0, T_ldl, phase='ice',
+                                   pseudo=True, pseudo_method=pseudo_method)
+
+    elif phase == 'mixed':
+
+        # Get pressure and temperature at the LSL
+        p_lsl, T_lsl = lifting_saturation_level(p, T, q)
+
+        # Follow a pseudoadiabat from the LSL to 1000 hPa
+        thw = follow_moist_adiabat(p_lsl, 100000.0, T_lsl, phase='mixed',
+                                   pseudo=True, pseudo_method=pseudo_method)
+
+    else:
+
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     return thw
 
 
-def saturated_wet_bulb_potential_temperature(p, T):
+def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
+                                              pseudo_method='polynomial'):
     """
     Computes saturation wet-bulb potential temperature.
 
     Args:
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudo_method (str, optional): method for performing pseudoadiabatic
+            ascent descent (valid options are 'polynomial' or 'iterative';
+            default is 'polynomial')
 
     Returns:
-        thws (float or ndarray): wet-bulb potential temperature (K)
+        thws (float or ndarray): saturation wet-bulb potential temperature (K)
 
     """
 
-    # Compute the wet-bulb potential temperature of the pseudoadiabat
-    # that passes through (p, T)
-    thws = pseudoadiabat.wbpt(p, T)
+    # Follow a pseudoadiabat to 1000 hPa
+    thws = follow_moist_adiabat(p, 100000.0, T, phase='mixed', pseudo=True,
+                                pseudo_method=pseudo_method)
 
     return thws
