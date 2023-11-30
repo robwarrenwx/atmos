@@ -656,12 +656,14 @@ def lifting_saturation_level(p, T, q, converged=0.001):
     return p_lsl, T_lsl
 
 
-def ice_fraction(Tstar):
+def ice_fraction(Tstar, phase='mixed'):
     """
     Computes ice fraction given temperature at saturation.
 
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'mixed')
 
     Returns:
         omega (float or ndarray): ice fraction
@@ -670,9 +672,16 @@ def ice_fraction(Tstar):
 
     Tstar = np.atleast_1d(Tstar)
 
-    omega = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
-    omega[Tstar <= Tice] = 1.0
-    omega[Tstar >= Tliq] = 0.0
+    if phase == 'liquid':
+        omega = np.zeros_like(Tstar)
+    elif phase == 'mixed':
+        omega = np.ones_like(Tstar)
+    elif phase == 'mixed':
+        omega = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
+        omega[Tstar <= Tice] = 1.0
+        omega[Tstar >= Tliq] = 0.0
+    else:
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     if len(Tstar) == 1:
         omega = omega[0]
@@ -680,13 +689,15 @@ def ice_fraction(Tstar):
     return omega
 
 
-def ice_fraction_derivative(Tstar):
+def ice_fraction_derivative(Tstar, phase='mixed'):
     """
     Computes derivative of ice fraction with respect to temperature at
     saturation.
     
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'mixed')
 
     Returns:
         domega_dTstar (float or ndarray): derivative of ice fraction (K^-1)
@@ -695,9 +706,14 @@ def ice_fraction_derivative(Tstar):
 
     Tstar = np.atleast_1d(Tstar)
 
-    domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
-            np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
-    domega_dTstar[(Tstar <= Tice) | (Tstar >= Tliq)] = 0.0
+    if phase == 'liquid' or phase == 'ice':
+        domega_dT = np.zeros_like(Tstar)
+    elif phase == 'mixed':
+        domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
+                np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
+        domega_dTstar[(Tstar <= Tice) | (Tstar >= Tliq)] = 0.0
+    else:
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     if len(Tstar) == 1:
         domega_dTstar = domega_dTstar[0]
@@ -785,14 +801,7 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
     """
 
     # Set the ice fraction
-    if phase == 'liquid':
-        omega = 0.0
-    elif phase == 'ice':
-        omega = 1.0
-    elif phase == 'mixed':
-        omega = ice_fraction(T)
-    else:
-        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+    omega = ice_fraction(T, phase=phase)
 
     # Compute saturation specific humidity with respect to liquid water
     qs = saturation_specific_humidity(p, T, phase=phase, omega=omega)
@@ -861,14 +870,7 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
     """
 
     # Set the ice fraction
-    if phase == 'liquid':
-        omega = 0.0
-    elif phase == 'ice':
-        omega = 1.0
-    elif phase == 'mixed':
-        omega = ice_fraction(T)
-    else:
-        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+    omega = ice_fraction(T, phase=phase)
 
     # Compute saturation specific humidity
     qs = saturation_specific_humidity(p, T, qt=qt, phase=phase, omega=omega)
