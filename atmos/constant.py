@@ -37,9 +37,6 @@ cpd = 1005.0
 # Isobaric specific heat of water vapour (J/kg/K)
 cpv = 2040.0  # optimised value from Ambaum (2020)
 
-# Ratio of specific heats of dry air and water vapour
-gamma = cpd / cpv
-
 # Isobaric specific heat of liquid water (J/kg/K)
 cpl = 4220.0  # triple-point value from Wagner and Pruß (2002)
 

@@ -21,7 +21,7 @@ Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
 
 import numpy as np
 from scipy.special import lambertw
-from atmos.constant import (Rd, Rv, eps, cpd, cpv, gamma, cpl, cpi,
+from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi,
                             T0, es0, Lv0, Lf0, Ls0, Tliq, Tice)
 import atmos.pseudoadiabat as pseudoadiabat
 
@@ -39,9 +39,9 @@ def effective_gas_constant(q, qt=None):
 
     """
     if qt is None:
-        Rm = (1 - q) * Rd + q * Rv
+        Rm = Rd * (1 - q + q / eps)
     else:
-        Rm = (1 - qt) * Rd + q * Rv
+        Rm = Rd * (1 - qt + q / eps)
 
     return Rm
 
