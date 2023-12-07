@@ -707,7 +707,7 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     Tstar = np.atleast_1d(Tstar)
 
     if phase == 'liquid' or phase == 'ice':
-        domega_dT = np.zeros_like(Tstar)
+        domega_dTstar = np.zeros_like(Tstar)
     elif phase == 'mixed':
         domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
                 np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
