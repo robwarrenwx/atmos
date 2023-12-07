@@ -43,6 +43,9 @@ cpl = 4220.0  # triple-point value from Wagner and Pruß (2002)
 # Isobaric specific heat of ice (J/kg/K)
 cpi = 2097.0  # triple-point value from Feistel and Wagner (2006)
 
+# Reference pressure (Pa)
+p_ref = 1.0e5
+
 # Triple point temperature (K)
 T0 = 273.16
 
@@ -61,9 +64,9 @@ Ls0 = Lv0 + Lf0
 # Temperature above which all condensate is assumed to be liquid (K)
 # (If you want to modify this, you will need to update the polynomial fits for
 # mixed-phase pseudoadiabats)
-Tliq = 273.15  
+T_liq = 273.15  
 
 # Temperature below which all condensate is assumed to be ice (K)
 # (If you want to modify this, you will need to update the polynomial fits for
 # mixed-phase pseudoadiabats)
-Tice = 253.15
+T_ice = 253.15

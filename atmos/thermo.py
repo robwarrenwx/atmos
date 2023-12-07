@@ -21,8 +21,8 @@ Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
 
 import numpy as np
 from scipy.special import lambertw
-from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi,
-                            T0, es0, Lv0, Lf0, Ls0, Tliq, Tice)
+from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
+                            T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
 import atmos.pseudoadiabat as pseudoadiabat
 
 
@@ -677,9 +677,9 @@ def ice_fraction(Tstar, phase='mixed'):
     elif phase == 'mixed':
         omega = np.ones_like(Tstar)
     elif phase == 'mixed':
-        omega = 0.5 * (1 - np.cos(np.pi * ((Tliq - Tstar) / (Tliq - Tice))))
-        omega[Tstar <= Tice] = 1.0
-        omega[Tstar >= Tliq] = 0.0
+        omega = 0.5 * (1 - np.cos(np.pi * ((T_liq - Tstar) / (T_liq - T_ice))))
+        omega[Tstar <= T_ice] = 1.0
+        omega[Tstar >= T_liq] = 0.0
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
@@ -709,9 +709,9 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     if phase == 'liquid' or phase == 'ice':
         domega_dTstar = np.zeros_like(Tstar)
     elif phase == 'mixed':
-        domega_dTstar = -0.5 * (np.pi / (Tliq - Tice)) * \
-                np.sin(np.pi * ((Tliq - Tstar) / (Tliq - Tice)))
-        domega_dTstar[(Tstar <= Tice) | (Tstar >= Tliq)] = 0.0
+        domega_dTstar = -0.5 * (np.pi / (T_liq - T_ice)) * \
+                np.sin(np.pi * ((T_liq - Tstar) / (T_liq - T_ice)))
+        domega_dTstar[(Tstar <= T_ice) | (Tstar >= T_liq)] = 0.0
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
@@ -1115,8 +1115,8 @@ def potential_temperature(p, T, q=0.0):
 
     """
 
-    # Follow a dry adiabat to 1000hPa reference
-    th = follow_dry_adiabat(p, 100000., T, q)
+    # Follow a dry adiabat to 1000hPa
+    th = follow_dry_adiabat(p, p_ref, T, q)
 
     return th
 
@@ -1367,7 +1367,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_lcl, T_lcl = lifting_condensation_level(p, T, q)
 
         # Follow a pseudoadiabat from the LCL to 1000 hPa
-        thw = follow_moist_adiabat(p_lcl, 100000.0, T_lcl, phase='liquid',
+        thw = follow_moist_adiabat(p_lcl, p_ref, T_lcl, phase='liquid',
                                    pseudo=True, pseudo_method=pseudo_method)
 
     elif phase == 'ice':
@@ -1376,7 +1376,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_ldl, T_ldl = lifting_deposition_level(p, T, q)
 
         # Follow a pseudoadiabat from the LDL to 1000 hPa
-        thw = follow_moist_adiabat(p_ldl, 100000.0, T_ldl, phase='ice',
+        thw = follow_moist_adiabat(p_ldl, p_ref, T_ldl, phase='ice',
                                    pseudo=True, pseudo_method=pseudo_method)
 
     elif phase == 'mixed':
@@ -1385,7 +1385,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_lsl, T_lsl = lifting_saturation_level(p, T, q)
 
         # Follow a pseudoadiabat from the LSL to 1000 hPa
-        thw = follow_moist_adiabat(p_lsl, 100000.0, T_lsl, phase='mixed',
+        thw = follow_moist_adiabat(p_lsl, p_ref, T_lsl, phase='mixed',
                                    pseudo=True, pseudo_method=pseudo_method)
 
     else:
@@ -1415,7 +1415,7 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
     """
 
     # Follow a pseudoadiabat to 1000 hPa
-    thws = follow_moist_adiabat(p, 100000.0, T, phase='mixed', pseudo=True,
+    thws = follow_moist_adiabat(p, p_ref, T, phase='mixed', pseudo=True,
                                 pseudo_method=pseudo_method)
 
     return thws
