@@ -12,6 +12,9 @@ Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
 
+Romps, D. M., and Z. Kuang, 2010: Do Undiluted Convective Plumes Exist in the
+    Upper Tropical Troposphere? J. Atmos. Sci., 67, 468-484,
+    https://doi.org/10.1175/2009JAS3184.1.
 
 """
 
@@ -1339,6 +1342,94 @@ def potential_temperature(p, T, q):
     th = T * (p_ref / p) ** (Rm / cpm)
 
     return th
+
+
+def virtual_potential_temperature(p, T, q, qt=None):
+    """
+    Computes virtual (or density) potential temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+
+    Returns:
+        thv (float or ndarray): virtual potential temperature (K)
+
+    """
+
+    # Set effective gas constant and specific heat
+    Rm = effective_gas_constant(q)
+    cpm = effective_specific_heat(q)
+
+    # Compute the virtual temperature
+    Tv = virtual_temperature(T, q, qt=qt)
+
+    # Compute dry potential temperature
+    thv = Tv * (p_ref / p) ** (Rm / cpm)
+
+    return thv
+
+
+def equivalent_potential_temperature(p, T, q, qt=None, omega=0.0):
+    """
+    Computes equivalent potential temperature using equation from Romps and
+    Kuang (2010).
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+        omega (float or ndarray, optional): ice fraction (default is 0.0)
+
+    Returns:
+        the (float or ndarray): equivalent potential temperature (K)
+
+    """
+
+    # Set the water vapour mixing ratio
+    r = mixing_ratio(q, qt=qt)
+
+    # Set the vapour pressure
+    e = vapour_pressure(p, q)
+
+    # Set the liquid and ice water mixing ratios
+    if qt is None:
+        #qt = q
+        rt = r
+        #rl = 0.0
+        #ri = 0.0
+    else:
+        rt = qt / (1 - qt)
+        #rl = (1 - omega) * (qt - q) / (1 - qt)
+        #ri = omega * (qt - q) / (1 - qt)
+
+    # Compute the dry pressure
+    pd = p - e
+
+    # Compute the equivalent potential temperature (Romps and Kuang 2010, Eq. 4)
+    #the = T * (p_ref / pd) ** (Rd / cpd) * \
+    #    (T / T0) ** ((r * cpv + rl * cpl + ri * cpi) / cpd) * \
+    #    (es0 / e) ** (r * Rv / cpd) * \
+    #    np.exp((r * Lv0 - ri * Lf0) / (cpd * T0))
+
+    # Compute the relative humidity with respect to mixed-phase
+    Hx = relative_humidity(p, T, q, phase='mixed', omega=omega)
+
+    # Compute the mixed-phase latent heat
+    Lx = mixed_phase_latent_heat(T, omega)
+
+    # Compute the mixed-phase specific heat
+    cpx = (1 - omega) * cpl + omega *cpi
+
+    # Compute the equivalent potential temperature
+    cpmx = cpd + rt * cpx
+    the = T * (p_ref / pd) ** (Rd / cpmx) * \
+        Hx ** (-r * Rv / cpmx) * np.exp(Lx * r / (cpmx * T))
+
+    return the
 
 
 def wet_bulb_potential_temperature(p, T, q, phase='liquid',
