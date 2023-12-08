@@ -1,20 +1,17 @@
 """
 References:
 
-Ambaum, M.H., 2020. Accurate, simple equation for saturated vapour
+Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
     pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
     https://doi.org/10.1002/qj.3899.
 
-Bakhshaii, A., and R. Stull, 2013: Saturated Pseudoadiabats - A Noniterative
-    Approximation.  J. Appl. Meteor. Climatol., 52, 5-15,
-    https://doi.org/10.1175/JAMC-D-12-062.1.
-
-Romps, D.M., 2017. Exact expression for the lifting condensation level.
+Romps, D. M., 2017: Exact expression for the lifting condensation level.
     J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
         
-Romps, D.M., 2021. Accurate expressions for the dewpoint and frost point
+Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
+
 
 """
 
@@ -48,7 +45,7 @@ def effective_gas_constant(q, qt=None):
 
 def effective_specific_heat(q, qt=None, omega=0.0):
     """
-    Computes effective isobaric specific heat for moist air (J/kg/K).
+    Computes effective isobaric specific heat for moist air.
 
     Args:
         q (float or ndarray): specific humidity (kg/kg)
@@ -182,7 +179,7 @@ def dry_air_density(p, T, q, qt=None):
 
 def virtual_temperature(T, q, qt=None):
     """
-    Computes virtual temperature.
+    Computes virtual (or density) temperature.
 
     Args:
         T (float or ndarray): temperature (K)
@@ -240,8 +237,8 @@ def vapour_pressure(p, q):
 
 def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
     """
-    Computes saturation vapour pressure (SVP) over liquid, ice, or mixed-phase
-    water for a given temperature using equations from Ambaum (2020).
+    Computes saturation vapour pressure (SVP) for a given temperature using
+    equations from Ambaum (2020).
 
     Args:
         T (float or ndarray): temperature (K)
@@ -674,7 +671,7 @@ def ice_fraction(Tstar, phase='mixed'):
 
     if phase == 'liquid':
         omega = np.zeros_like(Tstar)
-    elif phase == 'mixed':
+    elif phase == 'ice':
         omega = np.ones_like(Tstar)
     elif phase == 'mixed':
         omega = 0.5 * (1 - np.cos(np.pi * ((T_liq - Tstar) / (T_liq - T_ice))))
@@ -1100,27 +1097,6 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
     return Tf
 
 
-def potential_temperature(p, T, q=0.0):
-    """
-    Computes potential temperature, optionally including moisture
-    contribution to dry adiabatic lapse rate.
-
-    Args:
-        p (float or ndarray): pressure (Pa)
-        T (float or ndarray): temperature (K)
-        q (float or ndarray, optional): specific humidity (kg/kg)
-
-    Returns:
-        th (float or ndarray): potential temperature (K)
-
-    """
-
-    # Follow a dry adiabat to 1000hPa
-    th = follow_dry_adiabat(p, p_ref, T, q)
-
-    return th
-
-
 def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
                                    pseudo_method='polynomial'):
     """
@@ -1339,6 +1315,30 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
         raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
 
     return Tw
+
+
+def potential_temperature(p, T, q):
+    """
+    Computes potential temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+
+    Returns:
+        th (float or ndarray): potential temperature (K)
+
+    """
+
+    # Set effective gas constant and specific heat
+    Rm = effective_gas_constant(q)
+    cpm = effective_specific_heat(q)
+
+    # Compute potential temperature
+    th = T * (p_ref / p) ** (Rm / cpm)
+
+    return th
 
 
 def wet_bulb_potential_temperature(p, T, q, phase='liquid',
