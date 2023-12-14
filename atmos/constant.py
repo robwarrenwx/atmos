@@ -62,11 +62,7 @@ Lf0 = 0.333e6  # Feistel and Wagner (2006)
 Ls0 = Lv0 + Lf0  
 
 # Temperature above which all condensate is assumed to be liquid (K)
-# (If you want to modify this, you will need to update the polynomial fits for
-# mixed-phase pseudoadiabats)
 T_liq = 273.15  
 
 # Temperature below which all condensate is assumed to be ice (K)
-# (If you want to modify this, you will need to update the polynomial fits for
-# mixed-phase pseudoadiabats)
 T_ice = 253.15
