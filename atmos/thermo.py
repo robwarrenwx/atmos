@@ -962,7 +962,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
     For descending parcels, a pseudoadiabat is always used. By default,
     pseudoadiabatic calculations use polynomial fits for fast calculations, but
     can optionally use slower iterative method. Saturated adiabatic ascent must
-    be performed iteratively (for now).
+    be performed iteratively (for now). At present, polynomial fits are only
+    available for liquid-only pseudoadiabats.
 
     Args:
         pi (float or ndarray): initial pressure (Pa)
@@ -988,6 +989,12 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
     """
 
     if pseudo and pseudo_method == 'polynomial':
+
+        if phase != 'liquid':
+            raise ValueError("""Polynomial fits have yet to be created for ice 
+                             and mixed-phase pseudoadiabats. Calculations can 
+                             be performed iteratively (by setting pseudo_method
+                             ='iterative'); however, this may be slow.""")
 
         # Compute the wet-bulb potential temperature of the pseudoadiabat
         # that passes through (pi, Ti)
