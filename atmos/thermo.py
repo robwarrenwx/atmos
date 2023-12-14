@@ -1387,7 +1387,8 @@ def virtual_potential_temperature(p, T, q, qt=None):
     return thv
 
 
-def equivalent_potential_temperature(p, T, q, qt=None, omega=0.0):
+def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
+                                     omega=0.0):
     """
     Computes equivalent potential temperature using equation from Romps and
     Kuang (2010).
@@ -1397,6 +1398,8 @@ def equivalent_potential_temperature(p, T, q, qt=None, omega=0.0):
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
         qt (float or ndarray, optional): total water mass fraction (kg/kg)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
         omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
@@ -1404,45 +1407,64 @@ def equivalent_potential_temperature(p, T, q, qt=None, omega=0.0):
 
     """
 
-    # Set the water vapour mixing ratio
+    # Compute the water vapour mixing ratio
     r = mixing_ratio(q, qt=qt)
 
-    # Set the vapour pressure
-    e = vapour_pressure(p, q)
-
-    # Set the liquid and ice water mixing ratios
+    # Set the total water mixing ratio
     if qt is None:
-        #qt = q
         rt = r
-        #rl = 0.0
-        #ri = 0.0
     else:
         rt = qt / (1 - qt)
-        #rl = (1 - omega) * (qt - q) / (1 - qt)
-        #ri = omega * (qt - q) / (1 - qt)
 
     # Compute the dry pressure
+    e = vapour_pressure(p, q)
     pd = p - e
 
-    # Compute the equivalent potential temperature (Romps and Kuang 2010, Eq. 4)
-    #the = T * (p_ref / pd) ** (Rd / cpd) * \
-    #    (T / T0) ** ((r * cpv + rl * cpl + ri * cpi) / cpd) * \
-    #    (es0 / e) ** (r * Rv / cpd) * \
-    #    np.exp((r * Lv0 - ri * Lf0) / (cpd * T0))
+    if phase == 'liquid':
 
-    # Compute the relative humidity with respect to mixed-phase
-    Hx = relative_humidity(p, T, q, phase='mixed', omega=omega)
+        # Compute relative humidity with respect to liquid water
+        RH = relative_humidity(p, T, q, phase='liquid')
 
-    # Compute the mixed-phase latent heat
-    Lx = mixed_phase_latent_heat(T, omega)
+        # Compute the latent heat of vaporisation
+        Lv = latent_heat_of_vaporisation(T)
 
-    # Compute the mixed-phase specific heat
-    cpx = (1 - omega) * cpl + omega *cpi
+        # Compute the equivalent potential temperature
+        cpml = cpd + rt * cpl
+        the = T * (p_ref / pd) ** (Rd / cpml) * \
+            RH ** (-r * Rv / cpml) * np.exp(Lv * r / (cpml * T))
 
-    # Compute the equivalent potential temperature
-    cpmx = cpd + rt * cpx
-    the = T * (p_ref / pd) ** (Rd / cpmx) * \
-        Hx ** (-r * Rv / cpmx) * np.exp(Lx * r / (cpmx * T))
+    elif phase == 'ice':
+
+        # Compute relative humidity with respect to ice
+        RH = relative_humidity(p, T, q, phase='ice')
+
+        # Compute the latent heat of sublimation
+        Ls = latent_heat_of_sublimation(T)
+
+        # Compute the equivalent potential temperature
+        cpmi = cpd + rt * cpi
+        the = T * (p_ref / pd) ** (Rd / cpmi) * \
+            RH ** (-r * Rv / cpmi) * np.exp(Ls * r / (cpmi * T))
+
+    elif phase== 'mixed':
+
+        # Compute the relative humidity with respect to mixed-phase
+        RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
+
+        # Compute the mixed-phase latent heat
+        Lx = mixed_phase_latent_heat(T, omega)
+
+        # Compute the mixed-phase specific heat
+        cpx = (1 - omega) * cpl + omega * cpi
+
+        # Compute the equivalent potential temperature
+        cpmx = cpd + rt * cpx
+        the = T * (p_ref / pd) ** (Rd / cpmx) * \
+            RH ** (-r * Rv / cpmx) * np.exp(Lx * r / (cpmx * T))
+
+    else:
+
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     return the
 
@@ -1521,7 +1543,7 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
     """
 
     # Follow a pseudoadiabat to 1000 hPa
-    thws = follow_moist_adiabat(p, p_ref, T, phase='mixed', pseudo=True,
+    thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
                                 pseudo_method=pseudo_method)
 
     return thws
