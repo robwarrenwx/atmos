@@ -1005,6 +1005,14 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         pf = np.atleast_1d(pf)
         Ti = np.atleast_1d(Ti)
 
+        if len(pi) == 1:
+            # single initial pressure value
+            pi = np.full_like(Ti, pi)
+
+        if len(pf) == 1:
+            # single final pressure value
+            pf = np.full_like(Ti, pf)
+
         # Set the pressure increment based on whether the parcel is ascending
         # or descending
         pinc = np.abs(pinc)  # make sure pinc is positive
