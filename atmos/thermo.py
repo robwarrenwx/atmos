@@ -12,10 +12,6 @@ Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
 
-Romps, D. M., and Z. Kuang, 2010: Do Undiluted Convective Plumes Exist in the
-    Upper Tropical Troposphere? J. Atmos. Sci., 67, 468-484,
-    https://doi.org/10.1175/2009JAS3184.1.
-
 """
 
 
