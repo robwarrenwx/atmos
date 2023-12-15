@@ -1115,6 +1115,9 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         # Set the final temperature
         Tf = T2
 
+        if len(Ti) == 1:
+            Tf = Tf[0]
+
     return Tf
 
 
