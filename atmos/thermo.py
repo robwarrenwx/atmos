@@ -573,7 +573,7 @@ def lifting_deposition_level(p, T, q):
 
     # Compute temperature at the LDL (Romps 2017, Eq. 23a)
     fn = np.power(RH, (1 / a)) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
+    W = lambertw(fn, k=-1).real
     T_ldl = c * (1 / W) * T
     
     # Compute pressure at the LDL (Romps 2017, Eq. 23b)
