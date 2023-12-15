@@ -1338,9 +1338,28 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
     return Tw
 
 
-def potential_temperature(p, T, q):
+def dry_potential_temperature(p, T):
     """
-    Computes potential temperature.
+    Computes potential temperature of dry air.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+
+    Returns:
+        thetad (float or ndarray): potential temperature of dry air (K)
+
+    """
+
+    # Compute potential temperature of dry air
+    thetad = T * (p_ref / p) ** (Rd / cpd)
+
+    return thetad
+
+
+def moist_potential_temperature(p, T, q):
+    """
+    Computes potential temperature of moist air.
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1348,7 +1367,7 @@ def potential_temperature(p, T, q):
         q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        theta (float or ndarray): potential temperature (K)
+        thetam (float or ndarray): potential temperature of moist air (K)
 
     """
 
@@ -1356,8 +1375,31 @@ def potential_temperature(p, T, q):
     Rm = effective_gas_constant(q)
     cpm = effective_specific_heat(q)
 
-    # Compute potential temperature
-    theta = T * (p_ref / p) ** (Rm / cpm)
+    # Compute potential temperature of moist air
+    thetam = T * (p_ref / p) ** (Rm / cpm)
+
+    return thetam
+
+
+def potential_temperature(p, T, q=None):
+    """
+    Computes potential temperature for dry or moist air.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray, optional): specific humidity (kg/kg) (default is
+            None, in which case dry potential temperature is returned)
+
+    Returns:
+        theta (float or ndarray): potential temperature (K)
+
+    """
+
+    if q is None:
+        theta = dry_potential_temperature(p, T)
+    else:
+        theta = moist_potential_temperature(p, T, q)
 
     return theta
 
