@@ -1,14 +1,20 @@
 """
+Thermodynamic functions.
+
 References:
 
-Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
+* Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
     pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
     https://doi.org/10.1002/qj.3899.
 
-Romps, D. M., 2017: Exact expression for the lifting condensation level.
+* Bryan, G. H., and J. M. Fristch, 2004: A Reevaluation of Ice-Liquid Water
+    Potential Temperature. Mon. Wea. Rev., 132, 2421-2431,
+    https://doi.org/10.1175/1520-0493(2004)132<2421:AROIWP>2.0.CO;2.
+
+* Romps, D. M., 2017: Exact expression for the lifting condensation level.
     J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
-        
-Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
+
+* Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
 
@@ -1525,7 +1531,8 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
 def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
                                            omega=0.0):
     """
-    Computes ice-liquid water potential temperature.
+    Computes ice-liquid water potential temperature using equations adapted
+    from Bryan and Fritsch (2004).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1559,7 +1566,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
 
-        # Compute the liquid water potential temperature
+        # Compute the liquid water potential temperature (c.f. Bryan and 
+        # Fritsch 2004, Eq. 19, 20, and 25)
         chi = (Rd + rt * Rv) / (cpd + rt * cpv)
         gamma = rt * Rv / (cpd + rt * cpv)
         thetail = T * (p_ref / p) ** chi * \
@@ -1576,7 +1584,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the latent heat of vaporisation
         Ls = latent_heat_of_sublimation(T)
 
-        # Compute the ice water potential temperature
+        # Compute the ice water potential temperature (c.f. Bryan and Fritsch
+        # 2004, Eq. 19, 20, and 25)
         chi = (Rd + rt * Rv) / (cpd + rt * cpv)
         gamma = rt * Rv / (cpd + rt * cpv)
         thetail = T * (p_ref / p) ** chi * \
@@ -1593,7 +1602,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
 
-        # Compute the ice-liquid water potential temperature
+        # Compute the ice-liquid water potential temperature (c.f. Bryan and
+        # Fritsch 2004, Eq. 19, 20, and 25)
         chi = (Rd + rt * Rv) / (cpd + rt * cpv)
         gamma = rt * Rv / (cpd + rt * cpv)
         thetail = T * (p_ref / p) ** chi * \
