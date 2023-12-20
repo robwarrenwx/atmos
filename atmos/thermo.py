@@ -223,19 +223,24 @@ def mixing_ratio(q, qt=None):
     return r
 
 
-def vapour_pressure(p, q):
+def vapour_pressure(p, q, qt=None):
     """
     Computes vapour pressure from pressure and specific humidity.
 
     Args:
         p (float or ndarray): pressure (Pa)
         q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+            (default is None, which implies qt = q)
 
     Returns:
         e (float or ndarray): vapour pressure (Pa)
 
     """
-    e = p * q / (eps * (1 - q) + q)
+    if qt is None:
+        e = p * q / (eps * (1 - q) + q)
+    else:
+        e = p * q / (eps * (1 - qt) + q)
 
     return e
 
@@ -346,7 +351,7 @@ def saturation_mixing_ratio(p, T, phase='liquid', omega=0.0):
     return rs
 
 
-def relative_humidity(p, T, q, phase='liquid', omega=0.0):
+def relative_humidity(p, T, q, qt=None, phase='liquid', omega=0.0):
     """
     Computes relative humidity with respect to specified phase from pressure, 
     temperature, and specific humidity.
@@ -355,6 +360,8 @@ def relative_humidity(p, T, q, phase='liquid', omega=0.0):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+            (default is None, which implies qt = q)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         omega (float or ndarray, optional): ice fraction at saturation 
@@ -364,7 +371,7 @@ def relative_humidity(p, T, q, phase='liquid', omega=0.0):
         RH (float or ndarray): relative humidity (fraction)
 
     """
-    e = vapour_pressure(p, q)
+    e = vapour_pressure(p, q, qt=qt)
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     RH = e / es
 
@@ -863,7 +870,7 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
     Args:
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
-        qt (float or ndarray): total water mass fracion (kg/kg)
+        qt (float or ndarray): total water mass fraction (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
 
@@ -877,10 +884,6 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
 
     # Compute saturation specific humidity
     qs = saturation_specific_humidity(p, T, qt=qt, phase=phase, omega=omega)
-
-    # Ensure that qs does not exceed qt
-    qs = np.minimum(qs, qt)  # does this need to be replaced with a proper
-                                # saturation adjustment scheme?
 
     # Compute Q term
     Q = qs * (1 - qt + qs / eps) / (1 - qt)
@@ -1062,9 +1065,10 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
             # Compute the layer-mean pressure
             pbar = np.sqrt(p1 * p2)  # = np.exp(0.5 * (np.log(p1) + np.log(p2)))
 
-            # Initialise the temperature at level 2
-            #T2[ascending] = T1[ascending] - 0.5
-            #T2[descending] = T1[descending] + 0.5
+            # Get initial estimate for the temperature at level 2 by following
+            # a dry adiabat (ignoring the contribution of moisture)
+            dT_dp = dry_adiabatic_lapse_rate(p1, T1, 0.0)
+            T2 = T1 + dT_dp * (p2 - p1)
 
             # Iterate to get the new temperature at level 2
             delta = np.full_like(p2, 10)
@@ -1466,13 +1470,13 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         rt = qt / (1 - qt)
 
     # Compute the dry pressure
-    e = vapour_pressure(p, q)
+    e = vapour_pressure(p, q, qt=qt)
     pd = p - e
 
     if phase == 'liquid':
 
         # Compute relative humidity with respect to liquid water
-        RH = relative_humidity(p, T, q, phase='liquid')
+        RH = relative_humidity(p, T, q, qt=qt, phase='liquid')
 
         # Compute the latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
@@ -1485,7 +1489,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
     elif phase == 'ice':
 
         # Compute relative humidity with respect to ice
-        RH = relative_humidity(p, T, q, phase='ice')
+        RH = relative_humidity(p, T, q, qt=qt, phase='ice')
 
         # Compute the latent heat of sublimation
         Ls = latent_heat_of_sublimation(T)
@@ -1498,7 +1502,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
     elif phase== 'mixed':
 
         # Compute the relative humidity with respect to mixed-phase
-        RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
+        RH = relative_humidity(p, T, q, qt=qt, phase='mixed', omega=omega)
 
         # Compute the mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
