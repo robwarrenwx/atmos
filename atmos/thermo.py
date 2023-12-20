@@ -1522,6 +1522,93 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
     return thetae
 
 
+def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
+                                           omega=0.0):
+    """
+    Computes ice-liquid water potential temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+            (default is None, which implies qt = q)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        omega (float or ndarray, optional): ice fraction (default is 0.0)
+
+    Returns:
+        thetail (float or ndarray): ice-liquid water potential temperature (K)
+
+    """
+
+    # Compute the water vapour mixing ratio
+    r = mixing_ratio(q, qt=qt)
+
+    # Set the total water mixing ratio
+    if qt is None:
+        rt = r
+    else:
+        rt = qt / (1 - qt)
+
+    if phase == 'liquid':
+
+        # Compute the relative humidity with respect to liquid
+        RH = relative_humidity(p, T, q, qt=qt, phase='liquid')
+
+        # Compute the latent heat of vaporisation
+        Lv = latent_heat_of_vaporisation(T)
+
+        # Compute the liquid water potential temperature
+        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
+        gamma = rt * Rv / (cpd + rt * cpv)
+        thetail = T * (p_ref / p) ** chi * \
+            ((eps + r) / (eps + rt)) ** chi * \
+            (r / rt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Lv) * (rt - r)) /
+                   ((cpd + rt * cpv) * T))
+
+    elif phase == 'ice':
+
+        # Compute the relative humidity with respect to liquid
+        RH = relative_humidity(p, T, q, qt=qt, phase='ice')
+
+        # Compute the latent heat of vaporisation
+        Ls = latent_heat_of_sublimation(T)
+
+        # Compute the ice water potential temperature
+        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
+        gamma = rt * Rv / (cpd + rt * cpv)
+        thetail = T * (p_ref / p) ** chi * \
+            ((eps + r) / (eps + rt)) ** chi * \
+            (r / rt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Ls) * (rt - r)) /
+                   ((cpd + rt * cpv) * T))
+
+    elif phase == 'mixed':
+
+        # Compute the mixed-phase relative humidity
+        RH = relative_humidity(p, T, q, qt=qt, phase='mixed', omega=omega)
+
+        # Compute the mixed-phase latent heat
+        Lx = mixed_phase_latent_heat(T, omega)
+
+        # Compute the ice-liquid water potential temperature
+        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
+        gamma = rt * Rv / (cpd + rt * cpv)
+        thetail = T * (p_ref / p) ** chi * \
+            ((eps + r) / (eps + rt)) ** chi * \
+            (r / rt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Lx) * (rt - r)) /
+                   ((cpd + rt * cpv) * T))
+
+    else:
+
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+
+    return thetail
+
+
 def wet_bulb_potential_temperature(p, T, q, phase='liquid',
                                    pseudo_method='polynomial'):
     """
