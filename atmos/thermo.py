@@ -1466,14 +1466,8 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
 
     """
 
-    # Compute the water vapour mixing ratio
-    r = mixing_ratio(q, qt=qt)
-
-    # Set the total water mixing ratio
     if qt is None:
-        rt = r
-    else:
-        rt = qt / (1 - qt)
+        qt = q
 
     # Compute the dry pressure
     e = vapour_pressure(p, q, qt=qt)
@@ -1488,9 +1482,9 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute the equivalent potential temperature
-        cpml = cpd + rt * cpl
+        cpml = (1 - qt) * cpd + qt * cpl
         thetae = T * (p_ref / pd) ** (Rd / cpml) * \
-            RH ** (-r * Rv / cpml) * np.exp(Lv * r / (cpml * T))
+            RH ** (-q * Rv / cpml) * np.exp(Lv * q / (cpml * T))
 
     elif phase == 'ice':
 
@@ -1501,9 +1495,9 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Ls = latent_heat_of_sublimation(T)
 
         # Compute the equivalent potential temperature
-        cpmi = cpd + rt * cpi
+        cpmi = (1 - qt) * cpd + qt * cpi
         thetae = T * (p_ref / pd) ** (Rd / cpmi) * \
-            RH ** (-r * Rv / cpmi) * np.exp(Ls * r / (cpmi * T))
+            RH ** (-q * Rv / cpmi) * np.exp(Ls * q / (cpmi * T))
 
     elif phase== 'mixed':
 
@@ -1517,9 +1511,9 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         cpx = (1 - omega) * cpl + omega * cpi
 
         # Compute the equivalent potential temperature
-        cpmx = cpd + rt * cpx
+        cpmx = (1 - qt) * cpd + qt * cpx
         thetae = T * (p_ref / pd) ** (Rd / cpmx) * \
-            RH ** (-r * Rv / cpmx) * np.exp(Lx * r / (cpmx * T))
+            RH ** (-q * Rv / cpmx) * np.exp(Lx * q / (cpmx * T))
 
     else:
 
@@ -1549,14 +1543,14 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
     """
 
-    # Compute the water vapour mixing ratio
-    r = mixing_ratio(q, qt=qt)
-
-    # Set the total water mixing ratio
     if qt is None:
-        rt = r
-    else:
-        rt = qt / (1 - qt)
+        qt = q
+
+    # Set constants
+    Rmv = (1 - qt) * Rd + qt * Rv
+    cpmv = (1 - qt) * cpd + qt * cpv
+    chi = Rmv / cpmv
+    gamma = qt * Rv / cpmv
 
     if phase == 'liquid':
 
@@ -1567,14 +1561,11 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute the liquid water potential temperature (c.f. Bryan and 
-        # Fritsch 2004, Eq. 19, 20, and 25)
-        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
-        gamma = rt * Rv / (cpd + rt * cpv)
+        # Fritsch 2004, Eq. 25)
         thetail = T * (p_ref / p) ** chi * \
-            ((eps + r) / (eps + rt)) ** chi * \
-            (r / rt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Lv) * (rt - r)) /
-                   ((cpd + rt * cpv) * T))
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
+            (q / qt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Lv) * (qt - q)) / (cpmv * T))
 
     elif phase == 'ice':
 
@@ -1586,13 +1577,10 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice water potential temperature (c.f. Bryan and Fritsch
         # 2004, Eq. 19, 20, and 25)
-        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
-        gamma = rt * Rv / (cpd + rt * cpv)
         thetail = T * (p_ref / p) ** chi * \
-            ((eps + r) / (eps + rt)) ** chi * \
-            (r / rt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Ls) * (rt - r)) /
-                   ((cpd + rt * cpv) * T))
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
+            (q / qt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Ls) * (qt - q)) / (cpmv * T))
 
     elif phase == 'mixed':
 
@@ -1604,13 +1592,10 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice-liquid water potential temperature (c.f. Bryan and
         # Fritsch 2004, Eq. 19, 20, and 25)
-        chi = (Rd + rt * Rv) / (cpd + rt * cpv)
-        gamma = rt * Rv / (cpd + rt * cpv)
         thetail = T * (p_ref / p) ** chi * \
-            ((eps + r) / (eps + rt)) ** chi * \
-            (r / rt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Lx) * (rt - r)) /
-                   ((cpd + rt * cpv) * T))
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
+            (q / qt) ** -gamma * \
+            np.exp(((Rv * T * np.log(RH) - Lx) * (qt - q)) / (cpmv * T))
 
     else:
 
