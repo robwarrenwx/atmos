@@ -1549,8 +1549,6 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
     # Set constants
     Rmv = (1 - qt) * Rd + qt * Rv
     cpmv = (1 - qt) * cpd + qt * cpv
-    chi = Rmv / cpmv
-    gamma = qt * Rv / cpmv
 
     if phase == 'liquid':
 
@@ -1562,10 +1560,11 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the liquid water potential temperature (c.f. Bryan and 
         # Fritsch 2004, Eq. 25)
-        thetail = T * (p_ref / p) ** chi * \
-            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
-            (q / qt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Lv) * (qt - q)) / (cpmv * T))
+        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
+            (q / qt) ** (-qt * Rv / cpmv) * \
+            RH ** ((qt - q) * Rv / cpmv) * \
+            np.exp(- Lv * (qt - q) / (cpmv * T))
 
     elif phase == 'ice':
 
@@ -1577,10 +1576,11 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice water potential temperature (c.f. Bryan and Fritsch
         # 2004, Eq. 19, 20, and 25)
-        thetail = T * (p_ref / p) ** chi * \
-            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
-            (q / qt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Ls) * (qt - q)) / (cpmv * T))
+        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
+            (q / qt) ** (-qt * Rv / cpmv) * \
+            RH ** ((qt - q) * Rv / cpmv) * \
+            np.exp(- Ls * (qt - q) / (cpmv * T))
 
     elif phase == 'mixed':
 
@@ -1592,10 +1592,11 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice-liquid water potential temperature (c.f. Bryan and
         # Fritsch 2004, Eq. 19, 20, and 25)
-        thetail = T * (p_ref / p) ** chi * \
-            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** chi * \
-            (q / qt) ** -gamma * \
-            np.exp(((Rv * T * np.log(RH) - Lx) * (qt - q)) / (cpmv * T))
+        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+            ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
+            (q / qt) ** (-qt * Rv / cpmv) * \
+            RH ** ((qt - q) * Rv / cpmv) * \
+            np.exp(- Lx * (qt - q) / (cpmv * T))
 
     else:
 
