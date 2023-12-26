@@ -1473,6 +1473,9 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
     e = vapour_pressure(p, q, qt=qt)
     pd = p - e
 
+    # Compute cpml
+    cpml = (1 - qt) * cpd + qt * cpl
+
     if phase == 'liquid':
 
         # Compute relative humidity with respect to liquid water
@@ -1482,38 +1485,65 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute the equivalent potential temperature
-        cpml = (1 - qt) * cpd + qt * cpl
-        thetae = T * (p_ref / pd) ** (Rd / cpml) * \
-            RH ** (-q * Rv / cpml) * np.exp(Lv * q / (cpml * T))
+        #cpml = (1 - qt) * cpd + qt * cpl
+        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+            RH ** (-q * Rv / cpml) * \
+            np.exp(Lv * q / (cpml * T))
 
     elif phase == 'ice':
 
         # Compute relative humidity with respect to ice
         RH = relative_humidity(p, T, q, qt=qt, phase='ice')
 
+        # Compute the saturation vapour pressures with respect to liquid water
+        # and ice
+        esl = saturation_vapour_pressure(T, phase='liquid')
+        esi = saturation_vapour_pressure(T, phase='ice')
+
         # Compute the latent heat of sublimation
         Ls = latent_heat_of_sublimation(T)
 
+        # Compute the latent heat of freezing
+        Lf = latent_heat_of_freezing(T)
+
         # Compute the equivalent potential temperature
-        cpmi = (1 - qt) * cpd + qt * cpi
-        thetae = T * (p_ref / pd) ** (Rd / cpmi) * \
-            RH ** (-q * Rv / cpmi) * np.exp(Ls * q / (cpmi * T))
+        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+            RH ** (-q * Rv / cpml) * \
+            (esi / esl) ** (-qt * Rv / cpml) * \
+            np.exp((Ls * q - Lf * qt) / (cpml * T))
+
+        #cpmi = (1 - qt) * cpd + qt * cpi
+        #thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpmx) * \
+        #    RH ** (-q * Rv / cpmx) * \
+        #    np.exp((Lx * q - omega * Lf0 * qt) / (cpmx * T))
 
     elif phase== 'mixed':
 
         # Compute the relative humidity with respect to mixed-phase
         RH = relative_humidity(p, T, q, qt=qt, phase='mixed', omega=omega)
 
+        # Compute the saturation vapour pressures with respect to liquid water
+        # and ice
+        esl = saturation_vapour_pressure(T, phase='liquid')
+        esi = saturation_vapour_pressure(T, phase='ice')
+
         # Compute the mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
 
-        # Compute the mixed-phase specific heat
-        cpx = (1 - omega) * cpl + omega * cpi
+        # Compute the latent heat of freezing
+        Lf = latent_heat_of_freezing(T)
 
         # Compute the equivalent potential temperature
-        cpmx = (1 - qt) * cpd + qt * cpx
-        thetae = T * (p_ref / pd) ** (Rd / cpmx) * \
-            RH ** (-q * Rv / cpmx) * np.exp(Lx * q / (cpmx * T))
+        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+            RH ** (-q * Rv / cpml) * \
+            (esi / esl) ** (-omega * qt * Rv / cpml) * \
+            np.exp((Lx * q - omega * Lf * qt) / (cpml * T))
+        
+        #cpx = (1 - omega) * cpl + omega * cpi
+        #cpmx = (1 - qt) * cpd + qt * cpx
+        #thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpmx) * \
+        #    RH ** (-q * Rv / cpmx) * \
+        #    np.exp((Lx * q - omega * Lf0 * qt) / (cpmx * T))
 
     else:
 
