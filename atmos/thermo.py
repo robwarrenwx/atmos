@@ -1074,7 +1074,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
             # Get initial estimate for the temperature at level 2 by following
             # a dry adiabat (ignoring the contribution of moisture)
             dT_dp = dry_adiabatic_lapse_rate(p1, T1, 0.0)
-            T2 = T1 + dT_dp * (p2 - p1)
+            #T2 = T1 + dT_dp * (p2 - p1)
+            T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT//d(ln(p))
 
             # Iterate to get the new temperature at level 2
             delta = np.full_like(p2, 10)
@@ -1106,7 +1107,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
                                                    phase=phase)
 
                 # Update the level 2 temperature
-                T2_new = T1 + dT_dp * (p2 - p1)
+                #T2_new = T1 + dT_dp * (p2 - p1)
+                T2_new = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT//d(ln(p))
 
                 # Check if the solution has converged
                 delta = np.abs(T2_new - T2)
