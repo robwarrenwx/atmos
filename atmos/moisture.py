@@ -1,3 +1,15 @@
+"""
+Functions for converting between the following moisture variables:
+* specific humidity, q
+* mixing ratio, r
+* vapour pressure, e
+* relative humidity, RH
+* dewpoint temperature, Td
+* frost-point temperature, Tf
+* saturation-point temperature, Ts
+
+"""
+
 from atmos.constant import eps
 from atmos.thermo import (mixing_ratio, 
                           vapour_pressure,

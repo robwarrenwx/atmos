@@ -1,18 +1,16 @@
 """
-References:
+Physical constants
 
-Ambaum, M. H., 2020. Accurate, simple equation for saturated vapour pressure
+References:
+* Ambaum, M. H., 2020. Accurate, simple equation for saturated vapour pressure
     over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
     https://doi.org/10.1002/qj.3899.
-
-Feistel, R., and W. Wagner, 2006: A New Equation of State for H2O Ice Ih.
+* Feistel, R., and W. Wagner, 2006: A New Equation of State for H2O Ice Ih.
     J. Phys. Chem. Ref. Data, 35, 2021-1047 https://doi.org/10.1063/1.2183324.
-
-Guildner, L. A., D. P. Johnson, and F. E. Jones, 1976: Vapor pressure of water
+* Guildner, L. A., D. P. Johnson, and F. E. Jones, 1976: Vapor pressure of water
     at its triple point. J. Res. Natl. Bur. Stand., 80A, 505-521,
     https://doi.org/10.6028/jres.080A.054.
-
-Wagner, W., and A. Pruß, 2002: The IAPWS Formulation 1995 for the 
+* Wagner, W., and A. Pruß, 2002: The IAPWS Formulation 1995 for the 
     Thermodynamic Properties of Ordinary Water Substance for General and
     Scientific Use. J. Phys. Chem. Ref. Data, 31, 387-535,
     https://doi.org/10.1063/1.1461829.

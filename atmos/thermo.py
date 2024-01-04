@@ -1,19 +1,46 @@
 """
-Thermodynamic functions.
+Functions for calculating the following thermodynamic variables:
+* effective gas constant, Rm
+* effective specific heat, cpm
+* latent heat of vaporisation, Lv
+* latent heat of freezing, Lf
+* latent heat of sublimation, Ls
+* mixed-phase latent heat, Lx
+* air density, rho
+* dry air density, rhod
+* virtual temperature, Tv
+* mixing ratio, r
+* vapour pressure, e
+* saturation vapour pressure, es
+* saturation specific humidity, qs
+* saturation mixing ratio, rs
+* relative humidity, RH
+* dewpoint temperature, Td
+* frost-point temperature, Tf
+* saturation-point temperature, Ts
+* lifting condensation level temperature, T_lsl, and pressure, p_lsl
+* lifting deposition level temperature, T_ldl, and pressure, p_ldl
+* lifting saturation level temperature, T_lsl, and pressure, T_lsl
+* dry, pseudo, and saturated adiabatic pressure lapse rates
+* parcel temperature following dry, pseudo, and saturated adiabats
+* adiabatic and isobaric wet-bulb temperatures, Tw
+* dry potential temperature, thetad
+* moist potential temperature, thetam
+* virtual potential temperature, thetav
+* equivalent potential temperature, thetae
+* ice-liquid water potential temperature, thetail
+* wet-bulb potential temperature, thetaw
+* saturated wet-bulb potential temperature, thetaws
 
 References:
-
 * Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
     pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
     https://doi.org/10.1002/qj.3899.
-
 * Bryan, G. H., and J. M. Fristch, 2004: A Reevaluation of Ice-Liquid Water
     Potential Temperature. Mon. Wea. Rev., 132, 2421-2431,
     https://doi.org/10.1175/1520-0493(2004)132<2421:AROIWP>2.0.CO;2.
-
 * Romps, D. M., 2017: Exact expression for the lifting condensation level.
     J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
-
 * Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
