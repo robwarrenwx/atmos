@@ -10,6 +10,7 @@ Functions for converting between the following moisture variables:
 
 """
 
+import numpy as np
 from atmos.constant import eps
 from atmos.thermo import (mixing_ratio, 
                           vapour_pressure,
@@ -19,7 +20,8 @@ from atmos.thermo import (mixing_ratio,
                           saturation_mixing_ratio, 
                           dewpoint_temperature,
                           frost_point_temperature,
-                          saturation_point_temperature)
+                          saturation_point_temperature,
+                          ice_fraction)
 
 
 def specific_humidity_from_mixing_ratio(r):
@@ -635,7 +637,8 @@ def frost_point_temperature_from_relative_humidity(p, T, RH):
     return Tf
 
 
-def saturation_point_temperature_from_specific_humidity(p, T, q, omega):
+def saturation_point_temperature_from_specific_humidity(p, T, q,
+                                                        converged=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     specific humidity.
@@ -644,18 +647,19 @@ def saturation_point_temperature_from_specific_humidity(p, T, q, omega):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
-        omega (float or ndarray): ice fraction at saturation
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
-    Ts = saturation_point_temperature(p, T, q, omega)
+    Ts = saturation_point_temperature(p, T, q, converged=converged)
     
     return Ts
 
 
-def saturation_point_temperature_from_mixing_ratio(p, T, r, omega):
+def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     mixing ratio.
@@ -664,19 +668,21 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, omega):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         r (float or ndarray): mixing ratio (kg/kg)
-        omega (float or ndarray): ice fraction at saturation
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
     q = specific_humidity_from_mixing_ratio(r)
-    Ts = saturation_point_temperature(p, T, q, omega)
+    Ts = saturation_point_temperature(p, T, q, converged=converged)
     
     return Ts
 
 
-def saturation_point_temperature_from_vapour_pressure(p, T, e, omega):
+def saturation_point_temperature_from_vapour_pressure(p, T, e,
+                                                      converged=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     vapour pressure.
@@ -685,19 +691,21 @@ def saturation_point_temperature_from_vapour_pressure(p, T, e, omega):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         e (float or ndarray): vapour pressure (Pa)
-        omega (float or ndarray): ice fraction at saturation
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
     q = specific_humidity_from_vapour_pressure(p, e)
-    Ts = saturation_point_temperature(p, T, q, omega)
+    Ts = saturation_point_temperature(p, T, q, converged=converged)
     
     return Ts
     
     
-def saturation_point_temperature_from_relative_humidity(p, T, RH, omega):
+def saturation_point_temperature_from_relative_humidity(p, T, RH,
+                                                        converged=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and
     mixed-phase relative humidity.
@@ -706,16 +714,42 @@ def saturation_point_temperature_from_relative_humidity(p, T, RH, omega):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         RH (float or ndarray): relative humidity (fraction)
-        omega (float or ndarray): ice fraction at saturation
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
     
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
-    q = specific_humidity_from_relative_humidity(p, T, RH, phase='mixed', 
-                                                 omega=omega)
-    Ts = saturation_point_temperature(p, T, q, omega)
     
+    # Intialise the saturation point temperature as the temperature
+    Ts = T.copy()
+
+    # Iterate to convergence
+    count = 0
+    delta = np.full_like(T, 10)
+    while np.max(delta) > converged:
+
+        # Update the previous Ts value
+        Ts_prev = Ts
+
+        # Compute omega
+        omega = ice_fraction(Ts)
+
+        # Compute specific humidity
+        q = specific_humidity_from_relative_humidity(p, T, RH, phase='mixed', 
+                                                     omega=omega)
+
+        # Compute saturation point temperature
+        Ts = saturation_point_temperature(p, T, q, converged=converged)
+
+        # Check if solution has converged
+        delta = np.abs(Ts - Ts_prev)
+        count += 1
+        if count > 20:
+            print("Ts not converged after 20 iterations")
+            break
+
     return Ts
 
 
