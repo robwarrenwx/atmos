@@ -84,7 +84,7 @@ def latent_heat_of_vaporisation(T):
         Lv (float or ndarray): latent heat of vaporisation (J/kg)
 
     """
-    Lv = Lv0 - (cpl - cpv) * (T - T0)
+    Lv = Lv0 + (cpv - cpl) * (T - T0)
 
     return Lv
 
@@ -100,7 +100,7 @@ def latent_heat_of_freezing(T):
         Lf (float or ndarray): latent heat of freezing (J/kg)
 
     """
-    Lf = Lf0 - (cpi - cpl) * (T - T0)
+    Lf = Lf0 + (cpl - cpi) * (T - T0)
 
     return Lf
 
@@ -116,7 +116,7 @@ def latent_heat_of_sublimation(T):
         Ls (float or ndarray): latent heat of sublimation (J/kg)
 
     """
-    Ls = Ls0 - (cpi - cpv) * (T - T0)
+    Ls = Ls0 + (cpv - cpi) * (T - T0)
 
     return Ls
 
@@ -135,7 +135,7 @@ def mixed_phase_latent_heat(T, omega):
     """
     cpx = (1 - omega) * cpl + omega * cpi
     Lx0 = (1 - omega) * Lv0 + omega * Ls0  # = Lv0 + omega * Lf0
-    Lx = Lx0 - (cpx - cpv) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
+    Lx = Lx0 + (cpv - cpx) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
                                        # = Lv + omega * Lf
 
     return Lx
