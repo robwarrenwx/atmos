@@ -35,9 +35,8 @@ def specific_humidity_from_mixing_ratio(r):
         q (float or ndarray): specific humidity (kg/kg)
 
     """
-    
     q = r / (1 + r)
-    
+
     return q
 
 
@@ -54,7 +53,7 @@ def specific_humidity_from_vapour_pressure(p, e):
 
     """
     q = eps * e / (p - (1 - eps) * e)
-    
+
     return q
 
 
@@ -80,7 +79,7 @@ def specific_humidity_from_relative_humidity(p, T, RH, phase='liquid',
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     e = RH * es
     q = specific_humidity_from_vapour_pressure(p, e)
-    
+
     return q
 
 
@@ -97,7 +96,7 @@ def specific_humidity_from_dewpoint_temperature(p, Td):
 
     """    
     q = saturation_specific_humidity(p, Td, phase='liquid')
-    
+
     return q
 
 
@@ -114,7 +113,7 @@ def specific_humidity_from_frost_point_temperature(p, Tf):
 
     """    
     q = saturation_specific_humidity(p, Tf, phase='ice')
-    
+
     return q
 
 
@@ -132,7 +131,7 @@ def specific_humidity_from_saturation_point_temperature(p, Ts, omega):
 
     """    
     q = saturation_specific_humidity(p, Ts, phase='mixed', omega=omega)
-    
+
     return q
 
 
@@ -148,7 +147,7 @@ def mixing_ratio_from_specific_humidity(q):
 
     """
     r = mixing_ratio(q)
-    
+
     return r
 
 
@@ -165,7 +164,7 @@ def mixing_ratio_from_vapour_pressure(p, e):
 
     """
     r = eps * e / (p - e)
-    
+
     return r
 
 
@@ -190,7 +189,7 @@ def mixing_ratio_from_relative_humidity(p, T, RH, phase='liquid', omega=0.0):
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     e = RH * es
     r = mixing_ratio_from_vapour_pressure(p, e)
-    
+
     return r
 
 
@@ -207,7 +206,7 @@ def mixing_ratio_from_dewpoint_temperature(p, Td):
 
     """    
     r = saturation_mixing_ratio(p, Td, phase='liquid')
-    
+
     return r
 
 
@@ -224,7 +223,7 @@ def mixing_ratio_from_frost_point_temperature(p, Tf):
 
     """    
     r = saturation_mixing_ratio(p, Tf, phase='ice')
-    
+
     return r
 
 
@@ -242,7 +241,7 @@ def mixing_ratio_from_saturation_point_temperature(p, Ts, omega):
 
     """    
     r = saturation_mixing_ratio(p, Ts, phase='mixed', omega=omega)
-    
+
     return r
     
 
@@ -494,7 +493,7 @@ def dewpoint_temperature_from_specific_humidity(p, T, q):
 
     """
     Td = dewpoint_temperature(p, T, q)
-    
+
     return Td
 
 
@@ -514,7 +513,7 @@ def dewpoint_temperature_from_mixing_ratio(p, T, r):
     """
     q = specific_humidity_from_mixing_ratio(r)
     Td = dewpoint_temperature(p, T, q)
-    
+
     return Td
 
 
@@ -534,7 +533,7 @@ def dewpoint_temperature_from_vapour_pressure(p, T, e):
     """
     q = specific_humidity_from_vapour_pressure(p, e)
     Td = dewpoint_temperature(p, T, q)
-    
+
     return Td
     
     
@@ -554,7 +553,48 @@ def dewpoint_temperature_from_relative_humidity(p, T, RH):
     """
     q = specific_humidity_from_relative_humidity(p, T, RH, phase='liquid')
     Td = dewpoint_temperature(p, T, q)
-    
+
+    return Td
+
+
+def dewpoint_temperature_from_frost_point_temperature(p, T, Tf):
+    """
+    Computes dewpoint temperature from pressure, temperature, and frost-point
+    temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
+
+    Returns:
+        Td (float or ndarray): dewpoint temperature (K)
+
+    """
+    q = specific_humidity_from_frost_point_temperature(p, Tf)
+    Td = dewpoint_temperature(p, T, q)
+
+    return Td
+
+
+def dewpoint_temperature_from_saturation_point_temperature(p, T, Ts, omega):
+    """
+    Computes dewpoint temperature from pressure, temperature, and saturation-
+    point temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
+
+    Returns:
+        Td (float or ndarray): dewpoint temperature (K)
+
+    """
+    q = specific_humidity_from_saturation_point_temperature(p, Ts, omega)
+    Td = dewpoint_temperature(p, T, q)
+
     return Td
 
 
@@ -573,7 +613,7 @@ def frost_point_temperature_from_specific_humidity(p, T, q):
 
     """
     Tf = frost_point_temperature(p, T, q)
-    
+
     return Tf
 
 
@@ -593,7 +633,7 @@ def frost_point_temperature_from_mixing_ratio(p, T, r):
     """
     q = specific_humidity_from_mixing_ratio(r)
     Tf = frost_point_temperature(p, T, q)
-    
+
     return Tf
 
 
@@ -613,7 +653,7 @@ def frost_point_temperature_from_vapour_pressure(p, T, e):
     """
     q = specific_humidity_from_vapour_pressure(p, e)
     Tf = frost_point_temperature(p, T, q)
-    
+
     return Tf
     
     
@@ -633,7 +673,48 @@ def frost_point_temperature_from_relative_humidity(p, T, RH):
     """
     q = specific_humidity_from_relative_humidity(p, T, RH, phase='ice')
     Tf = frost_point_temperature(p, T, q)
-    
+
+    return Tf
+
+
+def frost_point_temperature_from_dewpoint_temperature(p, T, Td):
+    """
+    Computes frost-point temperature from pressure, temperature, and dewpoint
+    temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Td (float or ndarray): dewpoint temperature (K)
+
+    Returns:
+        Tf (float or ndarray): frost-point temperature (K)
+
+    """
+    q = specific_humidity_from_dewpoint_temperature(p, Td)
+    Tf = frost_point_temperature(p, T, q)
+
+    return Tf
+
+
+def frost_point_temperature_from_saturation_point_temperature(p, T, Ts, omega):
+    """
+    Computes frost-point temperature from pressure, temperature, and
+    saturation-point temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Ts (float or ndarray): saturation-point temperature (K)
+        omega (float or ndarray): ice fraction at saturation
+
+    Returns:
+        Tf (float or ndarray): frost-point temperature (K)
+
+    """
+    q = specific_humidity_from_saturation_point_temperature(p, Ts, omega)
+    Tf = frost_point_temperature(p, T, q)
+
     return Tf
 
 
@@ -655,7 +736,7 @@ def saturation_point_temperature_from_specific_humidity(p, T, q,
 
     """
     Ts = saturation_point_temperature(p, T, q, converged=converged)
-    
+
     return Ts
 
 
@@ -677,14 +758,14 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
     """
     q = specific_humidity_from_mixing_ratio(r)
     Ts = saturation_point_temperature(p, T, q, converged=converged)
-    
+
     return Ts
 
 
 def saturation_point_temperature_from_vapour_pressure(p, T, e,
                                                       converged=0.001):
     """
-    Computes saturation-point temperature from pressure, temperature, and 
+    Computes saturation-point temperature from pressure, temperature, and
     vapour pressure.
 
     Args:
@@ -700,7 +781,7 @@ def saturation_point_temperature_from_vapour_pressure(p, T, e,
     """
     q = specific_humidity_from_vapour_pressure(p, e)
     Ts = saturation_point_temperature(p, T, q, converged=converged)
-    
+
     return Ts
     
     
@@ -749,6 +830,52 @@ def saturation_point_temperature_from_relative_humidity(p, T, RH,
         if count > 20:
             print("Ts not converged after 20 iterations")
             break
+
+    return Ts
+
+
+def saturation_point_temperature_from_dewpoint_temperature(p, T, Td,
+                                                           converged=0.001):
+    """
+    Computes saturation-point temperature from pressure, temperature, and
+    dewpoint temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Td (float or ndarray): dewsaturation-point temperature (K)
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
+
+    Returns:
+        Ts (float or ndarray): saturation-point temperature (K)
+
+    """
+    q = specific_humidity_from_dewpoint_temperature(p, Td)
+    Ts = saturation_point_temperature(p, T, q, converged=converged)
+
+    return Ts
+
+
+def saturation_point_temperature_from_frost_point_temperature(p, T, Tf,
+                                                              converged=0.001):
+    """
+    Computes saturation-point temperature from pressure, temperature, and
+    frost-point temperature.
+
+    Args:
+        p (float or ndarray): pressure (Pa)
+        T (float or ndarray): temperature (K)
+        Tf (float or ndarray): frost-point temperature (K)
+        converged (float, optional): target precision for saturation-point
+            temperature (default is 0.001 K)
+
+    Returns:
+        Ts (float or ndarray): saturation-point temperature (K)
+
+    """
+    q = specific_humidity_from_frost_point_temperature(p, Tf)
+    Ts = saturation_point_temperature(p, T, q, converged=converged)
 
     return Ts
 
