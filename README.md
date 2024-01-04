@@ -1,4 +1,4 @@
-# atmos: fast and accurate calculations for atmospheric science
+# atmos: fast and accurate calculations for applications in atmospheric science
 
 __atmos__ is a Python library for computing physical quantities commonly used in atmospheric science. Currently, the code comprises functions for calculating a wide array of thermodynamic variables (see the "thermo" module) and for translating between different measures of atmospheric moisture (see the "moisture" module). All of the equations in __atmos__ are analytical and derived from a common set of assumptions (the so-called _Rankine-Kirchhoff_ approximations; [Romps 2021](https://rmets.onlinelibrary.wiley.com/doi/full/10.1002/qj.4154)); no empirical equations are used. Another novel feature of __atmos__ is the treatment of saturation, which can be represented with respect to liquid, ice, or a combination of the two (via the "phase" argument to relevant functions). A new treatment of mixed-phase saturation has been developed, which will be documented in a manuscript currently under preparation.
 
