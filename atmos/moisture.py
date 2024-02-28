@@ -17,7 +17,8 @@ from atmos.thermo import (mixing_ratio,
                           relative_humidity,
                           saturation_vapour_pressure,
                           saturation_specific_humidity,
-                          saturation_mixing_ratio, 
+                          saturation_mixing_ratio,
+                          dewpoint_temperature_from_relative_humidity,
                           dewpoint_temperature,
                           frost_point_temperature,
                           saturation_point_temperature,
@@ -532,26 +533,6 @@ def dewpoint_temperature_from_vapour_pressure(p, T, e):
 
     """
     q = specific_humidity_from_vapour_pressure(p, e)
-    Td = dewpoint_temperature(p, T, q)
-
-    return Td
-    
-    
-def dewpoint_temperature_from_relative_humidity(p, T, RH):
-    """
-    Computes dewpoint temperature from pressure, temperature, and relative
-    humidity with respect to liquid water.
-
-    Args:
-        p (float or ndarray): pressure (Pa)
-        T (float or ndarray): temperature (K)
-        RH (float or ndarray): relative humidity (fraction)
-
-    Returns:
-        Td (float or ndarray): dewpoint temperature (K)
-
-    """
-    q = specific_humidity_from_relative_humidity(p, T, RH, phase='liquid')
     Td = dewpoint_temperature(p, T, q)
 
     return Td
