@@ -411,6 +411,33 @@ def relative_humidity(p, T, q, qt=None, phase='liquid', omega=0.0):
     return RH
 
 
+def dewpoint_temperature_from_relative_humidity(T, RH):
+    """
+    Computes dewpoint temperature from temperature, and relative
+    humidity using equations from Romps (2021).
+
+    Args:
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+
+    Returns:
+        Td (float or ndarray): dewpoint temperature (K)
+
+    """
+    # Set constant (Romps 2021, Eq. 6)
+    c = (Lv0 - (cpv - cpl) * T0) / ((cpv - cpl) * T)
+
+    # Compute dewpoint temperature (Romps 2021, Eq. 5)
+    fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
+    W = lambertw(fn, k=-1).real
+    Td = c * (1 / W) * T
+    
+    # Ensure that Td does not exceed T
+    Td = np.minimum(Td, T)
+
+    return Td
+
+
 def dewpoint_temperature(p, T, q):
     """
     Computes dewpoint temperature from pressure, temperature, and specific
@@ -425,21 +452,9 @@ def dewpoint_temperature(p, T, q):
         Td (float or ndarray): dewpoint temperature (K)
 
     """
-
     # Compute relative humidity over liquid water
     RH = relative_humidity(p, T, q, phase='liquid')
-    #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
-
-    # Set constant (Romps 2021, Eq. 6)
-    c = (Lv0 - (cpv - cpl) * T0) / ((cpv - cpl) * T)
-
-    # Compute dewpoint temperature (Romps 2021, Eq. 5)
-    fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
-    Td = c * (1 / W) * T
-    
-    # Ensure that Td does not exceed T
-    Td = np.minimum(Td, T)
+    Td = dewpoint_temperature_from_relative_humidity(T, RH)
 
     return Td
 
