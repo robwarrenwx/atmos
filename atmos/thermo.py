@@ -411,10 +411,38 @@ def relative_humidity(p, T, q, qt=None, phase='liquid', omega=0.0):
     return RH
 
 
+def _dewpoint_temperature_from_relative_humidity(T, RH):
+    """
+    Computes dewpoint temperature from temperature and relative humidity over
+    liquid water using equations from Romps (2021).
+
+    Args:
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+
+    Returns:
+        Td (float or ndarray): dewpoint temperature (K)
+
+    """
+
+    # Set constant (Romps 2021, Eq. 6)
+    c = (Lv0 - (cpv - cpl) * T0) / ((cpv - cpl) * T)
+
+    # Compute dewpoint temperature (Romps 2021, Eq. 5)
+    fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
+    W = lambertw(fn, k=-1).real
+    Td = c * (1 / W) * T
+    
+    # Ensure that Td does not exceed T
+    #Td = np.minimum(Td, T)
+
+    return Td
+
+
 def dewpoint_temperature(p, T, q):
     """
     Computes dewpoint temperature from pressure, temperature, and specific
-    humidity using equations from Romps (2021).
+    humidity.
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -429,25 +457,45 @@ def dewpoint_temperature(p, T, q):
     # Compute relative humidity over liquid water
     RH = relative_humidity(p, T, q, phase='liquid')
     #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
-
-    # Set constant (Romps 2021, Eq. 6)
-    c = (Lv0 - (cpv - cpl) * T0) / ((cpv - cpl) * T)
-
-    # Compute dewpoint temperature (Romps 2021, Eq. 5)
-    fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
-    Td = c * (1 / W) * T
     
-    # Ensure that Td does not exceed T
-    Td = np.minimum(Td, T)
+    # Compute dewpoint temperature
+    Td = _dewpoint_temperature_from_relative_humidity(T, RH)
 
     return Td
+
+
+def _frost_point_temperature_from_relative_humidity(T, RH):
+    """
+    Computes frost-point temperature from temperature and relative humidity
+    over ice using equations from Romps (2021).
+
+    Args:
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): relative humidity (fraction)
+
+    Returns:
+        Tf (float or ndarray): frost-point temperature (K)
+
+    """
+
+    # Set constant (Romps 2021, Eq. 8)
+    c = (Ls0 - (cpv - cpi) * T0) / ((cpv - cpi) * T)
+
+    # Compute frost-point temperature (Romps 2021, Eq. 7)
+    fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
+    W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
+    Tf = c * (1 / W) * T
+    
+    # Ensure that Tf does not exceed T
+    #Tf = np.minimum(Tf, T)
+
+    return Tf
 
 
 def frost_point_temperature(p, T, q):
     """
     Computes frost-point temperature from pressure, temperature, and specific
-    humidity using equations from Romps (2021).
+    humidity.
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -462,24 +510,51 @@ def frost_point_temperature(p, T, q):
     RH = relative_humidity(p, T, q, phase='ice')
     #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
-    # Set constant (Romps 2021, Eq. 8)
-    c = (Ls0 - (cpv - cpi) * T0) / ((cpv - cpi) * T)
-
-    # Compute frost-point temperature (Romps 2021, Eq. 7)
-    fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
-    Tf = c * (1 / W) * T
-    
-    # Ensure that Tf does not exceed T
-    Tf = np.minimum(Tf, T)
+    # Compute frost-point temperature
+    Tf = _frost_point_temperature_from_relative_humidity(T, RH)
 
     return Tf
+
+
+def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
+    """
+    Computes saturation-point temperature from temperature and mixed-phase
+    relative humidity using equations similar to Romps (2021).
+
+    Args:
+        T (float or ndarray): temperature (K)
+        RH (float or ndarray): mixed-phase relative humidity (fraction)
+        omega (float or ndarray): ice fraction
+
+    Returns:
+        Ts (float or ndarray): saturation-point temperature (K)
+
+    """
+
+    # Compute mixed-phase specific heat
+    cpx = (1 - omega) * cpl + omega * cpi
+
+    # Compute mixed-phase latent heat at the triple point
+    Lx0 = (1 - omega) * Lv0 + omega * Ls0
+
+    # Set constant (cf. Romps 2021, Eq. 6 and 8)
+    c = (Lx0 - (cpv - cpx) * T0) / ((cpv - cpx) * T)
+
+    # Compute saturation-point temperature (cf. Romps 2021, Eq. 5 and 7)
+    fn = np.power(RH, (Rv / (cpx - cpv))) * c * np.exp(c)
+    W = lambertw(fn, k=-1).real
+    Ts = c * (1 / W) * T
+   
+    # Ensure that Ts does not exceed T
+    #Ts = np.minimum(Ts, T)
+
+    return Ts
 
 
 def saturation_point_temperature(p, T, q, converged=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
-    specific humidity using equations similar to Romps (2021).
+    specific humidity.
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -511,19 +586,8 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
         #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
-        # Compute mixed-phase specific heat
-        cpx = (1 - omega) * cpl + omega * cpi
-
-        # Compute mixed-phase latent heat at the triple point
-        Lx0 = (1 - omega) * Lv0 + omega * Ls0
-
-        # Set constant (cf. Romps 2021, Eq. 6 and 8)
-        c = (Lx0 - (cpv - cpx) * T0) / ((cpv - cpx) * T)
-
-        # Compute saturation-point temperature (cf. Romps 2021, Eq. 5 and 7)
-        fn = np.power(RH, (Rv / (cpx - cpv))) * c * np.exp(c)
-        W = lambertw(fn, k=-1).real
-        Ts = c * (1 / W) * T
+        # Compute saturation-point temperature
+        Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
    
         # Check if solution has converged
         delta = np.abs(Ts - Ts_prev)
@@ -531,9 +595,6 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         if count > 20:
             print("Ts not converged after 20 iterations")
             break
-
-    # Ensure that Ts does not exceed T
-    Ts = np.minimum(Ts, T)
 
     return Ts
 
