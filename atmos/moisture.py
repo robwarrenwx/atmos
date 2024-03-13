@@ -644,7 +644,7 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
         # Update the previous Ts value
         Ts_prev = Ts
 
-        # Compute omega
+        # Compute the ice fraction
         omega = ice_fraction(Ts)
 
         # Compute mixed-phase relative humidity
@@ -691,7 +691,7 @@ def saturation_point_temperature_from_vapour_pressure(T, e,
         # Update the previous Ts value
         Ts_prev = Ts
 
-        # Compute omega
+        # Compute the ice fraction
         omega = ice_fraction(Ts)
 
         # Compute mixed-phase relative humidity
@@ -739,7 +739,7 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
         # Update the previous Ts value
         Ts_prev = Ts
 
-        # Compute omega
+        # Compute the ice fraction
         omega = ice_fraction(Ts)
 
         # Compute saturation point temperature
@@ -786,7 +786,7 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
         # Update the previous Ts value
         Ts_prev = Ts
 
-        # Compute omega
+        # Compute the ice fraction
         omega = ice_fraction(Ts)
 
         # Compute mixed-phase relative humidity
@@ -837,7 +837,7 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
         # Update the previous Ts value
         Ts_prev = Ts
 
-        # Compute omega
+        # Compute the ice fraction
         omega = ice_fraction(Ts)
 
         # Compute mixed-phase relative humidity

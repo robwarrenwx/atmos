@@ -582,7 +582,7 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         # Compute the ice fraction
         omega = ice_fraction(Ts)
 
-        # Compute the mixed-phase relative humidity
+        # Compute mixed-phase relative humidity
         RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
         #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
