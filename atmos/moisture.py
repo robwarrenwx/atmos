@@ -487,13 +487,13 @@ def dewpoint_temperature_from_frost_point_temperature(T, Tf):
     """
 
     # Compute relative humidity over ice
-    RH = relative_humidity_from_frost_point_temperature(T, Tf)
+    RHi = relative_humidity_from_frost_point_temperature(T, Tf)
 
     # Convert to relative humidity over liquid water
-    RH = convert_relative_humidity(T, RH, phase_in='ice', phase_out='liquid')
+    RHl = convert_relative_humidity(T, RHi, phase_in='ice', phase_out='liquid')
 
     # Compute dewpoint temperature
-    Td = dewpoint_temperature_from_relative_humidity(T, RH)
+    Td = dewpoint_temperature_from_relative_humidity(T, RHl)
 
     return Td
 
@@ -514,14 +514,14 @@ def dewpoint_temperature_from_saturation_point_temperature(T, Ts, omega):
     """
 
     # Compute mixed-phase relative humidity
-    RH = relative_humidity_from_saturation_point_temperature(T, Ts, omega)
+    RHx = relative_humidity_from_saturation_point_temperature(T, Ts, omega)
 
     # Convert to relative humidity over liquid water
-    RH = convert_relative_humidity(T, RH, phase_in='mixed', 
-                                   phase_out='liquid', omega=omega)
+    RHl = convert_relative_humidity(T, RHx, phase_in='mixed',
+                                    phase_out='liquid', omega=omega)
     
     # Compute dewpoint temperature
-    Td = dewpoint_temperature_from_relative_humidity(T, RH)
+    Td = dewpoint_temperature_from_relative_humidity(T, RHl)
 
     return Td
 
@@ -607,8 +607,8 @@ def frost_point_temperature_from_saturation_point_temperature(T, Ts, omega):
     RHx = relative_humidity_from_saturation_point_temperature(T, Ts, omega)
 
     # Convert to relative humidity over ice
-    RHi = convert_relative_humidity(T, RHx, phase_in='mixed', 
-                                   phase_out='ice', omega=omega)
+    RHi = convert_relative_humidity(T, RHx, phase_in='mixed', phase_out='ice',
+                                    omega=omega)
     
     # Compute frost-point temperature
     Tf = frost_point_temperature_from_relative_humidity(T, RHi)
@@ -776,7 +776,7 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
     """
 
     # Compute relative humidity over ice
-    RHi = relative_humidity_from_dewpoint_temperature(T, Tf)
+    RHi = relative_humidity_from_frost_point_temperature(T, Tf)
 
     # Intialise the saturation point temperature as the temperature
     Ts = T.copy()
