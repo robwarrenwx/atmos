@@ -632,21 +632,44 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
-    q = specific_humidity_from_mixing_ratio(r)
-    Ts = saturation_point_temperature_from_specific_humidity(p, T, q, 
-                                                             converged=converged)
+
+    # Intialise the saturation point temperature as the temperature
+    Ts = T.copy()
+
+    # Iterate to convergence
+    count = 0
+    delta = np.full_like(T, 10)
+    while np.max(delta) > converged:
+
+        # Update the previous Ts value
+        Ts_prev = Ts
+
+        # Compute omega
+        omega = ice_fraction(Ts)
+
+        # Compute mixed-phase relative humidity
+        RH = relative_humidity_from_mixing_ratio(p, T, r, phase='mixed',
+                                                 omega=omega)
+
+        # Compute saturation point temperature
+        Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
+
+        # Check if solution has converged
+        delta = np.abs(Ts - Ts_prev)
+        count += 1
+        if count > 20:
+            print("Ts not converged after 20 iterations")
+            break
 
     return Ts
 
 
-def saturation_point_temperature_from_vapour_pressure(p, T, e,
+def saturation_point_temperature_from_vapour_pressure(T, e,
                                                       converged=0.001):
     """
-    Computes saturation-point temperature from pressure, temperature, and
-    vapour pressure.
+    Computes saturation-point temperature from temperature and vapour pressure.
 
     Args:
-        p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         e (float or ndarray): vapour pressure (Pa)
         converged (float, optional): target precision for saturation-point
@@ -656,9 +679,34 @@ def saturation_point_temperature_from_vapour_pressure(p, T, e,
         Ts (float or ndarray): saturation-point temperature (K)
 
     """
-    q = specific_humidity_from_vapour_pressure(p, e)
-    Ts = saturation_point_temperature_from_specific_humidity(p, T, q, 
-                                                             converged=converged)
+
+    # Intialise the saturation point temperature as the temperature
+    Ts = T.copy()
+
+    # Iterate to convergence
+    count = 0
+    delta = np.full_like(T, 10)
+    while np.max(delta) > converged:
+
+        # Update the previous Ts value
+        Ts_prev = Ts
+
+        # Compute omega
+        omega = ice_fraction(Ts)
+
+        # Compute mixed-phase relative humidity
+        RH = relative_humidity_from_vapour_pressure(T, e, phase='mixed',
+                                                    omega=omega)
+
+        # Compute saturation point temperature
+        Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
+
+        # Check if solution has converged
+        delta = np.abs(Ts - Ts_prev)
+        count += 1
+        if count > 20:
+            print("Ts not converged after 20 iterations")
+            break
 
     return Ts
     
