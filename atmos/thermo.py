@@ -518,13 +518,14 @@ def frost_point_temperature(p, T, q):
 
 def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     """
-    Computes saturation-point temperature from temperature and mixed-phase
-    relative humidity using equations similar to Romps (2021).
+    Computes saturation-point temperature from temperature, mixed-phase
+    relative humidity, and ice fraction at saturation using equations similar
+    to Romps (2021).
 
     Args:
         T (float or ndarray): temperature (K)
         RH (float or ndarray): mixed-phase relative humidity (fraction)
-        omega (float or ndarray): ice fraction
+        omega (float or ndarray): ice fraction at saturation
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
