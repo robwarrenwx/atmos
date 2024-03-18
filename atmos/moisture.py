@@ -636,7 +636,7 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
     """
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0
@@ -682,7 +682,7 @@ def saturation_point_temperature_from_vapour_pressure(T, e, converged=0.001):
     """
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0
@@ -730,7 +730,7 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
     """
     
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0
@@ -777,7 +777,7 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
     RHl = relative_humidity_from_dewpoint_temperature(T, Td)
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0
@@ -828,7 +828,7 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
     RHi = relative_humidity_from_frost_point_temperature(T, Tf)
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0

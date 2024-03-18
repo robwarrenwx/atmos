@@ -432,9 +432,6 @@ def _dewpoint_temperature_from_relative_humidity(T, RH):
     fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
     W = lambertw(fn, k=-1).real
     Td = c * (1 / W) * T
-    
-    # Ensure that Td does not exceed T
-    #Td = np.minimum(Td, T)
 
     return Td
 
@@ -456,7 +453,6 @@ def dewpoint_temperature(p, T, q):
 
     # Compute relative humidity over liquid water
     RH = relative_humidity(p, T, q, phase='liquid')
-    #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
     
     # Compute dewpoint temperature
     Td = _dewpoint_temperature_from_relative_humidity(T, RH)
@@ -485,9 +481,6 @@ def _frost_point_temperature_from_relative_humidity(T, RH):
     fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
     W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
     Tf = c * (1 / W) * T
-    
-    # Ensure that Tf does not exceed T
-    #Tf = np.minimum(Tf, T)
 
     return Tf
 
@@ -508,7 +501,6 @@ def frost_point_temperature(p, T, q):
     """    
     # Compute relative humidity over ice
     RH = relative_humidity(p, T, q, phase='ice')
-    #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
     # Compute frost-point temperature
     Tf = _frost_point_temperature_from_relative_humidity(T, RH)
@@ -545,9 +537,6 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     fn = np.power(RH, (Rv / (cpx - cpv))) * c * np.exp(c)
     W = lambertw(fn, k=-1).real
     Ts = c * (1 / W) * T
-   
-    # Ensure that Ts does not exceed T
-    #Ts = np.minimum(Ts, T)
 
     return Ts
 
@@ -570,7 +559,7 @@ def saturation_point_temperature(p, T, q, converged=0.001):
     """
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
     count = 0
@@ -585,7 +574,6 @@ def saturation_point_temperature(p, T, q, converged=0.001):
 
         # Compute mixed-phase relative humidity
         RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
-        #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
         # Compute saturation-point temperature
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
@@ -622,7 +610,6 @@ def lifting_condensation_level(p, T, q):
 
     # Compute relative humidity with respect to liquid water
     RH = relative_humidity(p, T, q, phase='liquid')
-    #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
     
     # Set constants (Romps 2017, Eq. 22d-f)
     a = cpm / Rm + (cpl - cpv) / Rv
@@ -666,7 +653,6 @@ def lifting_deposition_level(p, T, q):
 
     # Compute relative humidity with respect to ice
     RH = relative_humidity(p, T, q, phase='ice')
-    #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
    
     # Set constants (Romps 2017, Eq. 23d-f)
     a = cpm / Rm + (cpi - cpv) / Rv
@@ -706,27 +692,26 @@ def lifting_saturation_level(p, T, q, converged=0.001):
 
     """
 
-    # Set the initial temperature at the LSL
-    T_lsl = T.copy()
+    # Compute effective gas constant and specific heat
+    Rm = effective_gas_constant(q)
+    cpm = effective_specific_heat(q)
+
+    # Initialise the LSL temperature as the temperature
+    T_lsl = T
 
     # Iterate to convergence
     count = 0
     delta = np.full_like(T, 10)
     while np.max(delta) > converged:
 
-        # Update the previous Tstar value
+        # Update the previous LSL temperature value
         T_lsl_prev = T_lsl
 
         # Compute the ice fraction
         omega = ice_fraction(T_lsl)
 
-        # Compute effective gas constant and specific heat
-        Rm = effective_gas_constant(q)
-        cpm = effective_specific_heat(q)
-
         # Compute mixed-phase relative humidity
         RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
-        #RH = np.minimum(RH, 1.0)  # limit RH to 100 %
 
         # Compute mixed-phase specific heat
         cpx = (1 - omega) * cpl + omega * cpi
@@ -1164,7 +1149,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
             # a dry adiabat (ignoring the contribution of moisture)
             dT_dp = dry_adiabatic_lapse_rate(p1, T1, 0.0)
             #T2 = T1 + dT_dp * (p2 - p1)
-            T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT//d(ln(p))
+            T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
 
             # Iterate to get the new temperature at level 2
             delta = np.full_like(p2, 10)
@@ -1197,7 +1182,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
 
                 # Update the level 2 temperature
                 #T2_new = T1 + dT_dp * (p2 - p1)
-                T2_new = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT//d(ln(p))
+                T2_new = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
 
                 # Check if the solution has converged
                 delta = np.abs(T2_new - T2)
