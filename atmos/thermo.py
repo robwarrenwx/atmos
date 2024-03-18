@@ -541,7 +541,7 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     return Ts
 
 
-def saturation_point_temperature(p, T, q, converged=0.001):
+def saturation_point_temperature(p, T, q, precision=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     specific humidity.
@@ -550,7 +550,7 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
 
     Returns:
@@ -562,9 +562,9 @@ def saturation_point_temperature(p, T, q, converged=0.001):
     Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -579,11 +579,13 @@ def saturation_point_temperature(p, T, q, converged=0.001):
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
    
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
 
@@ -674,7 +676,7 @@ def lifting_deposition_level(p, T, q):
     return p_ldl, T_ldl
 
 
-def lifting_saturation_level(p, T, q, converged=0.001):
+def lifting_saturation_level(p, T, q, precision=0.001):
     """
     Computes pressure and temperature at the lifting saturation level (LSL)
     using equations similar to Romps (2017).
@@ -683,7 +685,7 @@ def lifting_saturation_level(p, T, q, converged=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
-        converged (float, optional): target precision for LSL temperature
+        precision (float, optional): target precision for LSL temperature
             (default is 0.001 K)
 
     Returns:
@@ -700,9 +702,9 @@ def lifting_saturation_level(p, T, q, converged=0.001):
     T_lsl = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous LSL temperature value
         T_lsl_prev = T_lsl
@@ -730,11 +732,13 @@ def lifting_saturation_level(p, T, q, converged=0.001):
         T_lsl = c * (1 / W) * T
     
         # Check if solution has converged
-        delta = np.abs(T_lsl - T_lsl_prev)
-        count += 1
-        if count > 20:
-            print("T_lsl not converged after 20 iterations")
-            break
+        if np.max(np.abs(T_lsl - T_lsl_prev)) < precision:
+            converged  = True
+        else:
+            count += 1
+            if count == 20:
+                print("T_lsl not converged after 20 iterations")
+                break
 
     # Compute pressure at the LSL (cf. Romps 2017, Eq. 22b and 23b)
     p_lsl = p * np.power((T_lsl / T), (cpm / Rm))
@@ -811,7 +815,8 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     return domega_dTstar
 
 
-def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001):
+def ice_fraction_at_saturation(p, T, q, saturation='isobaric',
+                               precision=0.001):
     """
     Computes ice fraction at saturation for specified saturation process.
 
@@ -821,7 +826,7 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001):
         q (float or ndarray): specific humidity (kg/kg)
         saturation (str, optional): saturation process (valid options are
             'isobaric' or 'adiabatic'; default is 'isobaric')
-        converged (float, optional): target precision for temperature at
+        precision (float, optional): target precision for temperature at
             saturation (default is 0.001 K)
 
     Returns:
@@ -832,12 +837,12 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric', converged=0.001):
     if saturation == 'isobaric':
 
         # Compute saturation-point temperature
-        Tstar = saturation_point_temperature(p, T, q, converged=converged)
+        Tstar = saturation_point_temperature(p, T, q, precision=precision)
 
     elif saturation == 'adiabatic':
 
         # Compute lifting saturation level (LSL) temperature
-        _, Tstar = lifting_saturation_level(p, T, q, converged=converged)
+        _, Tstar = lifting_saturation_level(p, T, q, precision=precision)
 
     else:
 
@@ -1042,7 +1047,7 @@ def follow_dry_adiabat(pi, pf, Ti, q):
 
 def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
                          pseudo_method='polynomial', pinc=500.0,
-                         converged=0.001):
+                         precision=0.001):
     """
     Computes parcel temperature following a saturated adiabat or pseudoadiabat.
     For descending parcels, a pseudoadiabat is always used. By default,
@@ -1066,7 +1071,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
             default is 'polynomial')
         pinc (float, optional): pressure increment for iterative calculation
             (default is 500 Pa = 5 hPa)
-        converged (float, optional): target precision for iterative solution
+        precision (float, optional): target precision for iterative solution
             (default is 0.001 K)
 
     Returns:
@@ -1098,13 +1103,14 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         pf = np.atleast_1d(pf)
         Ti = np.atleast_1d(Ti)
 
-        if len(pi) == 1:
-            # single initial pressure value
-            pi = np.full_like(Ti, pi)
-
-        if len(pf) == 1:
-            # single final pressure value
-            pf = np.full_like(Ti, pf)
+        if len(Ti) > 1:
+            # multiple initial temperature values
+            if len(pi) == 1:
+                # single initial pressure value
+                pi = np.full_like(Ti, pi)
+            if len(pf) == 1:
+                # single final pressure value
+                pf = np.full_like(Ti, pf)
 
         # Set the pressure increment based on whether the parcel is ascending
         # or descending
@@ -1128,8 +1134,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         while np.max(np.abs(p2 - pf)) > 0.0:
 
             # Set level 1 values
-            p1 = p2.copy()
-            T1 = T2.copy()
+            p1 = p2
+            T1 = T2
 
             # Update the pressure at level 2
             p2 = p1 + dp
@@ -1152,9 +1158,12 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
             T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
 
             # Iterate to get the new temperature at level 2
-            delta = np.full_like(p2, 10)
+            converged = False
             count = 0
-            while np.max(delta) > converged:
+            while not converged:
+
+                # Update the previous level 2 temperature
+                T2_prev = T2
 
                 # Compute the layer-mean temperature
                 Tbar = 0.5 * (T1 + T2)
@@ -1181,20 +1190,19 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
                                                    phase=phase)
 
                 # Update the level 2 temperature
-                #T2_new = T1 + dT_dp * (p2 - p1)
-                T2_new = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
+                #T2 = T1 + dT_dp * (p2 - p1)
+                T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
 
                 # Check if the solution has converged
-                delta = np.abs(T2_new - T2)
-                count += 1
-                if count == 20:
-                    # should converge in just a couple of iterations, provided
-                    # pinc is not too large
-                    print('Not converged after 20 iterations')
-                    break
-
-                # Update the level 2 temperature
-                T2 = T2_new.copy()
+                if np.max(np.abs(T2 - T2_prev)) < precision:
+                    converged = True
+                else:
+                    count += 1
+                    if count == 20:
+                        # should converge in just a couple of iterations
+                        # provided pinc is not too large
+                        print('Not converged after 20 iterations')
+                        break
 
             #print(np.min(p1), np.min(p2), count)
 
@@ -1268,7 +1276,7 @@ def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
     return Tw
 
 
-def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
+def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', precision=0.001):
     """
     Computes isobaric wet-bulb temperature.
 
@@ -1286,7 +1294,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        converged (float, optional): target precision for iterative solution
+        precision (float, optional): target precision for iterative solution
             (default is 0.001 K)
 
     Returns:
@@ -1312,9 +1320,9 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     # Iterate to convergence
-    delta = np.full_like(T, 10.)
+    converged = False
     count = 0
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Tw value
         Tw_prev = Tw
@@ -1382,17 +1390,19 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', converged=0.001):
         Tw = Tw - f / fprime
 
         # Check for convergence
-        delta = np.abs(Tw - Tw_prev)
-        count += 1
-        if count > 20:
-            print("Tw not converged after 20 iterations")
-            break
+        if np.max(np.abs(Tw - Tw_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Tw not converged after 20 iterations")
+                break
 
     return Tw
 
 
 def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
-                         pseudo_method='polynomial', converged=0.001):
+                         pseudo_method='polynomial', precision=0.001):
     """
     Computes wet-bulb temperature for specified saturation process.
 
@@ -1407,7 +1417,7 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
         pseudo_method (str, optional): method for performing pseudoadiabatic
             descent in calculation of adiabatic Tw (valid options are
             'polynomial' or 'iterative'; default is 'polynomial')
-        converged (float, optional): target precision for iterative solution
+        precision (float, optional): target precision for iterative solution
             of isobaric Tw (default is 0.001 K)
 
     Returns:
@@ -1420,7 +1430,7 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
                                             pseudo_method=pseudo_method)
     elif saturation == 'isobaric':
         Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase,
-                                           converged=converged)
+                                           precision=precision)
     else:
         raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
 
