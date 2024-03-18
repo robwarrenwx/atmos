@@ -618,7 +618,7 @@ def frost_point_temperature_from_saturation_point_temperature(T, Ts, omega):
     return Tf
 
 
-def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
+def saturation_point_temperature_from_mixing_ratio(p, T, r, precision=0.001):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     mixing ratio.
@@ -627,7 +627,7 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         r (float or ndarray): mixing ratio (kg/kg)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
 
     Returns:
@@ -636,12 +636,12 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
     """
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -657,23 +657,25 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, converged=0.001):
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
 
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
 
 
-def saturation_point_temperature_from_vapour_pressure(T, e, converged=0.001):
+def saturation_point_temperature_from_vapour_pressure(T, e, precision=0.001):
     """
     Computes saturation-point temperature from temperature and vapour pressure.
 
     Args:
         T (float or ndarray): temperature (K)
         e (float or ndarray): vapour pressure (Pa)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
 
     Returns:
@@ -682,12 +684,12 @@ def saturation_point_temperature_from_vapour_pressure(T, e, converged=0.001):
     """
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -703,17 +705,19 @@ def saturation_point_temperature_from_vapour_pressure(T, e, converged=0.001):
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
 
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
     
     
 def saturation_point_temperature_from_relative_humidity(T, RH,
-                                                        converged=0.001):
+                                                        precision=0.001):
     """
     Computes saturation-point temperature from temperature and mixed-phase
     relative humidity.
@@ -721,7 +725,7 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
     Args:
         T (float or ndarray): temperature (K)
         RH (float or ndarray): relative humidity (fraction)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
     
     Returns:
@@ -730,12 +734,12 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
     """
     
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -747,17 +751,19 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
 
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
 
 
 def saturation_point_temperature_from_dewpoint_temperature(T, Td,
-                                                           converged=0.001):
+                                                           precision=0.001):
     """
     Computes saturation-point temperature from temperature and dewpoint
     temperature.
@@ -765,7 +771,7 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
     Args:
         T (float or ndarray): temperature (K)
         Td (float or ndarray): dewsaturation-point temperature (K)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
 
     Returns:
@@ -777,12 +783,12 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
     RHl = relative_humidity_from_dewpoint_temperature(T, Td)
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -798,17 +804,19 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
         Ts = _saturation_point_temperature_from_relative_humidity(T, RHx, omega)
 
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
 
 
 def saturation_point_temperature_from_frost_point_temperature(T, Tf,
-                                                              converged=0.001):
+                                                              precision=0.001):
     """
     Computes saturation-point temperature from temperature and frost-point
     temperature.
@@ -816,7 +824,7 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
     Args:
         T (float or ndarray): temperature (K)
         Tf (float or ndarray): frost-point temperature (K)
-        converged (float, optional): target precision for saturation-point
+        precision (float, optional): target precision for saturation-point
             temperature (default is 0.001 K)
 
     Returns:
@@ -828,12 +836,12 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
     RHi = relative_humidity_from_frost_point_temperature(T, Tf)
 
     # Intialise the saturation point temperature as the temperature
-    Ts = T.copy()
+    Ts = T
 
     # Iterate to convergence
+    converged = False
     count = 0
-    delta = np.full_like(T, 10)
-    while np.max(delta) > converged:
+    while not converged:
 
         # Update the previous Ts value
         Ts_prev = Ts
@@ -849,11 +857,13 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
         Ts = _saturation_point_temperature_from_relative_humidity(T, RHx, omega)
 
         # Check if solution has converged
-        delta = np.abs(Ts - Ts_prev)
-        count += 1
-        if count > 20:
-            print("Ts not converged after 20 iterations")
-            break
+        if np.max(np.abs(Ts - Ts_prev)) < precision:
+            converged = True
+        else:
+            count += 1
+            if count == 20:
+                print("Ts not converged after 20 iterations")
+                break
 
     return Ts
 
