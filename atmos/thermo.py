@@ -1045,7 +1045,7 @@ def follow_dry_adiabat(pi, pf, Ti, q):
     return Tf
 
 
-def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
+def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                          pseudo_method='polynomial', pinc=500.0,
                          precision=0.001):
     """
@@ -1062,10 +1062,10 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, pseudo=True, phase='liquid',
         Ti (float or ndarray): initial temperature (K)
         qt (float or ndarray, optional): total water mass fraction (kg/kg)
             (default is None; required for saturated adiabatic ascent)
-        pseudo (bool): flag indicating whether to perform pseudoadiabatic
-            parcel ascent (default is True)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudo (bool): flag indicating whether to perform pseudoadiabatic
+            parcel ascent (default is True)
         pseudo_method (str, optional): method for performing pseudoadiabatic
             ascent/descent (valid options are 'polynomial' or 'iterative';
             default is 'polynomial')
