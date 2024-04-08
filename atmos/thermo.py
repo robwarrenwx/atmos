@@ -1560,13 +1560,13 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
     e = vapour_pressure(p, q, qt=qt)
     pd = p - e
 
+    # Compute the relative humidity
+    RH = relative_humidity(p, T, q, qt=qt, phase=phase, omega=omega)
+
     # Compute cpml
     cpml = (1 - qt) * cpd + qt * cpl
 
     if phase == 'liquid':
-
-        # Compute relative humidity with respect to liquid water
-        RH = relative_humidity(p, T, q, qt=qt, phase='liquid')
 
         # Compute the latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
@@ -1577,9 +1577,6 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
             np.exp(Lv * q / (cpml * T))
 
     elif phase == 'ice':
-
-        # Compute relative humidity with respect to ice
-        RH = relative_humidity(p, T, q, qt=qt, phase='ice')
 
         # Compute the saturation vapour pressures with respect to liquid water
         # and ice
@@ -1599,9 +1596,6 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
             np.exp((Ls * q - Lf * qt) / (cpml * T))
 
     elif phase== 'mixed':
-
-        # Compute the relative humidity with respect to mixed-phase
-        RH = relative_humidity(p, T, q, qt=qt, phase='mixed', omega=omega)
 
         # Compute the saturation vapour pressures with respect to liquid water
         # and ice
@@ -1651,14 +1645,14 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
     if qt is None:
         qt = q
 
+    # Compute the relative humidity with respect to liquid
+    RH = relative_humidity(p, T, q, qt=qt, phase=phase, omega=omega)
+
     # Set constants
     Rmv = (1 - qt) * Rd + qt * Rv
     cpmv = (1 - qt) * cpd + qt * cpv
 
     if phase == 'liquid':
-
-        # Compute the relative humidity with respect to liquid
-        RH = relative_humidity(p, T, q, qt=qt, phase='liquid')
 
         # Compute the latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
@@ -1673,9 +1667,6 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
     elif phase == 'ice':
 
-        # Compute the relative humidity with respect to liquid
-        RH = relative_humidity(p, T, q, qt=qt, phase='ice')
-
         # Compute the latent heat of vaporisation
         Ls = latent_heat_of_sublimation(T)
 
@@ -1688,9 +1679,6 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
             np.exp(- Ls * (qt - q) / (cpmv * T))
 
     elif phase == 'mixed':
-
-        # Compute the mixed-phase relative humidity
-        RH = relative_humidity(p, T, q, qt=qt, phase='mixed', omega=omega)
 
         # Compute the mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
