@@ -169,8 +169,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         # not required for pseudoadiabatic ascent
         qt = None
     else:
-        # equal to saturation specific humidity at the LCL
-        qt = saturation_specific_humidity(p_lcl, Tp_lcl)
+        # equal to initial specific humidity
+        qt = qp_lpl
 
     # Check that LCL is below top level
     lcl_above_top = (p_lcl < p[-1])
@@ -313,34 +313,46 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         # Set parcel temperature and specific humidity at level 2
         if np.any(above_lpl & below_lcl):
 
-            # Parcel temperature follows dry adiabat below the LCL
+            # Follow a dry adiabat to get parcel temperature
             Tp2[above_lpl & below_lcl] = follow_dry_adiabat(
                 p1[above_lpl & below_lcl], p2[above_lpl & below_lcl],
                 Tp1[above_lpl & below_lcl], qp1[above_lpl & below_lcl]
                 )
  
-            # Specific humidity is conserved below the LCL
+            # Specific humidity is conserved
             qp2[above_lpl & below_lcl] = qp1[above_lpl & below_lcl]
 
         if np.any(above_lcl):  # LCL is always at or above the LPL
 
             # Parcel temperature follows moist adiabat above the LCL
             if pseudo:
+
+                # Follow a pseudoadiabat to get parcel temperature
                 Tp2[above_lcl] = follow_moist_adiabat(
                     p1[above_lcl], p2[above_lcl], Tp1[above_lcl], phase=phase,
                     pseudo=True, pseudo_method=pseudo_method, dp=dp
                     )
+
+                # Specific humidity is equal to its value at saturation
+                omega = ice_fraction(Tp2[above_lcl])
+                qp2[above_lcl] = saturation_specific_humidity(
+                    p2[above_lcl], Tp2[above_lcl], phase=phase, omega=omega
+                    )
+
             else:
+
+                # Follow a saturated adiabat to get parcel temperature
                 Tp2[above_lcl] = follow_moist_adiabat(
                     p1[above_lcl], p2[above_lcl], Tp1[above_lcl],
                     qt=qt[above_lcl], phase=phase, pseudo=False, dp=dp
                     )
 
-            # Specific humidity is equal to its value at saturation above LCL
-            omega = ice_fraction(Tp2[above_lcl])
-            qp2[above_lcl] = saturation_specific_humidity(
-                p2[above_lcl], Tp2[above_lcl], phase=phase, omega=omega
-                )
+                # Specific humidity is equal to its value at saturation
+                omega = ice_fraction(Tp2[above_lcl])
+                qp2[above_lcl] = saturation_specific_humidity(
+                    p2[above_lcl], Tp2[above_lcl], qt=qt[above_lcl],
+                    phase=phase, omega=omega
+                    )
 
         # Update parcel buoyancy (virtual temperature difference)
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
@@ -361,7 +373,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         neg_to_pos = (B1 <= 0.0) & (B2 > 0.0)
         if np.any(neg_to_pos):
 
-            #print('Crossing LFC', B1, B2)
+            #print('Crossing LFC', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
             lnpx = np.zeros_like(p2)
@@ -402,7 +414,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         pos_to_neg = (B1 > 0.0) & (B2 <= 0.0)
         if np.any(pos_to_neg):
 
-            #print('Crossing EL', B1, B2)
+            #print('Crossing EL', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
             lnpx = np.zeros_like(p2)
@@ -463,7 +475,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             cape_total[pos_at_top] += pos_area[pos_at_top]
             done[pos_at_top] = True
 
-        #print(k, p2, T2, q2, Tp2, qp2, B2)
+        #print(k, p2, T2, q2, Tp2, qp2, qt, B2)
         #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total)
 
         if np.any(done):
