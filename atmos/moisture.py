@@ -12,6 +12,7 @@ Functions for converting between the following moisture variables:
 
 import numpy as np
 from atmos.constant import eps
+from atmos.thermo import precision, max_n_iter
 from atmos.thermo import saturation_vapour_pressure
 from atmos.thermo import saturation_specific_humidity
 from atmos.thermo import saturation_mixing_ratio
@@ -618,7 +619,7 @@ def frost_point_temperature_from_saturation_point_temperature(T, Ts, omega):
     return Tf
 
 
-def saturation_point_temperature_from_mixing_ratio(p, T, r, precision=0.001):
+def saturation_point_temperature_from_mixing_ratio(p, T, r):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     mixing ratio.
@@ -627,8 +628,6 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, precision=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         r (float or ndarray): mixing ratio (kg/kg)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -661,22 +660,20 @@ def saturation_point_temperature_from_mixing_ratio(p, T, r, precision=0.001):
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts
 
 
-def saturation_point_temperature_from_vapour_pressure(T, e, precision=0.001):
+def saturation_point_temperature_from_vapour_pressure(T, e):
     """
     Computes saturation-point temperature from temperature and vapour pressure.
 
     Args:
         T (float or ndarray): temperature (K)
         e (float or ndarray): vapour pressure (Pa)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -709,15 +706,14 @@ def saturation_point_temperature_from_vapour_pressure(T, e, precision=0.001):
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts
     
     
-def saturation_point_temperature_from_relative_humidity(T, RH,
-                                                        precision=0.001):
+def saturation_point_temperature_from_relative_humidity(T, RH):
     """
     Computes saturation-point temperature from temperature and mixed-phase
     relative humidity.
@@ -725,8 +721,6 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
     Args:
         T (float or ndarray): temperature (K)
         RH (float or ndarray): relative humidity (fraction)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
     
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -755,15 +749,14 @@ def saturation_point_temperature_from_relative_humidity(T, RH,
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts
 
 
-def saturation_point_temperature_from_dewpoint_temperature(T, Td,
-                                                           precision=0.001):
+def saturation_point_temperature_from_dewpoint_temperature(T, Td):
     """
     Computes saturation-point temperature from temperature and dewpoint
     temperature.
@@ -771,8 +764,6 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
     Args:
         T (float or ndarray): temperature (K)
         Td (float or ndarray): dewsaturation-point temperature (K)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -808,15 +799,14 @@ def saturation_point_temperature_from_dewpoint_temperature(T, Td,
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts
 
 
-def saturation_point_temperature_from_frost_point_temperature(T, Tf,
-                                                              precision=0.001):
+def saturation_point_temperature_from_frost_point_temperature(T, Tf):
     """
     Computes saturation-point temperature from temperature and frost-point
     temperature.
@@ -824,8 +814,6 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
     Args:
         T (float or ndarray): temperature (K)
         Tf (float or ndarray): frost-point temperature (K)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -861,8 +849,8 @@ def saturation_point_temperature_from_frost_point_temperature(T, Tf,
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts

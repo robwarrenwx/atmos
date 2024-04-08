@@ -24,13 +24,13 @@ Functions for calculating the following thermodynamic variables:
 * dry, pseudo, and saturated adiabatic pressure lapse rates
 * parcel temperature following dry, pseudo, and saturated adiabats
 * adiabatic and isobaric wet-bulb temperatures, Tw
-* dry potential temperature, thetad
-* moist potential temperature, thetam
-* virtual potential temperature, thetav
-* equivalent potential temperature, thetae
-* ice-liquid water potential temperature, thetail
-* wet-bulb potential temperature, thetaw
-* saturated wet-bulb potential temperature, thetaws
+* dry potential temperature, thd
+* moist potential temperature, thm
+* virtual potential temperature, thv
+* equivalent potential temperature, theq
+* ice-liquid water potential temperature, thil
+* wet-bulb potential temperature, thw
+* saturated wet-bulb potential temperature, thws
 
 References:
 * Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
@@ -53,6 +53,12 @@ from scipy.special import lambertw
 from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
                             T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
 import atmos.pseudoadiabat as pseudoadiabat
+
+# Precision for iterative temperature calculations (K)
+precision = 0.001
+
+# Maximum number of iterations for iterative calculations
+max_n_iter = 20
 
 
 def effective_gas_constant(q, qt=None):
@@ -541,7 +547,7 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     return Ts
 
 
-def saturation_point_temperature(p, T, q, precision=0.001):
+def saturation_point_temperature(p, T, q):
     """
     Computes saturation-point temperature from pressure, temperature, and 
     specific humidity.
@@ -550,8 +556,6 @@ def saturation_point_temperature(p, T, q, precision=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
-        precision (float, optional): target precision for saturation-point
-            temperature (default is 0.001 K)
 
     Returns:
         Ts (float or ndarray): saturation-point temperature (K)
@@ -583,8 +587,8 @@ def saturation_point_temperature(p, T, q, precision=0.001):
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Ts not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Ts not converged after {max_n_iter} iterations")
                 break
 
     return Ts
@@ -676,7 +680,7 @@ def lifting_deposition_level(p, T, q):
     return p_ldl, T_ldl
 
 
-def lifting_saturation_level(p, T, q, precision=0.001):
+def lifting_saturation_level(p, T, q):
     """
     Computes pressure and temperature at the lifting saturation level (LSL)
     using equations similar to Romps (2017).
@@ -685,8 +689,6 @@ def lifting_saturation_level(p, T, q, precision=0.001):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
-        precision (float, optional): target precision for LSL temperature
-            (default is 0.001 K)
 
     Returns:
         p_lsl (float or ndarray): pressure at the LSL (Pa)
@@ -736,8 +738,8 @@ def lifting_saturation_level(p, T, q, precision=0.001):
             converged  = True
         else:
             count += 1
-            if count == 20:
-                print("T_lsl not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"T_lsl not converged after {max_n_iter} iterations")
                 break
 
     # Compute pressure at the LSL (cf. Romps 2017, Eq. 22b and 23b)
@@ -815,8 +817,7 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     return domega_dTstar
 
 
-def ice_fraction_at_saturation(p, T, q, saturation='isobaric',
-                               precision=0.001):
+def ice_fraction_at_saturation(p, T, q, phase='mixed', saturation='isobaric'):
     """
     Computes ice fraction at saturation for specified saturation process.
 
@@ -824,32 +825,39 @@ def ice_fraction_at_saturation(p, T, q, saturation='isobaric',
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'mixed')
         saturation (str, optional): saturation process (valid options are
             'isobaric' or 'adiabatic'; default is 'isobaric')
-        precision (float, optional): target precision for temperature at
-            saturation (default is 0.001 K)
 
     Returns:
         omega (float or ndarray): ice fraction at saturation
 
     """
 
-    if saturation == 'isobaric':
+    if phase == 'mixed':
 
-        # Compute saturation-point temperature
-        Tstar = saturation_point_temperature(p, T, q, precision=precision)
+        if saturation == 'isobaric':
 
-    elif saturation == 'adiabatic':
+            # Compute saturation-point temperature
+            Tstar = saturation_point_temperature(p, T, q)
 
-        # Compute lifting saturation level (LSL) temperature
-        _, Tstar = lifting_saturation_level(p, T, q, precision=precision)
+        elif saturation == 'adiabatic':
+
+            # Compute lifting saturation level (LSL) temperature
+            _, Tstar = lifting_saturation_level(p, T, q)
+
+        else:
+
+            raise ValueError("saturation must be 'isobaric' or 'adiabatic'")
 
     else:
 
-        raise ValueError("saturation must be 'isobaric' or 'adiabatic'")
+        # Value of Tstar is irrelevant if phase='liquid' or phase='ice'
+        Tstar = T
 
     # Compute the ice fraction
-    omega = ice_fraction(Tstar)
+    omega = ice_fraction(Tstar, phase=phase)
 
     return omega
 
@@ -1046,15 +1054,14 @@ def follow_dry_adiabat(pi, pf, Ti, q):
 
 
 def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
-                         pseudo_method='polynomial', pinc=500.0,
-                         precision=0.001):
+                         pseudo_method='polynomial', dp=500.0):
     """
     Computes parcel temperature following a saturated adiabat or pseudoadiabat.
     For descending parcels, a pseudoadiabat is always used. By default,
     pseudoadiabatic calculations use polynomial fits for fast calculations, but
     can optionally use slower iterative method. Saturated adiabatic ascent must
     be performed iteratively (for now). At present, polynomial fits are only
-    available for liquid-only pseudoadiabats.
+    available for liquid pseudoadiabats.
 
     Args:
         pi (float or ndarray): initial pressure (Pa)
@@ -1069,23 +1076,25 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
         pseudo_method (str, optional): method for performing pseudoadiabatic
             ascent/descent (valid options are 'polynomial' or 'iterative';
             default is 'polynomial')
-        pinc (float, optional): pressure increment for iterative calculation
+        dp (float, optional): pressure increment for iterative calculation
             (default is 500 Pa = 5 hPa)
-        precision (float, optional): target precision for iterative solution
-            (default is 0.001 K)
 
     Returns:
         Tf (float or ndarray): final temperature (K)
 
     """
 
+    if pseudo_method not in ['polynomial', 'iterative']:
+        raise ValueError("pseudo_method must be either 'polynomial' or 'iterative'")
+
     if pseudo and pseudo_method == 'polynomial':
 
         if phase != 'liquid':
-            raise ValueError("""Polynomial fits have yet to be created for ice 
-                             and mixed-phase pseudoadiabats. Calculations can 
-                             be performed iteratively (by setting pseudo_method
-                             ='iterative'); however, this may be slow.""")
+            raise ValueError(
+                """Polynomial fits have yet to be created for ice and 
+                mixed-phase pseudoadiabats. Calculations must be performed 
+                iteratively by setting pseudo_method='iterative'."""
+                )
 
         # Compute the wet-bulb potential temperature of the pseudoadiabat
         # that passes through (pi, Ti)
@@ -1114,10 +1123,10 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
 
         # Set the pressure increment based on whether the parcel is ascending
         # or descending
-        pinc = np.abs(pinc)  # make sure pinc is positive
+        dp = np.abs(dp)  # make sure pressure increment is positive
         ascending = (pf < pi)
         descending = np.logical_not(ascending)
-        dp = np.where(ascending, -pinc, pinc)
+        dp = np.where(ascending, -dp, dp)
 
         # Initialise the pressure and temperature at level 2
         p2 = np.copy(pi)
@@ -1148,14 +1157,14 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
 
             #print(np.min(p2), np.max(p2))
 
-            # Compute the layer-mean pressure
-            pbar = np.sqrt(p1 * p2)  # = np.exp(0.5 * (np.log(p1) + np.log(p2)))
+            # Compute the pressure at the layer mid-point (in log-space)
+            pmid = np.sqrt(p1 * p2)  # = exp(0.5 * (log(p1) + log(p2)))
 
             # Get initial estimate for the temperature at level 2 by following
             # a dry adiabat (ignoring the contribution of moisture)
             dT_dp = dry_adiabatic_lapse_rate(p1, T1, 0.0)
             #T2 = T1 + dT_dp * (p2 - p1)
-            T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
+            T2 = T1 + pmid * dT_dp * np.log(p2 / p1)  # pmid * dT/dp = dT/dlnp
 
             # Iterate to get the new temperature at level 2
             converged = False
@@ -1165,43 +1174,40 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                 # Update the previous level 2 temperature
                 T2_prev = T2
 
-                # Compute the layer-mean temperature
-                Tbar = 0.5 * (T1 + T2)
+                # Compute the temperature at the layer mid-point
+                Tmid = 0.5 * (T1 + T2)
 
                 # Compute the lapse rate for ascending parcels
                 if np.any(ascending):
                     if pseudo:
-                        dT_dp[ascending] = \
-                            pseudoadiabatic_lapse_rate(pbar[ascending],
-                                                       Tbar[ascending],
-                                                       phase=phase)
+                        dT_dp[ascending] = pseudoadiabatic_lapse_rate(
+                            pmid[ascending], Tmid[ascending], phase=phase
+                            )
                     else:
-                        dT_dp[ascending] = \
-                            saturated_adiabatic_lapse_rate(pbar[ascending],
-                                                           Tbar[ascending],
-                                                           qt[ascending],
-                                                           phase=phase)
+                        dT_dp[ascending] = saturated_adiabatic_lapse_rate(
+                            pmid[ascending], Tmid[ascending], qt[ascending],
+                            phase=phase
+                            )
 
                 # Compute the lapse rate for descending parcels
                 if np.any(descending):
-                    dT_dp[descending] = \
-                        pseudoadiabatic_lapse_rate(pbar[descending],
-                                                   Tbar[descending],
-                                                   phase=phase)
+                    dT_dp[descending] = pseudoadiabatic_lapse_rate(
+                        pmid[descending], Tmid[descending], phase=phase
+                        )
 
                 # Update the level 2 temperature
                 #T2 = T1 + dT_dp * (p2 - p1)
-                T2 = T1 + pbar * dT_dp * np.log(p2 / p1)  # pbar * dT/dp = dT/dlnp
+                T2 = T1 + pmid * dT_dp * np.log(p2 / p1)  # pmid * dT/dp = dT/dlnp
 
                 # Check if the solution has converged
                 if np.max(np.abs(T2 - T2_prev)) < precision:
                     converged = True
                 else:
                     count += 1
-                    if count == 20:
+                    if count == max_n_iter:
                         # should converge in just a couple of iterations
                         # provided pinc is not too large
-                        print('Not converged after 20 iterations')
+                        print(f'Not converged after {max_n_iter} iterations')
                         break
 
             #print(np.min(p1), np.min(p2), count)
@@ -1218,7 +1224,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
 def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
                                    pseudo_method='polynomial'):
     """
-    Computes (pseudo)adiabatic wet-bulb temperature.
+    Computes adiabatic wet-bulb temperature.
 
     Adiabatic (or pseudo) wet-bulb temperature is the temperature of a parcel
     of air lifted adiabatically to saturation and then brought
@@ -1276,7 +1282,7 @@ def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
     return Tw
 
 
-def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', precision=0.001):
+def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
     """
     Computes isobaric wet-bulb temperature.
 
@@ -1294,8 +1300,6 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', precision=0.001):
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        precision (float, optional): target precision for iterative solution
-            (default is 0.001 K)
 
     Returns:
         Tw (float or ndarray): isobaric wet-bulb temperature (K)
@@ -1394,15 +1398,15 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid', precision=0.001):
             converged = True
         else:
             count += 1
-            if count == 20:
-                print("Tw not converged after 20 iterations")
+            if count == max_n_iter:
+                print(f"Tw not converged after {max_n_iter} iterations")
                 break
 
     return Tw
 
 
 def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
-                         pseudo_method='polynomial', precision=0.001):
+                         pseudo_method='polynomial'):
     """
     Computes wet-bulb temperature for specified saturation process.
 
@@ -1417,8 +1421,6 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
         pseudo_method (str, optional): method for performing pseudoadiabatic
             descent in calculation of adiabatic Tw (valid options are
             'polynomial' or 'iterative'; default is 'polynomial')
-        precision (float, optional): target precision for iterative solution
-            of isobaric Tw (default is 0.001 K)
 
     Returns:
         Tw: wet-bulb temperature (K)
@@ -1429,8 +1431,7 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
         Tw = adiabatic_wet_bulb_temperature(p, T, q, phase=phase,
                                             pseudo_method=pseudo_method)
     elif saturation == 'isobaric':
-        Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase,
-                                           precision=precision)
+        Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
     else:
         raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
 
@@ -1446,14 +1447,14 @@ def dry_potential_temperature(p, T):
         T (float or ndarray): temperature (K)
 
     Returns:
-        thetad (float or ndarray): potential temperature of dry air (K)
+        thd (float or ndarray): potential temperature of dry air (K)
 
     """
 
     # Compute potential temperature of dry air
-    thetad = T * (p_ref / p) ** (Rd / cpd)
+    thd = T * (p_ref / p) ** (Rd / cpd)
 
-    return thetad
+    return thd
 
 
 def moist_potential_temperature(p, T, q):
@@ -1466,7 +1467,7 @@ def moist_potential_temperature(p, T, q):
         q (float or ndarray): specific humidity (kg/kg)
 
     Returns:
-        thetam (float or ndarray): potential temperature of moist air (K)
+        thm (float or ndarray): potential temperature of moist air (K)
 
     """
 
@@ -1475,9 +1476,9 @@ def moist_potential_temperature(p, T, q):
     cpm = effective_specific_heat(q)
 
     # Compute potential temperature of moist air
-    thetam = T * (p_ref / p) ** (Rm / cpm)
+    thm = T * (p_ref / p) ** (Rm / cpm)
 
-    return thetam
+    return thm
 
 
 def potential_temperature(p, T, q=None):
@@ -1491,16 +1492,16 @@ def potential_temperature(p, T, q=None):
             None, in which case dry potential temperature is returned)
 
     Returns:
-        theta (float or ndarray): potential temperature (K)
+        th (float or ndarray): potential temperature (K)
 
     """
 
     if q is None:
-        theta = dry_potential_temperature(p, T)
+        th = dry_potential_temperature(p, T)
     else:
-        theta = moist_potential_temperature(p, T, q)
+        th = moist_potential_temperature(p, T, q)
 
-    return theta
+    return th
 
 
 def virtual_potential_temperature(p, T, q, qt=None):
@@ -1515,7 +1516,7 @@ def virtual_potential_temperature(p, T, q, qt=None):
             (default is None, which implies qt = q)
 
     Returns:
-        thetav (float or ndarray): virtual potential temperature (K)
+        thv (float or ndarray): virtual potential temperature (K)
 
     """
 
@@ -1527,9 +1528,9 @@ def virtual_potential_temperature(p, T, q, qt=None):
     Tv = virtual_temperature(T, q, qt=qt)
 
     # Compute virtual potential temperature
-    thetav = Tv * (p_ref / p) ** (Rm / cpm)
+    thv = Tv * (p_ref / p) ** (Rm / cpm)
 
-    return thetav
+    return thv
 
 
 def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
@@ -1548,7 +1549,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
-        thetae (float or ndarray): equivalent potential temperature (K)
+        theq (float or ndarray): equivalent potential temperature (K)
 
     """
 
@@ -1571,8 +1572,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute the equivalent potential temperature
-        #cpml = (1 - qt) * cpd + qt * cpl
-        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+        theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             np.exp(Lv * q / (cpml * T))
 
@@ -1593,15 +1593,10 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lf = latent_heat_of_freezing(T)
 
         # Compute the equivalent potential temperature
-        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+        theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             (esi / esl) ** (-qt * Rv / cpml) * \
             np.exp((Ls * q - Lf * qt) / (cpml * T))
-
-        #cpmi = (1 - qt) * cpd + qt * cpi
-        #thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpmx) * \
-        #    RH ** (-q * Rv / cpmx) * \
-        #    np.exp((Lx * q - omega * Lf0 * qt) / (cpmx * T))
 
     elif phase== 'mixed':
 
@@ -1620,22 +1615,16 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lf = latent_heat_of_freezing(T)
 
         # Compute the equivalent potential temperature
-        thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
+        theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             (esi / esl) ** (-omega * qt * Rv / cpml) * \
             np.exp((Lx * q - omega * Lf * qt) / (cpml * T))
-        
-        #cpx = (1 - omega) * cpl + omega * cpi
-        #cpmx = (1 - qt) * cpd + qt * cpx
-        #thetae = T * (p_ref / pd) ** ((1 - qt) * Rd / cpmx) * \
-        #    RH ** (-q * Rv / cpmx) * \
-        #    np.exp((Lx * q - omega * Lf0 * qt) / (cpmx * T))
 
     else:
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    return thetae
+    return theq
 
 
 def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
@@ -1655,7 +1644,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
-        thetail (float or ndarray): ice-liquid water potential temperature (K)
+        thil (float or ndarray): ice-liquid water potential temperature (K)
 
     """
 
@@ -1676,7 +1665,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the liquid water potential temperature (c.f. Bryan and 
         # Fritsch 2004, Eq. 25)
-        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+        thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
             RH ** ((qt - q) * Rv / cpmv) * \
@@ -1692,7 +1681,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice water potential temperature (c.f. Bryan and Fritsch
         # 2004, Eq. 19, 20, and 25)
-        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+        thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
             RH ** ((qt - q) * Rv / cpmv) * \
@@ -1708,7 +1697,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         # Compute the ice-liquid water potential temperature (c.f. Bryan and
         # Fritsch 2004, Eq. 19, 20, and 25)
-        thetail = T * (p_ref / p) ** (Rmv / cpmv) * \
+        thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
             RH ** ((qt - q) * Rv / cpmv) * \
@@ -1718,7 +1707,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    return thetail
+    return thil
 
 
 def wet_bulb_potential_temperature(p, T, q, phase='liquid',
@@ -1737,7 +1726,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
             default is 'polynomial')
 
     Returns:
-        thetaw (float or ndarray): wet-bulb potential temperature (K)
+        thw (float or ndarray): wet-bulb potential temperature (K)
 
     """
 
@@ -1747,8 +1736,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_lcl, T_lcl = lifting_condensation_level(p, T, q)
 
         # Follow a pseudoadiabat from the LCL to 1000 hPa
-        thetaw = follow_moist_adiabat(p_lcl, p_ref, T_lcl, phase='liquid',
-                                      pseudo=True, pseudo_method=pseudo_method)
+        thw = follow_moist_adiabat(p_lcl, p_ref, T_lcl, phase='liquid',
+                                   pseudo=True, pseudo_method=pseudo_method)
 
     elif phase == 'ice':
 
@@ -1756,8 +1745,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_ldl, T_ldl = lifting_deposition_level(p, T, q)
 
         # Follow a pseudoadiabat from the LDL to 1000 hPa
-        thetaw = follow_moist_adiabat(p_ldl, p_ref, T_ldl, phase='ice',
-                                      pseudo=True, pseudo_method=pseudo_method)
+        thw = follow_moist_adiabat(p_ldl, p_ref, T_ldl, phase='ice',
+                                   pseudo=True, pseudo_method=pseudo_method)
 
     elif phase == 'mixed':
 
@@ -1765,14 +1754,14 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         p_lsl, T_lsl = lifting_saturation_level(p, T, q)
 
         # Follow a pseudoadiabat from the LSL to 1000 hPa
-        thetaw = follow_moist_adiabat(p_lsl, p_ref, T_lsl, phase='mixed',
-                                      pseudo=True, pseudo_method=pseudo_method)
+        thw = follow_moist_adiabat(p_lsl, p_ref, T_lsl, phase='mixed',
+                                   pseudo=True, pseudo_method=pseudo_method)
 
     else:
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    return thetaw
+    return thw
 
 
 def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
@@ -1790,12 +1779,12 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
             default is 'polynomial')
 
     Returns:
-        thetaws (float or ndarray): saturation wet-bulb potential temperature (K)
+        thws (float or ndarray): saturation wet-bulb potential temperature (K)
 
     """
 
     # Follow a pseudoadiabat to 1000 hPa
-    thetaws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
-                                   pseudo_method=pseudo_method)
+    thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
+                                pseudo_method=pseudo_method)
 
-    return thetaws
+    return thws
