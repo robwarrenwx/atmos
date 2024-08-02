@@ -23,7 +23,7 @@ Functions for calculating the following thermodynamic variables:
 * lifting saturation level temperature, T_lsl, and pressure, T_lsl
 * dry, pseudo, and saturated adiabatic pressure lapse rates
 * parcel temperature following dry, pseudo, and saturated adiabats
-* adiabatic and isobaric wet-bulb temperatures, Tw
+* pseudo and isobaric wet-bulb temperatures, Tw
 * dry potential temperature, thd
 * moist potential temperature, thm
 * virtual potential temperature, thv
@@ -36,9 +36,13 @@ References:
 * Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
     pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
     https://doi.org/10.1002/qj.3899.
-* Bryan, G. H., and J. M. Fristch, 2004: A Reevaluation of Ice-Liquid Water
-    Potential Temperature. Mon. Wea. Rev., 132, 2421-2431,
+* Bryan, G. H., and J. M. Fristch, 2004: A reevaluation of ice-liquid water
+    potential temperature. Mon. Wea. Rev., 132, 2421-2431,
     https://doi.org/10.1175/1520-0493(2004)132<2421:AROIWP>2.0.CO;2.
+* Knox, J. A., D. S. Nevius, and P. N. Knox, 2017: Two simple and accurate
+    approximations for wet-bulb temperature in moist conditions, with
+    forecasting applications. Bull. Amer. Meteor. Soc., 98, 1897-1906,
+    https://doi.org/10.1175/BAMS-D-16-0246.1.
 * Romps, D. M., 2017: Exact expression for the lifting condensation level.
     J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
 * Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
@@ -1181,7 +1185,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                 if np.any(ascending):
                     if pseudo:
                         dT_dp[ascending] = pseudoadiabatic_lapse_rate(
-                            pmid[ascending], Tmid[ascending], phase=phase
+                            pmid[ascending], Tmid[ascending],
+                            phase=phase
                             )
                     else:
                         dT_dp[ascending] = saturated_adiabatic_lapse_rate(
@@ -1192,7 +1197,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                 # Compute the lapse rate for descending parcels
                 if np.any(descending):
                     dT_dp[descending] = pseudoadiabatic_lapse_rate(
-                        pmid[descending], Tmid[descending], phase=phase
+                        pmid[descending], Tmid[descending],
+                        phase=phase
                         )
 
                 # Update the level 2 temperature
@@ -1221,15 +1227,15 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
     return Tf
 
 
-def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
-                                   pseudo_method='polynomial'):
+def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
+                                pseudo_method='polynomial'):
     """
-    Computes adiabatic wet-bulb temperature.
+    Computes pseudo wet-bulb temperature.
 
-    Adiabatic (or pseudo) wet-bulb temperature is the temperature of a parcel
-    of air lifted adiabatically to saturation and then brought
-    pseudoadiabatically at saturation back to its original pressure. It is
-    always less than the isobaric wet-bulb temperature.
+    Pseudo wet-bulb temperature is the temperature of a parcel of air lifted
+    adiabatically to saturation and then brought pseudoadiabatically at
+    saturation back to its original pressure. It is always less than the
+    isobaric wet-bulb temperature.
 
     See https://glossary.ametsoc.org/wiki/Wet-bulb_temperature.
 
@@ -1244,7 +1250,7 @@ def adiabatic_wet_bulb_temperature(p, T, q, phase='liquid',
             is 'polynomial')
 
     Returns:
-        Tw (float or ndarray): adiabatic wet-bulb temperature (K)
+        Tw (float or ndarray): pseudo wet-bulb temperature (K)
 
     """
 
@@ -1288,7 +1294,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
 
     Isobaric wet-bulb temperature is the temperature of a parcel of air cooled
     isobarically to saturation via the evaporation of water into it, with all
-    latent heat supplied by the parcel. It is always greater than the adiabatic
+    latent heat supplied by the parcel. It is always greater than the pseudo
     wet-bulb temperature. Isobaric wet-bulb temperature is similar (but not
     identical) to the quantity measured by a wet-bulb thermometer. 
 
@@ -1309,8 +1315,8 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
     # Compute dewpoint temperature
     Td = dewpoint_temperature(p, T, q)
 
-    # Initialise Tw as mean of T and Td
-    Tw = (T + Td) / 2
+    # Initialise Tw using the "one-third rule" (Knox et al. 2017)
+    Tw = T - (1 / 3) * (T - Td)
 
     # Compute the latent heat at temperature T
     if phase == 'liquid':
@@ -1405,7 +1411,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
     return Tw
 
 
-def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
+def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
                          pseudo_method='polynomial'):
     """
     Computes wet-bulb temperature for specified saturation process.
@@ -1415,11 +1421,11 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
         saturation (str, optional): saturation process (valid options are
-            'isobaric' or 'adiabatic'; default is 'adiabatic')
+            'pseudo' or 'isobaric'; default is 'pseudo')
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo_method (str, optional): method for performing pseudoadiabatic
-            descent in calculation of adiabatic Tw (valid options are
+            descent in calculation of pseudo Tw (valid options are
             'polynomial' or 'iterative'; default is 'polynomial')
 
     Returns:
@@ -1427,13 +1433,13 @@ def wet_bulb_temperature(p, T, q, saturation='adiabatic', phase='liquid',
 
     """
 
-    if saturation == 'adiabatic':
-        Tw = adiabatic_wet_bulb_temperature(p, T, q, phase=phase,
-                                            pseudo_method=pseudo_method)
+    if saturation == 'pseudo':
+        Tw = pseudo_wet_bulb_temperature(p, T, q, phase=phase,
+                                         pseudo_method=pseudo_method)
     elif saturation == 'isobaric':
         Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
     else:
-        raise ValueError("saturation must be one of 'isobaric' or 'adiabatic'")
+        raise ValueError("saturation must be one of 'pseudo' or 'isobaric'")
 
     return Tw
 
