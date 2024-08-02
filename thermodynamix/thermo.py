@@ -54,9 +54,9 @@ References:
 
 import numpy as np
 from scipy.special import lambertw
-from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
-                            T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
-import atmos.pseudoadiabat as pseudoadiabat
+from thermodynamix.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
+                                    T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
+import thermodynamix.pseudoadiabat as pseudoadiabat
 
 # Precision for iterative temperature calculations (K)
 precision = 0.001
