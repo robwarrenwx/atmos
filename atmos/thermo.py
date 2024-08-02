@@ -1058,7 +1058,7 @@ def follow_dry_adiabat(pi, pf, Ti, q):
 
 
 def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
-                         polynomial=True, dp=500.0):
+                         polynomial=True, explicit=False, dp=500.0):
     """
     Computes parcel temperature following a saturated adiabat or pseudoadiabat.
     For descending parcels, a pseudoadiabat is always used. By default,
@@ -1079,6 +1079,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
             parcel ascent (default is True)
         polynomial (bool, optional): use polynomial fits to pseudoadiabats
             (default is True)
+        explicit (bool, optional): use explicit integration (default is False)
         dp (float, optional): pressure increment for integration (default is
             500 Pa = 5 hPa)
 
@@ -1211,6 +1212,10 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                         # provided pinc is not too large
                         print(f'Not converged after {max_n_iter} iterations')
                         break
+
+                if explicit:
+                    # skip additional iterations
+                    converged = True
 
             #print(np.min(p1), np.min(p2), count)
 
