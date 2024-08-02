@@ -11,28 +11,28 @@ Functions for converting between the following moisture variables:
 """
 
 import numpy as np
-from thermodynamix.constant import eps
-from thermodynamix.thermo import precision, max_n_iter
-from thermodynamix.thermo import saturation_vapour_pressure
-from thermodynamix.thermo import saturation_specific_humidity
-from thermodynamix.thermo import saturation_mixing_ratio
-from thermodynamix.thermo import ice_fraction
-from thermodynamix.thermo import mixing_ratio as \
+from atmos.constant import eps
+from atmos.thermo import precision, max_n_iter
+from atmos.thermo import saturation_vapour_pressure
+from atmos.thermo import saturation_specific_humidity
+from atmos.thermo import saturation_mixing_ratio
+from atmos.thermo import ice_fraction
+from atmos.thermo import mixing_ratio as \
     mixing_ratio_from_specific_humidity
-from thermodynamix.thermo import vapour_pressure as \
+from atmos.thermo import vapour_pressure as \
     vapour_pressure_from_specific_humidity
-from thermodynamix.thermo import relative_humidity as \
+from atmos.thermo import relative_humidity as \
     relative_humidity_from_specific_humidity
-from thermodynamix.thermo import _dewpoint_temperature_from_relative_humidity as \
+from atmos.thermo import _dewpoint_temperature_from_relative_humidity as \
     dewpoint_temperature_from_relative_humidity
-from thermodynamix.thermo import dewpoint_temperature as \
+from atmos.thermo import dewpoint_temperature as \
     dewpoint_temperature_from_specific_humidity
-from thermodynamix.thermo import _frost_point_temperature_from_relative_humidity as \
+from atmos.thermo import _frost_point_temperature_from_relative_humidity as \
     frost_point_temperature_from_relative_humidity
-from thermodynamix.thermo import frost_point_temperature as \
+from atmos.thermo import frost_point_temperature as \
     frost_point_temperature_from_specific_humidity
-from thermodynamix.thermo import _saturation_point_temperature_from_relative_humidity
-from thermodynamix.thermo import saturation_point_temperature as \
+from atmos.thermo import _saturation_point_temperature_from_relative_humidity
+from atmos.thermo import saturation_point_temperature as \
     saturation_point_temperature_from_specific_humidity
 
 

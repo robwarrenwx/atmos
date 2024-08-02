@@ -1,15 +1,15 @@
 import numpy as np
-from thermodynamix.constant import Rd
-from thermodynamix.thermo import (saturation_specific_humidity,
-                                  virtual_temperature,
-                                  potential_temperature,
-                                  lifting_condensation_level,
-                                  lifting_deposition_level,
-                                  lifting_saturation_level,
-                                  ice_fraction,
-                                  follow_dry_adiabat,
-                                  follow_moist_adiabat,
-                                  wet_bulb_potential_temperature)
+from atmos.constant import Rd
+from atmos.thermo import (saturation_specific_humidity,
+                          virtual_temperature,
+                          potential_temperature,
+                          lifting_condensation_level,
+                          lifting_deposition_level,
+                          lifting_saturation_level,
+                          ice_fraction,
+                          follow_dry_adiabat,
+                          follow_moist_adiabat,
+                          wet_bulb_potential_temperature)
 
 
 def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,

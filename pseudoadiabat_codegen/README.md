@@ -14,7 +14,7 @@ To generate `pseudoadiabat.py`, which contains the functions for evaluating
 thw(p,T) and  T(p,thw), pseudoadiabat_codegen.py should be run from this 
 directory as follows:
 
-`python pseudoadiabat_codegen.py > ../thermodynamix/pseudoadiabat.py`
+`python pseudoadiabat_codegen.py > ../atmos/pseudoadiabat.py`
 
 References:
 
