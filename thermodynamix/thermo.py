@@ -1077,11 +1077,12 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo (bool): flag indicating whether to perform pseudoadiabatic
             parcel ascent (default is True)
-        polynomial (bool, optional): use polynomial fits to pseudoadiabats
-            (default is True)
-        explicit (bool, optional): use explicit integration (default is False)
-        dp (float, optional): pressure increment for integration (default is
-            500 Pa = 5 hPa)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         Tf (float or ndarray): final temperature (K)
@@ -1245,8 +1246,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        polynomial (bool, optional): use polynomial fits to pseudoadiabats
-            (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
 
     Returns:
         Tw (float or ndarray): pseudo wet-bulb temperature (K)
@@ -1423,8 +1424,8 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
             'pseudo' or 'isobaric'; default is 'pseudo')
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        polynomial (bool, optional): use polynomial fits to pseudoadiabats
-            (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
 
     Returns:
         Tw: wet-bulb temperature (K)
@@ -1712,8 +1713,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        polynomial (bool, optional): use polynomial fits to pseudoadiabats
-            (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
 
     Returns:
         thw (float or ndarray): wet-bulb potential temperature (K)
@@ -1764,8 +1765,8 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
         T (float or ndarray): temperature (K)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        polynomial (bool, optional): use polynomial fits to pseudoadiabats
-            (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
 
     Returns:
         thws (float or ndarray): saturation wet-bulb potential temperature (K)

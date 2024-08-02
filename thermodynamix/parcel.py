@@ -16,7 +16,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                   output_scalars=True, which_lfc='first', which_el='last',
                   count_cape_below_lcl=False, count_cin_below_lcl=True,
                   count_cin_above_lfc=True, phase='liquid', pseudo=True,
-                  pseudo_method='polynomial', dp=500.0):
+                  polynomial=True, explicit=False, dp=500.0):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -61,11 +61,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo (bool): flag indicating whether to perform pseudoadiabatic
             parcel ascent (default is True)
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            parcel ascent (valid options are 'polynomial' or 'iterative';
-            default is 'polynomial')
-        dp (float, optional): pressure increment for iterative calculation of
-            parcel temperature along moist adiabat (default is 500 Pa = 5 hPa) 
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         CAPE (float or ndarray): convective available potential energy (J/kg)
@@ -329,14 +330,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
 
                 # Follow a pseudoadiabat to get parcel temperature
                 Tp2[above_lcl] = follow_moist_adiabat(
-                    p1[above_lcl], p2[above_lcl], Tp1[above_lcl], phase=phase,
-                    pseudo=True, pseudo_method=pseudo_method, dp=dp
+                    p1[above_lcl], p2[above_lcl], Tp1[above_lcl],
+                    phase=phase, pseudo=True,
+                    polynomial=polynomial, explicit=explicit, dp=dp
                     )
 
                 # Specific humidity is equal to its value at saturation
                 omega = ice_fraction(Tp2[above_lcl])
                 qp2[above_lcl] = saturation_specific_humidity(
-                    p2[above_lcl], Tp2[above_lcl], phase=phase, omega=omega
+                    p2[above_lcl], Tp2[above_lcl],
+                    phase=phase, omega=omega
                     )
 
             else:
@@ -344,7 +347,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                 # Follow a saturated adiabat to get parcel temperature
                 Tp2[above_lcl] = follow_moist_adiabat(
                     p1[above_lcl], p2[above_lcl], Tp1[above_lcl],
-                    qt=qt[above_lcl], phase=phase, pseudo=False, dp=dp
+                    qt=qt[above_lcl], phase=phase, pseudo=False,
+                    polynomial=polynomial, explicit=explicit, dp=dp
                     )
 
                 # Specific humidity is equal to its value at saturation
@@ -986,14 +990,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     else:
 
-        # Get phase and pseudo_method from kwargs
+        # Get phase and polynomial flag from kwargs
         phase = kwargs.get('phase', 'liquid')
-        pseudo_method = kwargs.get('pseudo_method', 'polynomial')
+        polynomial = kwargs.get('polynomial', True)
 
         # Compute WBPT at the surface
         thw_sfc = wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc,
                                                  phase=phase,
-                                                 pseudo_method=pseudo_method)
+                                                 polynomial=polynomial)
 
         # Initialise the maximum WBPT
         thw_max = thw_sfc
@@ -1024,7 +1028,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             # Compute WBPT
             thw = wet_bulb_potential_temperature(p[k], T[k], q[k],
                                                  phase=phase,
-                                                 pseudo_method=pseudo_method)
+                                                 polynomial=polynomial)
 
             # For points below the surface or above the minimum pressure level,
             # replace WBPT with the value at the surface
