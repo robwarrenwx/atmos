@@ -1058,14 +1058,14 @@ def follow_dry_adiabat(pi, pf, Ti, q):
 
 
 def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
-                         pseudo_method='polynomial', dp=500.0):
+                         polynomial=True, dp=500.0):
     """
     Computes parcel temperature following a saturated adiabat or pseudoadiabat.
     For descending parcels, a pseudoadiabat is always used. By default,
     pseudoadiabatic calculations use polynomial fits for fast calculations, but
-    can optionally use slower iterative method. Saturated adiabatic ascent must
-    be performed iteratively (for now). At present, polynomial fits are only
-    available for liquid pseudoadiabats.
+    can optionally use direct integration. Saturated adiabatic ascent can only
+    be performed using direct integration (for now). At present, polynomial
+    fits are only available for liquid pseudoadiabats.
 
     Args:
         pi (float or ndarray): initial pressure (Pa)
@@ -1077,27 +1077,23 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         pseudo (bool): flag indicating whether to perform pseudoadiabatic
             parcel ascent (default is True)
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            ascent/descent (valid options are 'polynomial' or 'iterative';
-            default is 'polynomial')
-        dp (float, optional): pressure increment for iterative calculation
-            (default is 500 Pa = 5 hPa)
+        polynomial (bool, optional): use polynomial fits to pseudoadiabats
+            (default is True)
+        dp (float, optional): pressure increment for integration (default is
+            500 Pa = 5 hPa)
 
     Returns:
         Tf (float or ndarray): final temperature (K)
 
     """
 
-    if pseudo_method not in ['polynomial', 'iterative']:
-        raise ValueError("pseudo_method must be either 'polynomial' or 'iterative'")
-
-    if pseudo and pseudo_method == 'polynomial':
+    if pseudo and polynomial:
 
         if phase != 'liquid':
             raise ValueError(
                 """Polynomial fits have yet to be created for ice and 
                 mixed-phase pseudoadiabats. Calculations must be performed 
-                iteratively by setting pseudo_method='iterative'."""
+                using direct integration by setting polynomial=False."""
                 )
 
         # Compute the wet-bulb potential temperature of the pseudoadiabat
@@ -1227,8 +1223,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
     return Tf
 
 
-def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
-                                pseudo_method='polynomial'):
+def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
     """
     Computes pseudo wet-bulb temperature.
 
@@ -1245,9 +1240,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            descent (valid options are 'polynomial' or 'iterative'; default
-            is 'polynomial')
+        polynomial (bool, optional): use polynomial fits to pseudoadiabats
+            (default is True)
 
     Returns:
         Tw (float or ndarray): pseudo wet-bulb temperature (K)
@@ -1261,7 +1255,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LCL to the original pressure
         Tw = follow_moist_adiabat(p_lcl, p, T_lcl, phase='liquid', pseudo=True,
-                                  pseudo_method=pseudo_method)
+                                  polynomial=polynomial)
 
     elif phase == 'ice':
 
@@ -1270,7 +1264,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LDL to the original pressure
         Tw = follow_moist_adiabat(p_ldl, p, T_ldl, phase='ice', pseudo=True,
-                                  pseudo_method=pseudo_method)
+                                  polynomial=polynomial)
 
     elif phase == 'mixed':
 
@@ -1279,7 +1273,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LSL to the original pressure
         Tw = follow_moist_adiabat(p_lsl, p, T_lsl, phase='mixed', pseudo=True,
-                                  pseudo_method=pseudo_method)
+                                  polynomial=polynomial)
 
     else:
 
@@ -1412,7 +1406,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
 
 
 def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
-                         pseudo_method='polynomial'):
+                         polynomial=True):
     """
     Computes wet-bulb temperature for specified saturation process.
 
@@ -1424,9 +1418,8 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
             'pseudo' or 'isobaric'; default is 'pseudo')
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            descent in calculation of pseudo Tw (valid options are
-            'polynomial' or 'iterative'; default is 'polynomial')
+        polynomial (bool, optional): use polynomial fits to pseudoadiabats
+            (default is True)
 
     Returns:
         Tw: wet-bulb temperature (K)
@@ -1435,7 +1428,7 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
 
     if saturation == 'pseudo':
         Tw = pseudo_wet_bulb_temperature(p, T, q, phase=phase,
-                                         pseudo_method=pseudo_method)
+                                         polynomial=polynomial)
     elif saturation == 'isobaric':
         Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
     else:
@@ -1704,8 +1697,7 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
     return thil
 
 
-def wet_bulb_potential_temperature(p, T, q, phase='liquid',
-                                   pseudo_method='polynomial'):
+def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
     """
     Computes wet-bulb potential temperature.
 
@@ -1715,9 +1707,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
         q (float or ndarray): specific humidity (kg/kg)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            ascent/descent (valid options are 'polynomial' or 'iterative';
-            default is 'polynomial')
+        polynomial (bool, optional): use polynomial fits to pseudoadiabats
+            (default is True)
 
     Returns:
         thw (float or ndarray): wet-bulb potential temperature (K)
@@ -1731,7 +1722,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LCL to 1000 hPa
         thw = follow_moist_adiabat(p_lcl, p_ref, T_lcl, phase='liquid',
-                                   pseudo=True, pseudo_method=pseudo_method)
+                                   pseudo=True, polynomial=polynomial)
 
     elif phase == 'ice':
 
@@ -1740,7 +1731,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LDL to 1000 hPa
         thw = follow_moist_adiabat(p_ldl, p_ref, T_ldl, phase='ice',
-                                   pseudo=True, pseudo_method=pseudo_method)
+                                   pseudo=True, polynomial=polynomial)
 
     elif phase == 'mixed':
 
@@ -1749,7 +1740,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
 
         # Follow a pseudoadiabat from the LSL to 1000 hPa
         thw = follow_moist_adiabat(p_lsl, p_ref, T_lsl, phase='mixed',
-                                   pseudo=True, pseudo_method=pseudo_method)
+                                   pseudo=True, polynomial=polynomial)
 
     else:
 
@@ -1759,7 +1750,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid',
 
 
 def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
-                                              pseudo_method='polynomial'):
+                                              polynomial=True):
     """
     Computes saturation wet-bulb potential temperature.
 
@@ -1768,9 +1759,8 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
         T (float or ndarray): temperature (K)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo_method (str, optional): method for performing pseudoadiabatic
-            ascent/descent (valid options are 'polynomial' or 'iterative';
-            default is 'polynomial')
+        polynomial (bool, optional): use polynomial fits to pseudoadiabats
+            (default is True)
 
     Returns:
         thws (float or ndarray): saturation wet-bulb potential temperature (K)
@@ -1779,6 +1769,6 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
 
     # Follow a pseudoadiabat to 1000 hPa
     thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
-                                pseudo_method=pseudo_method)
+                                polynomial=polynomial)
 
     return thws
