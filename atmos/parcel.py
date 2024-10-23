@@ -16,7 +16,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                   output_scalars=True, which_lfc='first', which_el='last',
                   count_cape_below_lcl=False, count_cin_below_lcl=True,
                   count_cin_above_lfc=True, phase='liquid', pseudo=True,
-                  polynomial=True, explicit=False, dp=500.0):
+                  polynomial=True, explicit=False, dp=500.0,
+                  return_profiles=False):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -67,6 +68,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             integration of lapse rate equation (default is False)
         dp (float, optional): pressure increment for integration of lapse rate
             equation (default is 500 Pa = 5 hPa)
+        return_profiles (bool, optional): flag indicating whether to return
+            profiles of pressure, parcel temperature, and parcel specific
+            humidity (default is False)
 
     Returns:
         CAPE (float or ndarray): convective available potential energy (J/kg)
@@ -217,6 +221,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
     #print(p_lcl, Tp_lcl, qt)
     #print(Tp2, qp2, B2)
 
+    if return_profiles:
+
+        # Create arrays to store parcel profiles
+        shape = list(p.shape)
+        shape[0] = k_max+1
+        shape = tuple(shape)
+        pp = np.full(shape, np.nan)
+        Tp = np.full(shape, np.nan)
+        qp = np.full(shape, np.nan)
+
     # Loop over levels, accounting for addition of extra level for LCL
     for k in range(k_lpl+1, k_max+1):
 
@@ -357,6 +371,19 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                     p2[above_lcl], Tp2[above_lcl], qt=qt[above_lcl],
                     phase=phase, omega=omega
                     )
+
+        if return_profiles:
+
+            # Store parcel properties at this level
+            pp[k] = p2
+            Tp[k] = Tp2
+            qp[k] = qp2
+
+            p1_is_lpl = (p1 == p_lpl)
+            if np.any(p1_is_lpl):
+                pp[k-1][p1_is_lpl] = p1[p1_is_lpl]
+                Tp[k-1][p1_is_lpl] = Tp1[p1_is_lpl]
+                qp[k-1][p1_is_lpl] = qp1[p1_is_lpl]
 
         # Update parcel buoyancy (virtual temperature difference)
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
@@ -589,7 +616,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         LFC = LFC[0]
         EL = EL[0]
 
-    return CAPE, CIN, LCL, LFC, EL
+    if return_profiles:
+        return CAPE, CIN, LCL, LFC, EL, pp, Tp, qp
+    else:
+        return CAPE, CIN, LCL, LFC, EL
 
 
 def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None, 
@@ -641,7 +671,7 @@ def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None, 
                               mixed_layer_depth=5000.0, vertical_axis=0, 
-                              **kwargs):
+                              return_parcel_props=False, **kwargs):
     """
     Performs a mixed-layer (ML) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -661,6 +691,8 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             5000 Pa = 50 hPa)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
+        return_parcel_props (bool, optional): flag indicating whether to return
+            parcel temperature and specific humidity)
         **kwargs: additional keyword arguments passed to parcel_ascent
 
     Returns:
@@ -793,13 +825,17 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     CAPE, CIN, LCL, LFC, EL = parcel_ascent(p, T, q, p_sfc, T_avg, q_avg,
                                             **kwargs)
 
-    return CAPE, CIN, LCL, LFC, EL
+    if return_parcel_props:
+        return CAPE, CIN, LCL, LFC, EL, T_avg, q_avg
+    else:
+        return CAPE, CIN, LCL, LFC, EL
 
 
 def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                                 mu_parcel='max_wbpt', min_pressure=50000.0,
                                 eil_min_cape=100.0, eil_max_cin=250.0,
-                                vertical_axis=0, **kwargs):
+                                vertical_axis=0, return_parcel_props=False,
+                                **kwargs):
     """
     Performs a most-unstable (MU) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -830,6 +866,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             the EIL (J/kg) (default is 250 J/kg)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
+        return_parcel_props (bool, optional): flag indicating whether to return
+            parcel temperature and specific humidity)
         **kwargs: additional keyword arguments passed to parcel_ascent
 
     Returns:
@@ -986,7 +1024,11 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             inflow_base = inflow_base[0]
             inflow_top = inflow_top[0]
 
-        return CAPE, CIN, LPL, LCL, LFC, EL, inflow_base, inflow_top
+        if return_parcel_props:
+            return (CAPE, CIN, LPL, LCL, LFC, EL, inflow_base, inflow_top,
+                    Tp_lpl, qp_lpl)
+        else:
+            return CAPE, CIN, LPL, LCL, LFC, EL, inflow_base, inflow_top
 
     else:
 
@@ -998,6 +1040,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         thw_sfc = wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc,
                                                  phase=phase,
                                                  polynomial=polynomial)
+        thw_sfc = np.atleast_1d(thw_sfc)
 
         # Initialise the maximum WBPT
         thw_max = thw_sfc
@@ -1029,6 +1072,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             thw = wet_bulb_potential_temperature(p[k], T[k], q[k],
                                                  phase=phase,
                                                  polynomial=polynomial)
+            thw = np.atleast_1d(thw)
 
             # For points below the surface or above the minimum pressure level,
             # replace WBPT with the value at the surface
@@ -1071,4 +1115,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             LFC = LFC[0]
             EL = EL[0]
 
-        return CAPE, CIN, LPL, LCL, LFC, EL
+        if return_parcel_props:
+            return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
+        else:
+            return CAPE, CIN, LPL, LCL, LFC, EL
