@@ -55,7 +55,7 @@ References:
 import numpy as np
 from scipy.special import lambertw
 from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
-                                    T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
+                            T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
 import atmos.pseudoadiabat as pseudoadiabat
 
 # Precision for iterative temperature calculations (K)
@@ -1358,7 +1358,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             Lv_Tw = latent_heat_of_vaporisation(Tw)
 
             # Compute the derivative of qs with respect to Tw
-            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Lv_Tw / (Rv * Tw**2)
+            dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * Lv_Tw / (Rv * Tw**2)
 
             # Compute f and f'
             f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
@@ -1370,7 +1370,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             Ls_Tw = latent_heat_of_sublimation(Tw)
 
             # Compute the derivative of qs with respect to Tw
-            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * Ls_Tw / (Rv * Tw**2)
+            dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * Ls_Tw / (Rv * Tw**2)
 
             # Compute f and f'
             f = cpm_qs_Tw * (T - Tw) - Ls_T * (qs_Tw - q)
@@ -1385,11 +1385,11 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             Lx_Tw = mixed_phase_latent_heat(Tw, omega_Tw)
 
             # Compute the saturation vapour pressues over liquid and ice at Tw
-            esl_Tw = saturation_vapour_pressure(T, phase='liquid')
-            esi_Tw = saturation_vapour_pressure(T, phase='ice')
+            esl_Tw = saturation_vapour_pressure(Tw, phase='liquid')
+            esi_Tw = saturation_vapour_pressure(Tw, phase='ice')
 
             # Compute the derivative of qs with respect to Tw
-            dqs_dTw = qs_Tw * (1 + qs_Tw / eps - qs_Tw) * \
+            dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * \
                 (Lx_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
 
             # Compute f(Tw) and f'(Tw)
