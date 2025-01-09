@@ -587,7 +587,7 @@ def saturation_point_temperature(p, T, q):
         Ts = _saturation_point_temperature_from_relative_humidity(T, RH, omega)
    
         # Check if solution has converged
-        if np.max(np.abs(Ts - Ts_prev)) < precision:
+        if np.nanmax(np.abs(Ts - Ts_prev)) < precision:
             converged = True
         else:
             count += 1
@@ -1142,7 +1142,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
         #print(np.min(dp), np.max(dp))
 
         # Loop over pressure increments
-        while np.max(np.abs(p2 - pf)) > 0.0:
+        while np.nanmax(np.abs(p2 - pf)) > 0.0:
 
             # Set level 1 values
             p1 = p2
@@ -1204,7 +1204,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
                 T2 = T1 + pmid * dT_dp * np.log(p2 / p1)  # pmid * dT/dp = dT/dlnp
 
                 # Check if the solution has converged
-                if np.max(np.abs(T2 - T2_prev)) < precision:
+                if np.nanmax(np.abs(T2 - T2_prev)) < precision:
                     converged = True
                 else:
                     count += 1
@@ -1400,7 +1400,7 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
         Tw = Tw - f / fprime
 
         # Check for convergence
-        if np.max(np.abs(Tw - Tw_prev)) < precision:
+        if np.nanmax(np.abs(Tw - Tw_prev)) < precision:
             converged = True
         else:
             count += 1
