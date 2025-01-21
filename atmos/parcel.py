@@ -594,6 +594,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                     CAPE[done & is_max] = 0.0  # reset if max-CAPE layer
                     CAPE[done] += cape_layer[done]
 
+                    if count_cin_above_lfc:
+
+                        # Use CIN up to last positive area
+                        CIN[done] = cin_total[done]
+
             else:
 
                 # Use LFC for last positive area
