@@ -516,17 +516,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             if np.any(is_max):
                 cape_max[done & is_max] = cape_layer[done & is_max]
 
-            # Set final CAPE, CIN, LFC and EL based on which_lfc and which_el
+            # Set final LFC, EL, CAPE, and CIN based on which_lfc and which_el
             if which_lfc == 'first':
 
                 # Use LFC for first positive area
                 is_first = (CAPE == 0.0)
                 LFC[done & is_first] = p_lfc[done & is_first]
-
-                if not count_cin_above_lfc:
-
-                    # Use CIN up to first positive area
-                    CIN[done & is_first] = cin_total[done & is_first]
 
                 if which_el == 'first':
 
@@ -536,10 +531,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                     # Use total CAPE up to first positive area
                     CAPE[done & is_first] = cape_total[done & is_first]
 
-                    if count_cin_above_lfc:
-
-                        # Use total CIN up to largest positive area
-                        CIN[done & is_first] = cin_total[done & is_first]
+                    # Use total CIN up to largest positive area
+                    CIN[done & is_first] = cin_total[done & is_first]
 
                 elif which_el == 'maxcape':
 
@@ -554,6 +547,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                         # Use total CIN up to largest positive area
                         CIN[done & is_max] = cin_total[done & is_max]
 
+                    else:
+
+                        # Use total CIN up to first positive area
+                        CIN[done & is_first] = cin_total[done & is_first]
+
                 else:
 
                     # Use EL for last positive area
@@ -567,15 +565,15 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                         # Use CIN up to last positive area
                         CIN[done] = cin_total[done]
 
+                    else:
+
+                        # Use total CIN up to first positive area
+                        CIN[done & is_first] = cin_total[done & is_first]
+
             elif which_lfc == 'maxcape':
 
                 # Use LFC for largest positive area
                 LFC[done & is_max] = p_lfc[done & is_max]
-
-                if not count_cin_above_lfc:
-
-                    # Use CIN up to largest positive area
-                    CIN[done & is_max] = cin_total[done & is_max]
 
                 if which_el == 'maxcape':
 
@@ -585,10 +583,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                     # Use CAPE for largest positive area
                     CAPE[done & is_max] = cape_layer[done & is_max]
 
-                    if count_cin_above_lfc:
-
-                        # Use total CIN up to largest positive area
-                        CIN[done & is_max] = cin_total[done & is_max]
+                    # Use total CIN up to largest positive area
+                    CIN[done & is_max] = cin_total[done & is_max]
 
                 else:
 
@@ -603,6 +599,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
 
                         # Use CIN up to last positive area
                         CIN[done] = cin_total[done]
+
+                    else:
+
+                        # Use total CIN up to largest positive area
+                        CIN[done & is_max] = cin_total[done & is_max]
 
             else:
 
