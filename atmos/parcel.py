@@ -536,6 +536,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                     # Use total CAPE up to first positive area
                     CAPE[done & is_first] = cape_total[done & is_first]
 
+                    if count_cin_above_lfc:
+
+                        # Use total CIN up to largest positive area
+                        CIN[done & is_first] = cin_total[done & is_first]
+
                 elif which_el == 'maxcape':
 
                     # Use EL for largest positive area
