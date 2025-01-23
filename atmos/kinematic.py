@@ -27,7 +27,8 @@ def wind_direction(u, v):
         v (float or ndarray): northward component of wind (m/s)
 
     Returns:
-        wdir (float or ndarray): wind direction (deg)
+        wdir (float or ndarray): wind from direction measured clockwise from
+            north (degrees)
 
     """
     wdir = 90. - np.degrees(np.arctan2(-v, -u))
@@ -57,7 +58,8 @@ def wind_components(wspd, wdir):
 
     Args:
         wspd (float or ndarray): wind speed (m/s)
-        wdir (float or ndarray): wind direciton (deg)
+        wdir (float or ndarray): wind from direction measured clockwise from
+            north (degrees)
 
     Returns:
         u (float or ndarray): eastward component of wind (m/s)
@@ -70,24 +72,7 @@ def wind_components(wspd, wdir):
     return u, v
 
 
-def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
-    """
-    Computes bulk wind difference between two specified height levels.
-
-    Args:
-        z (float or ndarray): height (m)
-        u (float or ndarray): zonal wind velocity (m/s)
-        v (float or ndarray): meridional wind velocity (m/s)
-        z_bot (float or ndarray): height of bottom of layer (m)
-        z_top (float or ndarray): height of top of layer (m)
-        vertical_axis (int, optional): profile array axis corresponding to 
-            vertical dimension (default is 0)
-
-    Returns:
-        BWDmag (float or ndarray): bulk wind difference magnitude (m/s)
-        BWDdir (float or ndarray, optional): bulk wind difference direction (deg)
-
-    """
+def wind_at_level(z, u, v, z_star, vertical_axis=0):
 
     # Reorder profile array dimensions if needed
     if vertical_axis != 0:
@@ -101,33 +86,30 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
 
-    # Make sure that z_bot and z_top are at least 1D
-    z_bot = np.atleast_1d(z_bot)
-    z_top = np.atleast_1d(z_top)
+    # Make sure that z_star is least 1D
+    z_star = np.atleast_1d(z_star)
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
 
-    # Initialise winds at bottom and top of layer
-    u_bot = u[0]
-    v_bot = v[0]
-    u_top = u[-1]
-    v_top = v[-1]
+    # Check if z_star is below lowest level
+    if np.any(z_star < z[0]):
+        n_pts = np.count_nonzero(z_star < z[0])
+        print(f'WARNING: z_star is below lowest level for {n_pts} points')
+
+    # Check if z_star is above highest level
+    if np.any(z_star > z[-1]):
+        n_pts = np.count_nonzero(z_star > z[-1])
+        print(f'WARNING: z_star is above highest level for {n_pts} points')
 
     # Initialise level 2 fields
     z2 = z[0]
     u2 = u[0]
     v2 = v[0]
 
-    # Check if bottom of layer is below lowest level
-    if np.any(z_bot < z[0]):
-        n_pts = np.count_nonzero(z_bot < z[0])
-        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
-
-    # Check if top of layer is above highest level
-    if np.any(z_top > z[-1]):
-        n_pts = np.count_nonzero(z_top > z[-1])
-        print(f'WARNING: z_top is above highest level for {n_pts} points')
+    # Initialise winds at z_star
+    u_star = u2.copy()
+    v_star = v2.copy()
 
     # Loop over levels
     for k in range(1, n_lev):
@@ -142,41 +124,27 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
         u2 = u[k]
         v2 = v[k]
 
-        if np.all(z2 <= z_bot):
+        if np.all(z2 < z_star):
             # can skip this level
             continue
-        if np.all(z1 >= z_top):
+        if np.all(z1 >= z_star):
             # can break out of loop
             break
         
-        # Set winds at bottom of layer
-        cross_bot = (z1 <= z_bot) & (z2 > z_bot)
-        if np.any(cross_bot):
-            weight = (z_bot[cross_bot] - z1[cross_bot]) / \
-                (z2[cross_bot] - z1[cross_bot])
-            u_bot[cross_bot] = (1 - weight) * u1[cross_bot] + \
-                weight * u2[cross_bot]
-            v_bot[cross_bot] = (1 - weight) * v1[cross_bot] + \
-                weight * v2[cross_bot]
+        # Interpolate to get winds at z_star
+        cross_star = (z1 < z_star) & (z2 >= z_star)
+        if np.any(cross_star):
+            weight = (z_star[cross_star] - z1[cross_star]) / \
+                (z2[cross_star] - z1[cross_star])
+            u_star[cross_star] = (1 - weight) * u1[cross_star] + \
+                weight * u2[cross_star]
+            v_star[cross_star] = (1 - weight) * v1[cross_star] + \
+                weight * v2[cross_star]
 
-        # Set winds at top of layer
-        cross_top = (z1 < z_top) & (z2 >= z_top)
-        if np.any(cross_top):
-            weight = (z_top[cross_top] - z1[cross_top]) / \
-                (z2[cross_top] - z1[cross_top])
-            u_top[cross_top] = (1 - weight) * u1[cross_top] + \
-                weight * u2[cross_top]
-            v_top[cross_top] = (1 - weight) * v1[cross_top] + \
-                weight * v2[cross_top]
-
-    # Compute the bulk wind difference components
-    BWDu = u_top - u_bot
-    BWDv = v_top - v_bot
-
-    if len(BWDu) == 1:
-        return BWDu[0], BWDv[0]
+    if len(u_star) == 1:
+        return u_star[0], v_star[0]
     else:
-        return BWDu, BWDv
+        return u_star, v_star
 
 
 def layer_mean_wind(z, u, v, z_bot, z_top, vertical_axis=0,
@@ -284,7 +252,7 @@ def layer_mean_wind(z, u, v, z_bot, z_top, vertical_axis=0,
                 weight * wt2[cross_bot]
             z2[cross_bot] = z_bot[cross_bot]
 
-        # If crossing top of layer, 
+        # If crossing top of layer, reset level 2
         cross_top = (z1 < z_top) & (z2 > z_top)
         if np.any(cross_top):
             weight = (z_top[cross_top] - z1[cross_top]) / \
@@ -310,6 +278,115 @@ def layer_mean_wind(z, u, v, z_bot, z_top, vertical_axis=0,
         return u_mean[0], v_mean[0]
     else:
         return u_mean, v_mean
+
+
+def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
+    """
+    Computes bulk wind difference across a specified layer.
+
+    Args:
+        z (float or ndarray): height (m)
+        u (float or ndarray): zonal wind velocity (m/s)
+        v (float or ndarray): meridional wind velocity (m/s)
+        z_bot (float or ndarray): height of bottom of layer (m)
+        z_top (float or ndarray): height of top of layer (m)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        BWDmag (float or ndarray): bulk wind difference magnitude (m/s)
+        BWDdir (float or ndarray, optional): bulk wind difference direction (deg)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        u = np.moveaxis(u, vertical_axis, 0)
+        v = np.moveaxis(v, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        u = np.atleast_2d(u).T
+        v = np.atleast_2d(v).T
+
+    # Make sure that z_bot and z_top are at least 1D
+    z_bot = np.atleast_1d(z_bot)
+    z_top = np.atleast_1d(z_top)
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Initialise winds at bottom and top of layer
+    u_bot = u[0]
+    v_bot = v[0]
+    u_top = u[-1]
+    v_top = v[-1]
+
+    # Initialise level 2 fields
+    z2 = z[0]
+    u2 = u[0]
+    v2 = v[0]
+
+    # Check if bottom of layer is below lowest level
+    if np.any(z_bot < z[0]):
+        n_pts = np.count_nonzero(z_bot < z[0])
+        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(z_top > z[-1]):
+        n_pts = np.count_nonzero(z_top > z[-1])
+        print(f'WARNING: z_top is above highest level for {n_pts} points')
+
+    # Loop over levels
+    for k in range(1, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+
+        # Update level 2 fields
+        z2 = z[k]
+        u2 = u[k]
+        v2 = v[k]
+
+        if np.all(z2 < z_bot):
+            # can skip this level
+            continue
+        if np.all(z1 >= z_top):
+            # can break out of loop
+            break
+
+        # Set winds at bottom of layer
+        cross_bot = (z1 < z_bot) & (z2 >= z_bot)
+        if np.any(cross_bot):
+            weight = (z_bot[cross_bot] - z1[cross_bot]) / \
+                (z2[cross_bot] - z1[cross_bot])
+            u_bot[cross_bot] = (1 - weight) * u1[cross_bot] + \
+                weight * u2[cross_bot]
+            v_bot[cross_bot] = (1 - weight) * v1[cross_bot] + \
+                weight * v2[cross_bot]
+
+        # Set winds at top of layer
+        cross_top = (z1 < z_top) & (z2 >= z_top)
+        if np.any(cross_top):
+            weight = (z_top[cross_top] - z1[cross_top]) / \
+                (z2[cross_top] - z1[cross_top])
+            u_top[cross_top] = (1 - weight) * u1[cross_top] + \
+                weight * u2[cross_top]
+            v_top[cross_top] = (1 - weight) * v1[cross_top] + \
+                weight * v2[cross_top]
+
+    # Compute the bulk wind difference components
+    BWDu = u_top - u_bot
+    BWDv = v_top - v_bot
+
+    if len(BWDu) == 1:
+        return BWDu[0], BWDv[0]
+    else:
+        return BWDu, BWDv
 
 
 def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
@@ -366,14 +443,24 @@ def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
     )
     
     # Compute shear vector
-    u_bot, v_bot = layer_mean_wind(
-        z, u, v, shear_layer_base, shear_layer_base+shear_layer_base_average,
-        vertical_axis=vertical_axis, level_weights=level_weights
-    )
-    u_top, v_top = layer_mean_wind(
-        z, u, v, shear_layer_top-shear_layer_top_average, shear_layer_top,
-        vertical_axis=vertical_axis, level_weights=level_weights
-    )
+    if shear_layer_base_average == 0.0:
+        u_bot, v_bot = wind_at_level(
+            z, u, v, shear_layer_base, vertical_axis=vertical_axis
+        )
+    else:
+        u_bot, v_bot = layer_mean_wind(
+            z, u, v, shear_layer_base, shear_layer_base+shear_layer_base_average,
+            vertical_axis=vertical_axis, level_weights=level_weights
+        )
+    if shear_layer_top_average == 0.0:
+        u_top, v_top = wind_at_level(
+            z, u, v, shear_layer_top, vertical_axis=vertical_axis
+        )
+    else:
+        u_top, v_top = layer_mean_wind(
+            z, u, v, shear_layer_top-shear_layer_top_average, shear_layer_top,
+            vertical_axis=vertical_axis, level_weights=level_weights
+        )
     u_shr = u_top - u_bot
     v_shr = v_top - v_bot
 
@@ -464,7 +551,7 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
                 weight * v2[cross_bot]
             z2[cross_bot] = z_bot[cross_bot]
 
-        # If crossing top of layer, 
+        # If crossing top of layer, reset level 2
         cross_top = (z1 < z_top) & (z2 > z_top)
         if np.any(cross_top):
             weight = (z_top[cross_top] - z1[cross_top]) / \
