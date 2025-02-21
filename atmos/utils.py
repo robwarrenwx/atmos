@@ -353,6 +353,79 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         return ui, vi
 
 
+def get_temperature_level_height(z, T, Ti, vertical_axis=0):
+    """
+    Finds the lowest height corresponding to a set of specified temperatures.
+
+    Args:
+        z (ndarray): height (m)
+        T (ndarray): temperature (K)
+        Ti (float): temperature level (K)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        zi (list of float or ndarray): height of temperature level (m)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Initialise level 2 fields
+    z2 = z[0]
+    T2 = T[0]
+
+    # Create array for height at temperature level
+    zi = z2.copy()
+
+    # Create boolean array to indicate where level has been found
+    found = np.zeros_like(z2).astype(bool)
+
+    # Loop over levels
+    for k in range(1, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        T1 = T2.copy()
+
+        # Update level 2 fields
+        z2 = z[k]
+        T2 = T[k]
+
+        if np.all(T2 > Ti):
+            # can skip this level
+            continue
+
+        if np.all(T1 <= Ti) or np.all(found):
+            # can break out of loop
+            break
+        
+        # Interpolate to get height at Ti
+        crossed = (T1 > Ti) & (T2 <= Ti)
+        if np.any(crossed):
+            weight = (T1[crossed] - Ti) / \
+                (T1[crossed] - T2[crossed])
+            zi[crossed] = (1 - weight) * z1[crossed] + \
+                weight * z2[crossed]
+            found[crossed] = True
+
+    if len(zi) == 1:
+        return zi[0]
+    else:
+        return zi
+
+
 def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
                       level_weights=None):
     """
