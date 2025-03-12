@@ -60,8 +60,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             include negative areas above the LFC in CIN (default is True)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo (bool): flag indicating whether to perform pseudoadiabatic
-            parcel ascent (default is True)
+        pseudo (bool, optional): flag indicating whether to perform
+            pseudoadiabatic parcel ascent (default is True)
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
         explicit (bool, optional): flag indicating whether to use explicit
@@ -1130,3 +1130,132 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
         else:
             return CAPE, CIN, LPL, LCL, LFC, EL
+
+
+def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
+                 polynomial=True, explicit=False, dp=500.0,
+                 use_virtual_temperature=False):
+    """
+    Calculates the lifted index (LI), defined as the difference between the
+    environmental temperature at a specified pressure level and the
+    temperature a parcel lifted dry adiabatically to saturation and then
+    pseudoadiabatically to the specified level.
+
+    Args:
+        pi (float or ndarray): initial pressure (Pa)
+        pf (float or ndarray): final pressure (Pa)
+        Ti (float or ndarray): initial temperature (K)
+        Tf (float or ndarray): final temperature (K)
+        qi (float or ndarray): initial specific humidity (kg/kg)
+        qf (float or ndarray, optional): final specific humidity (kg/kg)
+            (only required if using virtual temperature; default is None)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
+        use_virtual_temperature (bool, optional): use virtual temperature,
+            instead of temperature, to compute LI (default is False)
+
+    Returns:
+        LI (float or ndarray): lifted index (K)
+
+    """
+
+    # Convert scalar inputs to arrays, if required
+    pi = np.atleast_1d(pi)
+    pf = np.atleast_1d(pf)
+    Ti = np.atleast_1d(Ti)
+    Tf = np.atleast_1d(Tf)
+    qi = np.atleast_1d(qi)
+    if qf is not None:
+        qf = np.atleast_1d(qf)
+    if len(Ti) > 1:
+        # multiple initial temperature values
+        if len(pi) == 1:
+            # single initial pressure value
+            pi = np.full_like(Ti, pi)
+        if len(pf) == 1:
+            # single final pressure value
+            pf = np.full_like(Ti, pf)
+
+    # Check that array shapes match
+    if pi.shape != pf.shape:
+        raise ValueError('''Initial and final pressure arrays must have
+                         identical shape''',  pi.shape, pf.shape)
+    if pi.shape != Ti.shape:
+        raise ValueError('''Initial pressure and temperature arrays must have
+                         identical shape''', pi.shape, Ti.shape)
+    if Ti.shape != qi.shape:
+        raise ValueError('''Initial temperature and specific humidity arrays
+                         must have identical shape''', Ti.shape, qi.shape)
+    if pf.shape != Tf.shape:
+        raise ValueError('''Final pressure and temperature arrays must have
+                         identical shape''', pf.shape, Tf.shape)
+    if qf is not None:
+        if Tf.shape != qf.shape:
+            raise ValueError('''Final temperature and specific humidity arrays
+                             must have identical shape''', Tf.shape, qf.shape)
+
+    # Compute the LCL/LDL/LSL pressure and parcel temperature (hereafter, we
+    # use the name 'LCL' due to its familiarity)
+    if phase == 'liquid':
+        p_lcl, Tp_lcl = lifting_condensation_level(pi, Ti, qi)
+    elif phase == 'ice':
+        p_lcl, Tp_lcl = lifting_deposition_level(pi, Ti, qi)
+    elif phase == 'mixed':
+        p_lcl, Tp_lcl = lifting_saturation_level(pi, Ti, qi)
+    else:
+        raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+
+    # Create arrays to store the final parcel temperature and specific
+    # humidity
+    Tpf = np.zeros_like(pi)
+    qpf = np.zeros_like(pi)
+
+    # Find points where the final level is above the LCL
+    above_lcl = (p_lcl > pf)
+    if np.any(above_lcl):
+
+        # Follow a pseudoadiabat to get parcel temperature
+        Tpf[above_lcl] = follow_moist_adiabat(
+            p_lcl[above_lcl], pf[above_lcl], Tp_lcl[above_lcl],
+            phase=phase, pseudo=True,
+            polynomial=polynomial, explicit=explicit, dp=dp
+            )
+
+        # Specific humidity is equal to its value at saturation
+        omega = ice_fraction(Tf[above_lcl])
+        qpf[above_lcl] = saturation_specific_humidity(
+            pf[above_lcl], Tf[above_lcl],
+            phase=phase, omega=omega
+            )
+
+    # Find points where the final level is below the LCL
+    below_lcl = (p_lcl <= pf)
+    if np.any(below_lcl):
+
+        # Follow a dry adiabat to get parcel temperature
+        Tpf[below_lcl] = follow_dry_adiabat(
+            pi[below_lcl], pf[below_lcl], Ti[below_lcl], qi[below_lcl]
+            )
+
+        # Specific humidity is equal to its initial value
+        qpf[below_lcl] = qi[below_lcl]
+
+    # Computed the lifted index
+    if use_virtual_temperature:
+        if qf is None:
+            raise ValueError('''Final specific humidity must be specified if
+                             using virtual temperature''')
+        LI = virtual_temperature(Tf, qf) - virtual_temperature(Tpf, qpf)
+    else:
+        LI = Tf - Tpf
+
+    # Mask points where final pressure exceeds initial pressure
+    LI[pf > pi] = np.nan
+
+    return LI
