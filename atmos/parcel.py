@@ -148,7 +148,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
         n_pts = np.count_nonzero(lpl_below_sfc)
         raise ValueError(f'LPL below surface at {n_pts} points')
     
-    # Check that LPL is below top level
+    # Check that LPL is not above top level
     lpl_above_top = (p_lpl < p[-1])
     if np.any(lpl_above_top):
         n_pts = np.count_nonzero(lpl_above_top)
@@ -178,7 +178,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
     n_lev = p.shape[0]
 
     # Compute the LCL/LDL/LSL pressure and parcel temperature (hereafter, we
-    # use the name 'LCL' due to its familiarity)
+    # refer to all of these as the 'LCL' due to the familiarity of this term)
     if phase == 'liquid':
         p_lcl, Tp_lcl = lifting_condensation_level(p_lpl, Tp_lpl, qp_lpl)
     elif phase == 'ice':
@@ -971,9 +971,9 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             single-element output arrays to scalars (default is False)
 
     Returns:
-        p_lpl (ndarray or float): lifted parcel level (LPL) pressure (Pa)
-        Tp_lpl (ndarray or float): parcel temperature at the LPL (K)
-        qp_lpl (ndarray or float): parcel specific humidity at the LPL (K)
+        p_mu (ndarray or float): MU parcel pressure (Pa)
+        Tp_mu (ndarray or float): MU parcel temperature (K)
+        qp_mu (ndarray or float): MU parcel specific humidity (K)
 
     """
 
@@ -1015,19 +1015,19 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     # Initialise the maximum WBPT
     thw_max = thw_sfc
 
-    # Initialise the lifted parcel level fields using surface values
-    p_lpl = p_sfc.copy()
-    Tp_lpl = T_sfc.copy()
-    qp_lpl = q_sfc.copy()
+    # Initialise the MU parcel fields using surface values
+    p_mu = p_sfc.copy()
+    Tp_mu = T_sfc.copy()
+    qp_mu = q_sfc.copy()
 
-    #print('sfc', thw_sfc, p_lpl, Tp_lpl, qp_lpl, thw_max)
+    #print('sfc', p_mu, Tp_mu, qp_mu, thw_max)
 
     # Loop over levels
     for k in range(k_start, n_lev):
 
         # Find points below the surface
         below_sfc = (p[k] > p_sfc)
-        if np.all(below_sfc): 
+        if np.all(below_sfc):
             # if all points are below the surface we can skip this level
             continue
 
@@ -1050,21 +1050,21 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
         # Update LPL fields and maximum WBPT
         is_max = (thw > thw_max)
-        p_lpl[is_max] = p[k][is_max]
-        Tp_lpl[is_max] = T[k][is_max]
-        qp_lpl[is_max] = q[k][is_max]
+        p_mu[is_max] = p[k][is_max]
+        Tp_mu[is_max] = T[k][is_max]
+        qp_mu[is_max] = q[k][is_max]
         thw_max[is_max] = thw[is_max]
 
-        #print(k, thw, p_lpl, Tp_lpl, qp_lpl, thw, thw_max)
+        #print(k, p_mu, Tp_mu, qp_mu, thw, thw_max)
 
     #print(p_lpl, Tp_lpl, qp_lpl)
 
-    if len(p_lpl) == 1 and output_scalars:
-        p_lpl = p_lpl.item()
-        Tp_lpl = Tp_lpl.item()
-        qp_lpl = qp_lpl.item()
+    if len(p_mu) == 1 and output_scalars:
+        p_mu = p_mu.item()
+        Tp_mu = Tp_mu.item()
+        qp_mu = qp_mu.item()
 
-    return p_lpl, Tp_lpl, qp_lpl
+    return p_mu, Tp_mu, qp_mu
 
 
 def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
@@ -1286,14 +1286,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_lpl, Tp_lpl, qp_lpl = most_unstable_parcel(
             p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
             min_pressure=min_pressure, phase=phase, polynomial=polynomial
-        )                                       
+        )
 
         # Note the LPL
         LPL = p_lpl
 
         # Perform parcel ascent from the LPL
         CAPE, CIN, LCL, LFC, EL = parcel_ascent(
-            p, T, q, p_lpl, Tp_lpl, qp_lpl, 
+            p, T, q, p_lpl, Tp_lpl, qp_lpl,
             p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
             output_scalars=False, **kwargs
         )
