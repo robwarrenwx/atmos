@@ -12,12 +12,14 @@ from atmos.thermo import (saturation_specific_humidity,
                           wet_bulb_potential_temperature)
 
 
-def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
-                  output_scalars=True, which_lfc='first', which_el='last',
-                  count_cape_below_lcl=False, count_cin_below_lcl=True,
-                  count_cin_above_lfc=True, phase='liquid', pseudo=True,
-                  polynomial=True, explicit=False, dp=500.0,
-                  return_profiles=False):
+def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
+                  p_sfc=None, T_sfc=None, q_sfc=None,
+                  vertical_axis=0, output_scalars=True,
+                  which_lfc='first', which_el='last',
+                  count_cape_below_lcl=False,
+                  count_cin_below_lcl=True, count_cin_above_lfc=True,
+                  phase='liquid', pseudo=True, polynomial=True,
+                  explicit=False, dp=500.0, return_profiles=False):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -43,7 +45,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         Tp_lpl (float or ndarray): parcel temperature at the LPL (K)
         qp_lpl (float or ndarray): parcel specific humidity at the LPL (kg/kg)
         k_lpl (int, optional): index of vertical axis corresponding to the LPL
-            (default is 0)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
         output_scalars (bool, optional): flag indicating whether to convert
@@ -98,29 +102,51 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
     Tp_lpl = np.atleast_1d(Tp_lpl)
     qp_lpl = np.atleast_1d(qp_lpl)
 
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        T_sfc = T[0]
+        q_sfc = q[0]
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
     # Ensure that all quantities have the same type
     p = p.astype(p_lpl.dtype)
     T = T.astype(p_lpl.dtype)
     q = q.astype(p_lpl.dtype)
     Tp_lpl = Tp_lpl.astype(p_lpl.dtype)
     qp_lpl = qp_lpl.astype(p_lpl.dtype)
+    T_sfc = T_sfc.astype(p_sfc.dtype)
+    q_sfc = q_sfc.astype(p_sfc.dtype)
 
     # Check that array dimensions are compatible
     if p.shape != T.shape or T.shape != q.shape:
-        raise ValueError(f"""Incompatible profile arrays: {p.shape},
-                         {T.shape}, {q.shape}""")
+        raise ValueError(f"""Incompatible profile arrays: 
+                         {p.shape}, {T.shape}, {q.shape}""")
     if p_lpl.shape != Tp_lpl.shape or Tp_lpl.shape != qp_lpl.shape:
-        raise ValueError(f"""Incompatible LPL arrays: {p_lpl.shape},
-                         {Tp_lpl.shape}, {qp_lpl.shape}""")
+        raise ValueError(f"""Incompatible LPL arrays: 
+                         {p_lpl.shape}, {Tp_lpl.shape}, {qp_lpl.shape}""")
+    if p_sfc.shape != T_sfc.shape or T_sfc.shape != q_sfc.shape:
+        raise ValueError(f"""Incompatible surface arrays: 
+                         {p_sfc.shape}, {T_sfc.shape}, {q_sfc.shape}""")
     if p[0].shape != p_lpl.shape:
-        raise ValueError(f"""Incompatible profile and LPL arrays: {p.shape},
-                         {p_lpl.shape}""")
+        raise ValueError(f"""Incompatible profile and LPL arrays: 
+                         {p.shape}, {p_lpl.shape}""")
+    if p[0].shape != p_sfc.shape:
+        raise ValueError(f"""Incompatible profile and surface arrays: 
+                         {p.shape}, {p_lpl.shape}""")
 
-    # Check that LPL is above bottom level
-    lpl_below_bot = (p_lpl > p[0])
-    if np.any(lpl_below_bot):
-        n_pts = np.count_nonzero(lpl_below_bot)
-        raise ValueError(f'LPL below bottom level at {n_pts} points')
+    # Check that LPL is not below the surface
+    lpl_below_sfc = (p_lpl > p_sfc)
+    if np.any(lpl_below_sfc):
+        n_pts = np.count_nonzero(lpl_below_sfc)
+        raise ValueError(f'LPL below surface at {n_pts} points')
     
     # Check that LPL is below top level
     lpl_above_top = (p_lpl < p[-1])
@@ -204,10 +230,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
     LFC = np.full_like(p_lpl, np.nan)  # undefined where CAPE = 0
     EL = np.full_like(p_lpl, np.nan)   # undefined where CAPE = 0
 
-    # Initialise level 2 environmental fields using LPL index
-    p2 = p[k_lpl].copy()
-    T2 = T[k_lpl].copy()
-    q2 = q[k_lpl].copy()
+    # Initialise level 2 environmental fields
+    if k_lpl is None:
+        p2 = p_sfc.copy()
+        T2 = T_sfc.copy()
+        q2 = q_sfc.copy()
+    else:
+        p2 = p[k_lpl].copy()
+        T2 = T[k_lpl].copy()
+        q2 = q[k_lpl].copy()
+        k_start = k_lpl + 1
 
     # Initialise level 2 parcel properties using LPL values
     Tp2 = Tp_lpl.copy()
@@ -232,7 +264,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         qp = np.full(shape, np.nan)
 
     # Loop over levels, accounting for addition of extra level for LCL
-    for k in range(k_lpl+1, k_max+1):
+    for k in range(k_start, k_max+1):
 
         # Update level 1 fields
         p1 = p2.copy()
@@ -270,6 +302,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
         #p2 = np.where(above_lcl, p[k-1], p[k])
         #T2 = np.where(above_lcl, T[k-1], T[k])
         #q2 = np.where(above_lcl, q[k-1], q[k])
+
+        # Reset level 2 environmental fields to level 1 values where pressure
+        # is increasing (this can happen where p_sfc < p[0])
+        increasing_pres = (p2 > p1)
+        if np.any(increasing_pres):
+            #n_pts = np.count_nonzero(increasing_pres)
+            #print(f'WARNING: Pressure increasing at {n_pts} points')
+            p2[increasing_pres] = p1[increasing_pres]
+            T2[increasing_pres] = T1[increasing_pres]
+            q2[increasing_pres] = q1[increasing_pres]
 
         # If all points are below the LPL we can skip this level
         if np.all(below_lpl):
@@ -314,12 +356,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
 
             # Use LCL pressure
             p2[cross_lcl] = p_lcl[cross_lcl]
-
-        # Check that pressure is not increasing
-        p2_gt_p1 = (p2 > p1)
-        if np.any(p2_gt_p1):
-            n_pts = np.count_nonzero(p2_gt_p1)
-            raise ValueError(f'Pressure increasing at {n_pts} points')
 
         # Compute the log of p1 and p2
         lnp1 = np.log(p1)
@@ -506,7 +542,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
             cape_total[pos_at_top] += pos_area[pos_at_top]
             done[pos_at_top] = True
 
-        #print(k, p2, T2, q2, Tp2, qp2, qt, B2)
+        #print(k, p1, p2, T2, q2, Tp2, qp2, qt, B2)
         #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total)
 
         if np.any(done):
@@ -619,13 +655,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=0, vertical_axis=0,
                 # Use CAPE for last positive area
                 CAPE[done] = cape_layer[done]
 
-    if len(p_lpl) == 1 and output_scalars:
+    if len(CAPE) == 1 and output_scalars:
         # convert outputs to scalars
-        CAPE = CAPE[0]
-        CIN = CIN[0]
-        LCL = LCL[0]
-        LFC = LFC[0]
-        EL = EL[0]
+        CAPE = CAPE.item()
+        CIN = CIN.item()
+        LCL = LCL.item()
+        LFC = LFC.item()
+        EL = EL.item()
 
     if return_profiles:
         return CAPE, CIN, LCL, LFC, EL, pp, Tp, qp
@@ -667,29 +703,30 @@ def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
 
-    # If surface-level fields not provided, use lowest level values
+    # Set LPL and associated parcel properties
     if p_sfc is None:
-        p_sfc = p[0]
-        T_sfc = T[0]
-        q_sfc = q[0]
+        p_lpl = p[0]
+        Tp_lpl = T[0]
+        qp_lpl = q[0]
+    else:
+        p_lpl = p_sfc
+        Tp_lpl = T_sfc
+        qp_lpl = q_sfc
 
     # Call code to perform parcel ascent
-    CAPE, CIN, LCL, LFC, EL = parcel_ascent(p, T, q, p_sfc, T_sfc, q_sfc,
-                                            **kwargs)
+    CAPE, CIN, LCL, LFC, EL = parcel_ascent(
+        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        **kwargs
+    )
     
     return CAPE, CIN, LCL, LFC, EL
-    
 
-def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None, 
-                              mixed_layer_depth=5000.0, vertical_axis=0, 
-                              return_parcel_props=False, **kwargs):
+
+def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                       mixed_layer_depth=5000.0, vertical_axis=0,
+                       output_scalars=False):
     """
-    Performs a mixed-layer (ML) parcel ascent and returns the resulting
-    convective available potential energy (CAPE) and convective inhibition
-    (CIN), along with the lifting condensation level (LCL), level of free
-    convection (LFC), and equilibrium level (EL). The ML parcel is defined by
-    the mass-weighted average potential temperature and specific humidity,
-    computed over a specified layer depth, together with the surface pressure.
+    Computes the mixed-layer (ML) parcel temperature and specific humidity.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -702,16 +739,12 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             5000 Pa = 50 hPa)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        return_parcel_props (bool, optional): flag indicating whether to return
-            parcel temperature and specific humidity)
-        **kwargs: additional keyword arguments passed to parcel_ascent
+        output_scalars (bool, optional): flag indicating whether to convert
+            single-element output arrays to scalars (default is False)
 
     Returns:
-        CAPE (float or ndarray): convective available potential energy (J/kg)
-        CIN (float or ndarray): convective inhibition (J/kg)
-        LCL (float or ndarray): lifting condensation level (Pa)
-        LFC (float or ndarray): level of free convection (Pa)
-        EL (float or ndarray): equilibrium level (Pa)
+        Tp_ml (float or ndarray): mixed-layer parcel temperature (K)
+        qp_ml (float or ndarray): mixed-layer parcel specific humidity (kg/kg)
 
     """
 
@@ -721,6 +754,12 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
 
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
     # If surface-level fields not provided, use lowest level values
     if p_sfc is None:
         k_start = 1  # start loop from second level
@@ -729,12 +768,6 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         q_sfc = q[0]
     else:
         k_start = 0  # start loop from first level
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
 
     # Make sure that surface fields are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
@@ -754,9 +787,9 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         raise ValueError(f'Mixed-layer top above top level at {n_pts} points')
 
     # Create arrays to store potential temperature and specific humidity
-    # average over the ML
-    th_avg = np.zeros_like(p_sfc)
-    q_avg = np.zeros_like(p_sfc)
+    # of ML parcel
+    thp_ml = np.zeros_like(p_sfc)
+    qp_ml = np.zeros_like(p_sfc)
 
     # Initialise level 2 fields at surface
     p2 = p_sfc.copy()
@@ -814,32 +847,224 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         th2 = potential_temperature(p2, T2, q2)
 
         # Update the ML averages
-        th_avg[above_sfc & below_mlt] += 0.5 * \
+        thp_ml[above_sfc & below_mlt] += 0.5 * \
             (th1[above_sfc & below_mlt] + th2[above_sfc & below_mlt]) * \
             (p1[above_sfc & below_mlt] - p2[above_sfc & below_mlt])
-        q_avg[above_sfc & below_mlt] += 0.5 * \
+        qp_ml[above_sfc & below_mlt] += 0.5 * \
             (q1[above_sfc & below_mlt] + q2[above_sfc & below_mlt]) * \
             (p1[above_sfc & below_mlt] - p2[above_sfc & below_mlt])
         
         #print(p1, T1, q1, th1, p2, T2, q2, th2, th_avg, q_avg)
 
     # Divide averages by ML depth to get final values
-    th_avg = th_avg / mixed_layer_depth
-    q_avg = q_avg / mixed_layer_depth
+    thp_ml = thp_ml / mixed_layer_depth
+    qp_ml = qp_ml / mixed_layer_depth
 
-    # Compute corresponding average temperature at the surface
-    T_avg = follow_dry_adiabat(100000., p_sfc, th_avg, q_avg)
+    # Compute corresponding temperature at the surface
+    Tp_ml = follow_dry_adiabat(100000., p_sfc, thp_ml, qp_ml)
 
-    #print(p_sfc, th_avg, T_avg, q_avg)
+    #print(p_sfc, thp_ml, Tp_ml, qp_ml)
+
+    if len(p_sfc) == 1 and output_scalars:
+        Tp_ml = Tp_ml.item()
+        qp_ml = qp_ml.item()
+
+    return Tp_ml, qp_ml
+
+
+def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                              mixed_layer_depth=5000.0, vertical_axis=0,
+                              return_parcel_props=False, **kwargs):
+    """
+    Performs a mixed-layer (ML) parcel ascent and returns the resulting
+    convective available potential energy (CAPE) and convective inhibition
+    (CIN), along with the lifting condensation level (LCL), level of free
+    convection (LFC), and equilibrium level (EL). The ML parcel is defined by
+    the mass-weighted average potential temperature and specific humidity,
+    computed over a specified layer depth, together with the surface pressure.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        mixed_layer_depth (float, optional): mixed-layer depth (Pa) (default is
+            5000 Pa = 50 hPa)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        return_parcel_props (bool, optional): flag indicating whether to return
+            parcel temperature and specific humidity)
+        **kwargs: additional keyword arguments passed to parcel_ascent
+
+    Returns:
+        CAPE (float or ndarray): convective available potential energy (J/kg)
+        CIN (float or ndarray): convective inhibition (J/kg)
+        LCL (float or ndarray): lifting condensation level (Pa)
+        LFC (float or ndarray): level of free convection (Pa)
+        EL (float or ndarray): equilibrium level (Pa)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    # Get the LPL parcel temperature and specific humidity
+    Tp_lpl, qp_lpl = mixed_layer_parcel(
+        p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        mixed_layer_depth=mixed_layer_depth,
+    )
+
+    # Set the LPL pressure
+    if p_sfc is None:
+        p_lpl = p[0]
+    else:
+        p_lpl = p_sfc
 
     # Call code to perform parcel ascent
-    CAPE, CIN, LCL, LFC, EL = parcel_ascent(p, T, q, p_sfc, T_avg, q_avg,
-                                            **kwargs)
+    CAPE, CIN, LCL, LFC, EL = parcel_ascent(
+        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        **kwargs
+    )
 
     if return_parcel_props:
-        return CAPE, CIN, LCL, LFC, EL, T_avg, q_avg
+        return CAPE, CIN, LCL, LFC, EL, Tp_lpl, qp_lpl
     else:
         return CAPE, CIN, LCL, LFC, EL
+
+
+def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                         min_pressure=50000.0, vertical_axis=0,
+                         phase='liquid', polynomial=True,
+                         output_scalars=False):
+    """
+    Finds the most-unstable (MU) parcel, defined as the parcel with maximum
+    wet-bulb potential temperature up to some minimum pressure, and returns
+    the corresponding pressure, temperature, and specific humidity.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        min_pressure (float, optional): minimum pressure from which to launch
+            parcel (Pa) (default is 50000 Pa = 500 hPa)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        output_scalars (bool, optional): flag indicating whether to convert
+            single-element output arrays to scalars (default is False)
+
+    Returns:
+        p_lpl (ndarray or float): lifted parcel level (LPL) pressure (Pa)
+        Tp_lpl (ndarray or float): parcel temperature at the LPL (K)
+        qp_lpl (ndarray or float): parcel specific humidity at the LPL (K)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        T_sfc = T[0]
+        q_sfc = q[0]
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
+    # Note the number of levels
+    n_lev = p.shape[0]
+
+    # Compute WBPT at the surface
+    thw_sfc = wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc,
+                                             phase=phase,
+                                             polynomial=polynomial)
+    thw_sfc = np.atleast_1d(thw_sfc)
+
+    # Initialise the maximum WBPT
+    thw_max = thw_sfc
+
+    # Initialise the lifted parcel level fields using surface values
+    p_lpl = p_sfc.copy()
+    Tp_lpl = T_sfc.copy()
+    qp_lpl = q_sfc.copy()
+
+    #print('sfc', thw_sfc, p_lpl, Tp_lpl, qp_lpl, thw_max)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Find points below the surface
+        below_sfc = (p[k] > p_sfc)
+        if np.all(below_sfc): 
+            # if all points are below the surface we can skip this level
+            continue
+
+        # Find points above the minimum pressure level
+        above_min = (p[k] < min_pressure)
+        if np.all(above_min):
+            # if all points are above the minimum pressure level we can
+            # break out of the loop
+            break
+
+        # Compute WBPT
+        thw = wet_bulb_potential_temperature(p[k], T[k], q[k],
+                                             phase=phase,
+                                             polynomial=polynomial)
+        thw = np.atleast_1d(thw)
+
+        # For points below the surface or above the minimum pressure level,
+        # replace WBPT with the value at the surface
+        thw[above_min | below_sfc] = thw_sfc[above_min | below_sfc]
+
+        # Update LPL fields and maximum WBPT
+        is_max = (thw > thw_max)
+        p_lpl[is_max] = p[k][is_max]
+        Tp_lpl[is_max] = T[k][is_max]
+        qp_lpl[is_max] = q[k][is_max]
+        thw_max[is_max] = thw[is_max]
+
+        #print(k, thw, p_lpl, Tp_lpl, qp_lpl, thw, thw_max)
+
+    #print(p_lpl, Tp_lpl, qp_lpl)
+
+    if len(p_lpl) == 1 and output_scalars:
+        p_lpl = p_lpl.item()
+        Tp_lpl = Tp_lpl.item()
+        qp_lpl = qp_lpl.item()
+
+    return p_lpl, Tp_lpl, qp_lpl
 
 
 def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
@@ -903,42 +1128,48 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
 
-    # If surface-level fields not provided, use lowest level values
-    if p_sfc is None:
-        k_start = 1  # start loop from second level
-        p_sfc = p[0]
-        T_sfc = T[0]
-        q_sfc = q[0]
-    else:
-        k_start = 0  # start loop from first level
-
     # Make sure that profile arrays are at least 2D
     if p.ndim == 1:
         p = np.atleast_2d(p).T  # transpose to preserve vertical axis
         T = np.atleast_2d(T).T
         q = np.atleast_2d(q).T
 
-    # Make sure that surface fields are at least 1D
-    p_sfc = np.atleast_1d(p_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-    q_sfc = np.atleast_1d(q_sfc)
-
     # Note the number of levels
     n_lev = p.shape[0]
 
     if mu_parcel == 'max_cape':
 
+        # Set initial LPL and associated parcel properties
+        if p_sfc is None:
+            k_start = 1  # start loop from second level
+            p_lpl = p[0]
+            Tp_lpl = T[0]
+            qp_lpl = q[0]
+        else:
+            k_start = 0  # start loop from first level
+            p_lpl = p_sfc
+            Tp_lpl = T_sfc
+            qp_lpl = q_sfc
+
+        # Make sure that LPL fields are at least 1D
+        p_lpl = np.atleast_1d(p_lpl)
+        Tp_lpl = np.atleast_1d(Tp_lpl)
+        qp_lpl = np.atleast_1d(qp_lpl)
+
         # Perform parcel ascent from surface
-        cape, cin, lcl, lfc, el = parcel_ascent(p, T, q, p_sfc, T_sfc, q_sfc,
-                                                output_scalars=False, **kwargs)
+        cape, cin, lcl, lfc, el = parcel_ascent(
+            p, T, q, p_lpl, Tp_lpl, qp_lpl,
+            p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+            output_scalars=False, **kwargs
+        )
     
-        # Reset values where the surface is above the minimum pressure level
-        above_min = (p_sfc < min_pressure)
-        cape[above_min] = 0.0
-        cin[above_min] = np.nan
-        lcl[above_min] = np.nan
-        lfc[above_min] = np.nan
-        el[above_min] = np.nan
+        # Reset values where the LPL is above the minimum pressure level
+        lpl_above_min = (p_lpl < min_pressure)
+        cape[lpl_above_min] = 0.0
+        cin[lpl_above_min] = np.nan
+        lcl[lpl_above_min] = np.nan
+        lfc[lpl_above_min] = np.nan
+        el[lpl_above_min] = np.nan
 
         #print('sfc', p_sfc, T_sfc, q_sfc, cape, cin, lcl, lfc, el)
 
@@ -989,17 +1220,20 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
             # Perform parcel ascent from the LPL
             cape, cin, lcl, lfc, el = parcel_ascent(
-                p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=k, output_scalars=False,
+                p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=k,
+                p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+                output_scalars=False,
                 **kwargs
-                )
+            )
 
-            # Reset values where LPL is above the minimum pressure level
+            # Reset values where the LPL is above the minimum pressure level
             # (this should only happen where p_sfc < min_pressure)
-            cape[above_min] = 0.0
-            cin[above_min] = np.nan
-            lcl[above_min] = np.nan
-            lfc[above_min] = np.nan
-            el[above_min] = np.nan
+            lpl_above_min = (p_lpl < min_pressure)
+            cape[lpl_above_min] = 0.0
+            cin[lpl_above_min] = np.nan
+            lcl[lpl_above_min] = np.nan
+            lfc[lpl_above_min] = np.nan
+            el[lpl_above_min] = np.nan
 
             # Update the final CAPE, CIN, LFC, and EL
             is_max = (cape > CAPE)
@@ -1024,7 +1258,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             inflow_base[base_eq_top] = np.nan
             inflow_top[base_eq_top] = np.nan
             
-        if len(p_sfc) == 1:
+        if len(CAPE) == 1:
             # convert outputs to scalars
             CAPE = CAPE[0]
             CIN = CIN[0]
@@ -1047,65 +1281,22 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         phase = kwargs.get('phase', 'liquid')
         polynomial = kwargs.get('polynomial', True)
 
-        # Compute WBPT at the surface
-        thw_sfc = wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc,
-                                                 phase=phase,
-                                                 polynomial=polynomial)
-        thw_sfc = np.atleast_1d(thw_sfc)
-
-        # Initialise the maximum WBPT
-        thw_max = thw_sfc
-
-        # Initialise the lifted parcel level fields using surface values
-        p_lpl = p_sfc.copy()
-        Tp_lpl = T_sfc.copy()
-        qp_lpl = q_sfc.copy()
-
-        #print('sfc', thw_sfc, p_lpl, Tp_lpl, qp_lpl, thw_max)
-
-        # Loop over levels
-        for k in range(k_start, n_lev):
-
-            # Find points below the surface
-            below_sfc = (p[k] > p_sfc)
-            if np.all(below_sfc): 
-                # if all points are below the surface we can skip this level
-                continue
-
-            # Find points above the minimum pressure level
-            above_min = (p[k] < min_pressure)
-            if np.all(above_min):
-                # if all points are above the minimum pressure level we can
-                # break out of the loop
-                break
-
-            # Compute WBPT
-            thw = wet_bulb_potential_temperature(p[k], T[k], q[k],
-                                                 phase=phase,
-                                                 polynomial=polynomial)
-            thw = np.atleast_1d(thw)
-
-            # For points below the surface or above the minimum pressure level,
-            # replace WBPT with the value at the surface
-            thw[above_min | below_sfc] = thw_sfc[above_min | below_sfc]
-
-            # Update LPL fields and maximum WBPT
-            is_max = (thw > thw_max)
-            p_lpl[is_max] = p[k][is_max]
-            Tp_lpl[is_max] = T[k][is_max]
-            qp_lpl[is_max] = q[k][is_max]
-            thw_max[is_max] = thw[is_max]
-
-            #print(k, thw, p_lpl, Tp_lpl, qp_lpl, thw, thw_max)
-
-        #print(p_lpl, Tp_lpl, qp_lpl)
+        # Find the pressure, parcel temperature, and parcel specific humidity
+        # corresponding to the MU LPL
+        p_lpl, Tp_lpl, qp_lpl = most_unstable_parcel(
+            p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+            min_pressure=min_pressure, phase=phase, polynomial=polynomial
+        )                                       
 
         # Note the LPL
         LPL = p_lpl
 
         # Perform parcel ascent from the LPL
-        CAPE, CIN, LCL, LFC, EL = parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl,
-                                                output_scalars=False, **kwargs)
+        CAPE, CIN, LCL, LFC, EL = parcel_ascent(
+            p, T, q, p_lpl, Tp_lpl, qp_lpl, 
+            p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+            output_scalars=False, **kwargs
+        )
 
         # Reset values where the LPL is above the minimum pressure level
         # (this should only happen if p_sfc < min_pressure)
@@ -1117,14 +1308,16 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         LFC[above_min] = np.nan
         EL[above_min] = np.nan
 
-        if len(p_sfc) == 1:
+        if len(CAPE) == 1:
             # convert outputs to scalars
-            CAPE = CAPE[0]
-            CIN = CIN[0]
-            LPL = LPL[0]
-            LCL = LCL[0]
-            LFC = LFC[0]
-            EL = EL[0]
+            CAPE = CAPE.item()
+            CIN = CIN.item()
+            LPL = LPL.item()
+            LCL = LCL.item()
+            LFC = LFC.item()
+            EL = EL.item()
+            Tp_lpl = Tp_lpl.item()
+            qp_lpl = qp_lpl.item()
 
         if return_parcel_props:
             return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
@@ -1139,7 +1332,8 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
     Calculates the lifted index (LI), defined as the difference between the
     environmental temperature at a specified pressure level and the
     temperature a parcel lifted dry adiabatically to saturation and then
-    pseudoadiabatically to the specified level.
+    pseudoadiabatically to the specified level. The parcel and environmental
+    virtual temperatures can optionally be used instead of the temperatures.
 
     Args:
         pi (float or ndarray): initial pressure (Pa)
@@ -1258,4 +1452,7 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
     # Mask points where final pressure exceeds initial pressure
     LI[pf > pi] = np.nan
 
-    return LI
+    if len(LI) == 1:
+        return LI.item()
+    else:
+        return LI
