@@ -116,14 +116,15 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
     T_sfc = np.atleast_1d(T_sfc)
     q_sfc = np.atleast_1d(q_sfc)
 
-    # Ensure that all quantities have the same type
+    # Ensure that all thermodynamic variables have the same type
     p = p.astype(p_lpl.dtype)
     T = T.astype(p_lpl.dtype)
     q = q.astype(p_lpl.dtype)
     Tp_lpl = Tp_lpl.astype(p_lpl.dtype)
     qp_lpl = qp_lpl.astype(p_lpl.dtype)
-    T_sfc = T_sfc.astype(p_sfc.dtype)
-    q_sfc = q_sfc.astype(p_sfc.dtype)
+    p_sfc = p_sfc.astype(p_lpl.dtype)
+    T_sfc = T_sfc.astype(p_lpl.dtype)
+    q_sfc = q_sfc.astype(p_lpl.dtype)
 
     # Check that array dimensions are compatible
     if p.shape != T.shape or T.shape != q.shape:
@@ -140,7 +141,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
                          {p.shape}, {p_lpl.shape}""")
     if p[0].shape != p_sfc.shape:
         raise ValueError(f"""Incompatible profile and surface arrays: 
-                         {p.shape}, {p_lpl.shape}""")
+                         {p.shape}, {p_lcl.shape}""")
 
     # Check that LPL is not below the surface
     lpl_below_sfc = (p_lpl > p_sfc)
@@ -178,7 +179,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
     n_lev = p.shape[0]
 
     # Compute the LCL/LDL/LSL pressure and parcel temperature (hereafter, we
-    # refer to all of these as the 'LCL' due to the familiarity of this term)
+    # refer to all of these as the LCL for simplicity)
     if phase == 'liquid':
         p_lcl, Tp_lcl = lifting_condensation_level(p_lpl, Tp_lpl, qp_lpl)
     elif phase == 'ice':
@@ -287,7 +288,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
         below_lcl = np.logical_not(above_lcl)
 
         # Set level 2 environmental fields
-        # (use level k-1 above LCL to account for additional level)
         if np.any(below_lcl):
             # use level k below LCL
             p2[below_lcl] = p[k][below_lcl]
@@ -307,8 +307,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
         # is increasing (this can happen where p_sfc < p[0])
         increasing_pres = (p2 > p1)
         if np.any(increasing_pres):
-            #n_pts = np.count_nonzero(increasing_pres)
-            #print(f'WARNING: Pressure increasing at {n_pts} points')
             p2[increasing_pres] = p1[increasing_pres]
             T2[increasing_pres] = T1[increasing_pres]
             q2[increasing_pres] = q1[increasing_pres]
@@ -421,7 +419,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
                 Tp[k-1][p1_is_lpl] = Tp1[p1_is_lpl]
                 qp[k-1][p1_is_lpl] = qp1[p1_is_lpl]
 
-        # Update parcel buoyancy (virtual temperature difference)
+        # Update parcel buoyancy (virtual temperature excess)
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
 
         # Initialise mask indicating where positive area is complete
@@ -526,7 +524,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
             pos_area[below_lcl] = 0.0
 
         # If positively buoyant at LCL then set LFC = LCL
-        # (use p1 so that this also works where LCL = LPL)
+        # (use level 1 so that this also works where LCL = LPL)
         pos_at_lcl = (p1 == p_lcl) & (B1 > 0.0)
         if np.any(pos_at_lcl):
             p_lfc[pos_at_lcl] = p_lcl[pos_at_lcl]
@@ -727,6 +725,10 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                        output_scalars=False):
     """
     Computes the mixed-layer (ML) parcel temperature and specific humidity.
+    ML parcel temperature is computed by averaging potential temperature and
+    converting to temperature using the surface or lowest level pressure. Note
+    mass weighting is implicit in the averaging due to the use of pressure as
+    the vertical coordinate.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -808,14 +810,14 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         q1 = q2
         th1 = th2
 
-        # Find level 2 points above and below the surface
+        # Find level 2 points above the surface
         above_sfc = (p[k] < p_sfc)
         below_sfc = np.logical_not(above_sfc)
         if np.all(below_sfc):
             # if all points are below the surface we can skip this level
             continue
 
-        # Find level 1 points above the ML top
+        # Find level 1 points at or above the ML top
         above_mlt = (p1 <= p_mlt)
         below_mlt = np.logical_not(above_mlt)
         if np.all(above_mlt):
@@ -1048,7 +1050,7 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         # replace WBPT with the value at the surface
         thw[above_min | below_sfc] = thw_sfc[above_min | below_sfc]
 
-        # Update LPL fields and maximum WBPT
+        # Update MU parcel properties and maximum WBPT
         is_max = (thw > thw_max)
         p_mu[is_max] = p[k][is_max]
         Tp_mu[is_max] = T[k][is_max]
@@ -1113,8 +1115,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         LCL (float or ndarray): lifting condensation level (Pa)
         LFC (float or ndarray): level of free convection (Pa)
         EL (float or ndarray): equilibrium level (Pa)
-        inflow_base (float or ndarray): EIL base (Pa)
-        inflow_top (float or ndarray): EIL top (Pa)
+        EILbase (float or ndarray): effective inflow layer base (Pa)
+        EILtop (float or ndarray): effective inflow layer top (Pa)
 
     """
 
@@ -1181,12 +1183,12 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         EL = el
 
         # Initialise arrays for EIL base and top
-        inflow_base = np.full_like(p_sfc, np.nan)
-        inflow_top = np.full_like(p_sfc, np.nan)
+        EILbase = np.full_like(p_sfc, np.nan)
+        EILtop = np.full_like(p_sfc, np.nan)
 
         # Check if surface is part of EIL
         in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
-        inflow_base[in_eil] = p_sfc[in_eil]
+        EILbase[in_eil] = p_sfc[in_eil]
 
         # Initialise the LPL pressure
         p_lpl = p_sfc.copy()
@@ -1248,15 +1250,15 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
             # Update the EIL base and top pressures
             in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
-            is_base = in_eil & np.isnan(inflow_base)
-            inflow_base[is_base] = p_lpl[is_base]
-            is_top = in_eil_prev & np.logical_not(in_eil) & np.isnan(inflow_top)
-            inflow_top[is_top] = p_lpl_prev[is_top]
+            is_base = in_eil & np.isnan(EILbase)
+            EILbase[is_base] = p_lpl[is_base]
+            is_top = in_eil_prev & np.logical_not(in_eil) & np.isnan(EILtop)
+            EILtop[is_top] = p_lpl_prev[is_top]
 
             # Reset EIL base and top where layer comprises only a single level
-            base_eq_top = (inflow_base == inflow_top)
-            inflow_base[base_eq_top] = np.nan
-            inflow_top[base_eq_top] = np.nan
+            base_eq_top = (EILbase == EILtop)
+            EILbase[base_eq_top] = np.nan
+            EILtop[base_eq_top] = np.nan
             
         if len(CAPE) == 1:
             # convert outputs to scalars
@@ -1266,14 +1268,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             LCL = LCL[0]
             LFC = LFC[0]
             EL = EL[0]
-            inflow_base = inflow_base[0]
-            inflow_top = inflow_top[0]
+            EILbase = EILbase[0]
+            EILtop = EILtop[0]
 
         if return_parcel_props:
-            return (CAPE, CIN, LPL, LCL, LFC, EL, inflow_base, inflow_top,
+            return (CAPE, CIN, LPL, LCL, LFC, EL, EILbase, EILtop,
                     Tp_lpl, qp_lpl)
         else:
-            return CAPE, CIN, LPL, LCL, LFC, EL, inflow_base, inflow_top
+            return CAPE, CIN, LPL, LCL, LFC, EL, EILbase, EILtop
 
     else:
 
@@ -1395,7 +1397,7 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
                              must have identical shape''', Tf.shape, qf.shape)
 
     # Compute the LCL/LDL/LSL pressure and parcel temperature (hereafter, we
-    # use the name 'LCL' due to its familiarity)
+    # refer to all of these as the LCL for simplicity)
     if phase == 'liquid':
         p_lcl, Tp_lcl = lifting_condensation_level(pi, Ti, qi)
     elif phase == 'ice':
