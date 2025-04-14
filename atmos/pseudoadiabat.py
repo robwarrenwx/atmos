@@ -24,9 +24,9 @@ def wbpt(p, T):
 
     """
 
-    # Convert scalar inputs to arrays
-    p = np.atleast_1d(p)
-    T = np.atleast_1d(T)
+    # Convert scalar inputs to arrays and promote to float64
+    p = np.atleast_1d(p).astype(np.float64)
+    T = np.atleast_1d(T).astype(np.float64)
 
     # Convert p to hPa and T to degC
     p_ = p / 100.
@@ -65,9 +65,9 @@ def temp(p, thw):
 
     """
 
-    # Convert scalar inputs to arrays
-    p = np.atleast_1d(p)
-    thw = np.atleast_1d(thw)
+    # Convert scalar inputs to arrays and promote to float64
+    p = np.atleast_1d(p).astype(np.float64)
+    thw = np.atleast_1d(thw).astype(np.float64)
 
     # Convert p to hPa and theta-w to degC
     p_ = p / 100.
