@@ -808,14 +808,14 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         q1 = q2
         th1 = th2
 
-        # Find points above and below the surface
-        above_sfc = (p1 <= p_sfc)
+        # Find level 2 points above and below the surface
+        above_sfc = (p[k] < p_sfc)
         below_sfc = np.logical_not(above_sfc)
         if np.all(below_sfc):
             # if all points are below the surface we can skip this level
             continue
 
-        # Find points above the ML top
+        # Find level 1 points above the ML top
         above_mlt = (p1 <= p_mlt)
         below_mlt = np.logical_not(above_mlt)
         if np.all(above_mlt):
