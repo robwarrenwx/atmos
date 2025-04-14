@@ -247,7 +247,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
     qp2 = qp_lpl.copy()
 
     # Compute parcel buoyancy (virtual temperature excess) at level 2
-    # (note we don't need to include qt as LPL can't be above LCL)
+    # (no need to include qt as LPL can't be above LCL)
     B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
 
     #print(p_lpl, Tp_lpl, qp_lpl)
@@ -299,19 +299,24 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
             T2[above_lcl] = T[k-1][above_lcl]
             q2[above_lcl] = q[k-1][above_lcl]
 
+        # Set level 2 environmental fields
+        # (use level k-1 above LCL to account for additional level)
         #p2 = np.where(above_lcl, p[k-1], p[k])
         #T2 = np.where(above_lcl, T[k-1], T[k])
         #q2 = np.where(above_lcl, q[k-1], q[k])
 
-        # Reset level 2 environmental fields to level 1 values where pressure
-        # is increasing (this can happen where p_sfc < p[0])
-        increasing_pres = (p2 > p1)
-        if np.any(increasing_pres):
-            p2[increasing_pres] = p1[increasing_pres]
-            T2[increasing_pres] = T1[increasing_pres]
-            q2[increasing_pres] = q1[increasing_pres]
+        # Reset level 2 environmental fields to surface values where
+        # level 2 is below the surface
+        below_sfc = (p2 > p_sfc)
+        p2 = np.where(below_sfc, p_sfc, p2)
+        T2 = np.where(below_sfc, T_sfc, T2)
+        q2 = np.where(below_sfc, q_sfc, q2)
 
-        # If all points are below the LPL we can skip this level
+        # If all points are below the surface, skip this level
+        if np.all(below_sfc):
+            continue
+
+        # If all points are below the LPL, skip this level
         if np.all(below_lpl):
             continue
 
@@ -334,7 +339,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None,
             p1[cross_lpl] = p_lpl[cross_lpl]
 
             # Recompute parcel buoyancy (virtual temperature excess) at level 1
-            # (note we don't need to include qt as LPL can't be above LCL)
+            # (no need to include qt as LPL can't be above LCL)
             B1 = virtual_temperature(Tp1, qp1) - virtual_temperature(T1, q1)
 
         # If crossing the LCL, reset level 2 as the LCL
@@ -814,14 +819,14 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         above_sfc = (p[k] < p_sfc)
         below_sfc = np.logical_not(above_sfc)
         if np.all(below_sfc):
-            # if all points are below the surface we can skip this level
+            # if all points are below the surface, skip this level
             continue
 
         # Find level 1 points at or above the ML top
         above_mlt = (p1 <= p_mlt)
         below_mlt = np.logical_not(above_mlt)
         if np.all(above_mlt):
-            # if all points are above the ML top we can break out of loop
+            # if all points are above the ML top, break out of loop
             break
 
         # Update level 2 fields
@@ -1030,14 +1035,14 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         # Find points below the surface
         below_sfc = (p[k] > p_sfc)
         if np.all(below_sfc):
-            # if all points are below the surface we can skip this level
+            # if all points are below the surface, skip this level
             continue
 
         # Find points above the minimum pressure level
         above_min = (p[k] < min_pressure)
         if np.all(above_min):
-            # if all points are above the minimum pressure level we can
-            # break out of the loop
+            # if all points are above the minimum pressure level, break
+            # out of loop
             break
 
         # Compute WBPT
@@ -1205,14 +1210,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             above_sfc = (p[k] <= p_sfc)
             below_sfc = np.logical_not(above_sfc)
             if np.all(below_sfc):
-                # if all points are below the surface we can skip this level
+                # if all points are below the surface, skip this level
                 continue
 
             # Find points above the minimum pressure level
             above_min = (p[k] < min_pressure)
             if np.all(above_min):
-                # if all points are above the minimum pressure level we can
-                # break out of loop
+                # if all points are above the minimum pressure level, break
+                # out of loop
                 break
 
             # Set lifted parcel level (LPL) fields
