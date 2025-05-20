@@ -1149,14 +1149,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         # Set initial LPL and associated parcel properties
         if p_sfc is None:
             k_start = 1  # start loop from second level
-            p_lpl = p[0]
-            Tp_lpl = T[0]
-            qp_lpl = q[0]
+            p_lpl = p[0].copy()
+            Tp_lpl = T[0].copy()
+            qp_lpl = q[0].copy()
         else:
             k_start = 0  # start loop from first level
-            p_lpl = p_sfc
-            Tp_lpl = T_sfc
-            qp_lpl = q_sfc
+            p_lpl = p_sfc.copy()
+            Tp_lpl = T_sfc.copy()
+            qp_lpl = q_sfc.copy()
 
         # Make sure that LPL fields are at least 1D
         p_lpl = np.atleast_1d(p_lpl)
@@ -1178,26 +1178,37 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         lfc[lpl_above_min] = np.nan
         el[lpl_above_min] = np.nan
 
+        # If surface-level fields not provided, use lowest level values
+        if p_sfc is None:
+            k_start = 1  # start loop from second level
+            p_sfc = p[0]
+            T_sfc = T[0]
+            q_sfc = q[0]
+        else:
+            k_start = 0  # start loop from first level
+
+        # Make sure that surface fields are at least 1D
+        p_sfc = np.atleast_1d(p_sfc)
+        T_sfc = np.atleast_1d(T_sfc)
+        q_sfc = np.atleast_1d(q_sfc)
+
         #print('sfc', p_sfc, T_sfc, q_sfc, cape, cin, lcl, lfc, el)
 
-        # Initialise final CAPE, CIN, LCL, LFC, and EL arrays
+        # Initialise final CAPE, CIN, LPL, LCL, LFC, and EL arrays
         CAPE = cape
         CIN = cin
+        LPL = p_lpl
         LCL = lcl
         LFC = lfc
         EL = el
 
         # Initialise arrays for EIL base and top
-        EILbase = np.full_like(p_lpl, np.nan)
-        EILtop = np.full_like(p_lpl, np.nan)
+        EILbase = np.full_like(p_sfc, np.nan)
+        EILtop = np.full_like(p_sfc, np.nan)
 
         # Check if surface is part of EIL
         in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
         EILbase[in_eil] = p_sfc[in_eil]
-
-        # Initialise the LPL pressure
-        p_lpl = p_sfc.copy()
-        LPL = p_lpl
 
         # Loop over levels
         for k in range(k_start, n_lev):
@@ -1228,9 +1239,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             # Perform parcel ascent from the LPL
             cape, cin, lcl, lfc, el = parcel_ascent(
                 p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=k,
-                p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-                output_scalars=False,
-                **kwargs
+                output_scalars=False, **kwargs
             )
 
             # Reset values where the LPL is above the minimum pressure level
@@ -1524,6 +1533,7 @@ def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     #print(p_mid, thp_eff, Tp_eff, qp_eff)
 
     if len(p_sfc) == 1 and output_scalars:
+        p_mid = p_mid.item()
         Tp_eff = Tp_eff.item()
         qp_eff = qp_eff.item()
 
@@ -1599,9 +1609,19 @@ def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     # Call code to perform parcel ascent
     CAPE, CIN, LCL, LFC, EL = parcel_ascent(
-        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-        **kwargs
+        p, T, q, p_lpl, Tp_lpl, qp_lpl, 
+        p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        output_scalars=False, **kwargs
     )
+
+    if len(CAPE) == 1:
+        # convert outputs to scalars
+        CAPE = CAPE[0]
+        CIN = CIN[0]
+        LPL = LPL[0]
+        LCL = LCL[0]
+        LFC = LFC[0]
+        EL = EL[0]
 
     if return_parcel_props:
         return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
