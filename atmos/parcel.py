@@ -1188,8 +1188,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         EL = el
 
         # Initialise arrays for EIL base and top
-        EILbase = np.full_like(p_sfc, np.nan)
-        EILtop = np.full_like(p_sfc, np.nan)
+        EILbase = np.full_like(p_lpl, np.nan)
+        EILtop = np.full_like(p_lpl, np.nan)
 
         # Check if surface is part of EIL
         in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
@@ -1330,6 +1330,283 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
         else:
             return CAPE, CIN, LPL, LCL, LFC, EL
+
+
+def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                     p_eib=None, p_eit=None, vertical_axis=0,
+                     output_scalars=False):
+    """
+    Computes the effective (EFF) parcel temperature and specific humidity.
+    EFF parcel temperature is computed by averaging potential temperature
+    over the effective inflow layer (EIL) and converting to temperature using
+    the pressure at the mid-point of EIL. Note mass weighting is implicit in
+    the averaging due to the use of pressure as the vertical coordinate. If
+    the EIL is not supplied, they are derived by calling the most-unstable
+    parcel function.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        p_eib (float or ndarray, optional): effective inflow base pressure (Pa)
+        p_eit (float or ndarray, optional): effective inflow top pressure (Pa)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        output_scalars (bool, optional): flag indicating whether to convert
+            single-element output arrays to scalars (default is False)
+
+    Returns:
+        p_mid (float or ndarray): pressure at mid-point of EIL (Pa)
+        Tp_eff (float or ndarray): effective parcel temperature (K)
+        qp_eff (float or ndarray): effective parcel specific humidity (kg/kg)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    if p_eib is None or p_eit is None:
+
+        # Get pressure at the base and top of the EIL
+        _, _, _, _, _, _, p_eib, p_eit = most_unstable_parcel_ascent(
+            p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc, 
+            mu_parcel='max_cape'
+        )
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        T_sfc = T[0]
+        q_sfc = q[0]
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
+    # Make sure that EIL base and top are at least 1D
+    p_eib = np.atleast_1d(p_eib)
+    p_eit = np.atleast_1d(p_eit)
+
+    # Note the number of levels
+    n_lev = p.shape[0]
+
+    # Check that the EIL base is not below the surface
+    eib_below_sfc = (p_eib > p_sfc)
+    if np.any(eib_below_sfc):
+        n_pts = np.count_nonzero(eib_below_sfc)
+        raise ValueError(f'Effective inflow base below surface at {n_pts} points')
+
+    # Check that the EIL top is not above the top level
+    eit_above_top = (p_eit < p[-1])
+    if np.any(eit_above_top):
+        n_pts = np.count_nonzero(eit_above_top)
+        raise ValueError(f'Effective inflow top above top level at {n_pts} points')
+
+    # Note the pressure at the mid-point of the EIL
+    p_mid = 0.5 * (p_eib + p_eit)
+
+    # Create arrays to store potential temperature and specific humidity
+    # of EFF parcel
+    thp_eff = np.zeros_like(p_sfc)
+    qp_eff = np.zeros_like(p_sfc)
+
+    # Initialise level 2 fields at surface
+    p2 = p_sfc.copy()
+    T2 = T_sfc.copy()
+    q2 = q_sfc.copy()
+
+    # Compute potential temperature at level 2
+    th2 = potential_temperature(p2, T2, q2)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2
+        T1 = T2
+        q1 = q2
+        th1 = th2
+
+        # Find level 2 points above the surface
+        above_sfc = (p[k] < p_sfc)
+        below_sfc = np.logical_not(above_sfc)
+        if np.all(below_sfc):
+            # if all points are below the surface, skip this level
+            continue
+
+        # Find level 2 points above the EIL base
+        above_eib = (p[k] < p_eib)
+        below_eib = np.logical_not(above_eib)
+        if np.all(below_eib):
+            # if all points are below the EIL base, skip this level
+            continue
+
+        # Find level 1 points at or above the EIL top
+        above_eit = (p1 <= p_eit)
+        below_eit = np.logical_not(above_eit)
+        if np.all(above_eit):
+            # if all points are above the EIL top, break out of loop
+            break
+
+        # Update level 2 fields
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        T2 = np.where(above_sfc, T[k], T_sfc)
+        q2 = np.where(above_sfc, q[k], q_sfc)
+
+        # If crossing the EIL base, reset level 2 as the EIL base
+        cross_eib = (p1 > p_eib) & (p2 < p_eib)
+        if np.any(cross_eib):
+
+            # Interpolate to get environmental temperature and specific 
+            # humidity at the EIL base
+            weight = np.log(p_eib[cross_eib] / p1[cross_eib]) / \
+                np.log(p2[cross_eib] / p1[cross_eib])
+            T2[cross_eib] = (1 - weight) * T1[cross_eib] + \
+                weight * T2[cross_eib]
+            q2[cross_eib] = (1 - weight) * q1[cross_eib] + \
+                weight * q2[cross_eib]
+
+            # Use EIL base pressure
+            p2[cross_eib] = p_eib[cross_eib]
+
+        # If crossing the EIL top, reset level 2 as the EIL top
+        cross_eit = (p1 > p_eit) & (p2 < p_eit)
+        if np.any(cross_eit):
+
+            # Interpolate to get environmental temperature and specific 
+            # humidity at the EIL top
+            weight = np.log(p_eit[cross_eit] / p1[cross_eit]) / \
+                np.log(p2[cross_eit] / p1[cross_eit])
+            T2[cross_eit] = (1 - weight) * T1[cross_eit] + \
+                weight * T2[cross_eit]
+            q2[cross_eit] = (1 - weight) * q1[cross_eit] + \
+                weight * q2[cross_eit]
+
+            # Use EIL top pressure
+            p2[cross_eit] = p_eit[cross_eit]
+
+        # Compute the potential temperature at level 2
+        th2 = potential_temperature(p2, T2, q2)
+
+        # Update the EFF parcel averages
+        thp_eff[above_eib & below_eit] += 0.5 * \
+            (th1[above_eib & below_eit] + th2[above_eib & below_eit]) * \
+            (p1[above_eib & below_eit] - p2[above_eib & below_eit])
+        qp_eff[above_eib & below_eit] += 0.5 * \
+            (q1[above_eib & below_eit] + q2[above_eib & below_eit]) * \
+            (p1[above_eib & below_eit] - p2[above_eib & below_eit])
+
+        #print(p1, T1, q1, th1, p2, T2, q2, th2, thp_eff, qp_eff)
+
+    # Divide averages by EIL depth to get final values
+    thp_eff = thp_eff / (p_eib - p_eit)
+    qp_eff = qp_eff / (p_eib - p_eit)
+
+    # Compute corresponding temperature at the surface
+    Tp_eff = follow_dry_adiabat(100000., p_mid, thp_eff, qp_eff)
+
+    #print(p_mid, thp_eff, Tp_eff, qp_eff)
+
+    if len(p_sfc) == 1 and output_scalars:
+        Tp_eff = Tp_eff.item()
+        qp_eff = qp_eff.item()
+
+    return p_mid, Tp_eff, qp_eff
+
+
+def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                            p_eib=None, p_eit=None, vertical_axis=0,
+                            return_parcel_props=False, **kwargs):
+    """
+    Performs an effective (EFF) parcel ascent and returns the resulting
+    convective available potential energy (CAPE) and convective inhibition
+    (CIN), along with the lifting condensation level (LCL), level of free
+    convection (LFC), and equilibrium level (EL). The EFF parcel is defined by
+    the mass-weighted average potential temperature and specific humidity,
+    computed over the effective inflow layer (EIL), together with the pressure
+    at the mid-point of the EIL. If the EIL is not supplied, it is derived by
+    calling the most-unstable parcel function.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        p_eib (float or ndarray, optional): effective inflow base pressure (Pa)
+        p_eit (float or ndarray, optional): effective inflow top pressure (Pa)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        return_parcel_props (bool, optional): flag indicating whether to return
+            parcel temperature and specific humidity)
+        **kwargs: additional keyword arguments passed to parcel_ascent
+
+    Returns:
+        CAPE (float or ndarray): convective available potential energy (J/kg)
+        CIN (float or ndarray): convective inhibition (J/kg)
+        LPL (float or ndarray): lifted parcel level (Pa)
+        LCL (float or ndarray): lifting condensation level (Pa)
+        LFC (float or ndarray): level of free convection (Pa)
+        EL (float or ndarray): equilibrium level (Pa)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    if p_eib is None or p_eit is None:
+
+        # Get pressure at the base and top of the EIL
+        _, _, _, _, _, _, p_eib, p_eit = most_unstable_parcel_ascent(
+            p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc, 
+            mu_parcel='max_cape'
+        )
+
+    # Get the LPL pressure, temperature, and specific humidity
+    p_lpl, Tp_lpl, qp_lpl = effective_parcel(
+        p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        p_eib=p_eib, p_eit=p_eit
+    )
+
+    # Note the LPL
+    LPL = p_lpl
+
+    # Call code to perform parcel ascent
+    CAPE, CIN, LCL, LFC, EL = parcel_ascent(
+        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        **kwargs
+    )
+
+    if return_parcel_props:
+        return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
+    else:
+        return CAPE, CIN, LPL, LCL, LFC, EL
 
 
 def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
