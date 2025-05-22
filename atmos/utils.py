@@ -3,7 +3,7 @@ import numpy as np
 
 def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
     """
-    Interpolates scalar variable to a specified height level, assuming
+    Interpolates a scalar variable to a specified height level, assuming
     linear variation with height.
 
     Args:
@@ -44,39 +44,27 @@ def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
         n_pts = np.count_nonzero(zi > z[-1])
         print(f'WARNING: zi is above highest level for {n_pts} points')
 
-    # Initialise level 2 fields
-    z2 = z[0]
-    s2 = s[0]
-
     # Initialise scalar at zi
-    si = s2.copy()
+    si = np.atleast_1d(np.full_like(s[0], np.nan))
 
     # Loop over levels
     for k in range(1, n_lev):
 
-        # Update level 1 fields
-        z1 = z2.copy()
-        s1 = s2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        s2 = s[k]
-
-        if np.all(z2 < zi):
+        if np.all(z[k] < zi):
             # can skip this level
             continue
 
-        if np.all(z1 >= zi):
+        if np.all(z[k-1] >= zi):
             # can break out of loop
             break
         
         # Interpolate to get scalar at zi
-        crossed = (z1 < zi) & (z2 >= zi)
+        crossed = (z[k-1] < zi) & (z[k] >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z1[crossed]) / \
-                (z2[crossed] - z1[crossed])
-            si[crossed] = (1 - weight) * s1[crossed] + \
-                weight * s2[crossed]
+            weight = (zi[crossed] - z[k-1][crossed]) / \
+                (z[k][crossed] - z[k-1][crossed])
+            si[crossed] = (1 - weight) * s[k-1][crossed] + \
+                weight * s[k][crossed]
 
     if len(si) == 1:
         return si[0]
@@ -131,45 +119,30 @@ def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
         n_pts = np.count_nonzero(zi > z[-1])
         print(f'WARNING: zi is above highest level for {n_pts} points')
 
-    # Initialise level 2 fields
-    z2 = z[0]
-    u2 = u[0]
-    v2 = v[0]
-
     # Initialise vector components at zi
-    ui = u2.copy()
-    vi = v2.copy()
+    ui = np.atleast_1d(np.full_like(u[0], np.nan))
+    vi = np.atleast_1d(np.full_like(v[0], np.nan))
 
     # Loop over levels
     for k in range(1, n_lev):
 
-        # Update level 1 fields
-        z1 = z2.copy()
-        u1 = u2.copy()
-        v1 = v2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        u2 = u[k]
-        v2 = v[k]
-
-        if np.all(z2 < zi):
+        if np.all(z[k] < zi):
             # can skip this level
             continue
 
-        if np.all(z1 >= zi):
+        if np.all(z[k-1] >= zi):
             # can break out of loop
             break
         
         # Interpolate to get vector components at zi
-        crossed = (z1 < zi) & (z2 >= zi)
+        crossed = (z[k-1] < zi) & (z[k] >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z1[crossed]) / \
-                (z2[crossed] - z1[crossed])
-            ui[crossed] = (1 - weight) * u1[crossed] + \
-                weight * u2[crossed]
-            vi[crossed] = (1 - weight) * v1[crossed] + \
-                weight * v2[crossed]
+            weight = (zi[crossed] - z[k-1][crossed]) / \
+                (z[k][crossed] - z[k-1][crossed])
+            ui[crossed] = (1 - weight) * u[k-1][crossed] + \
+                weight * u[k][crossed]
+            vi[crossed] = (1 - weight) * v[k-1][crossed] + \
+                weight * v[k][crossed]
 
     if len(ui) == 1:
         return ui[0], vi[0]
@@ -179,7 +152,7 @@ def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
 
 def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
     """
-    Interpolates scalar variable to a specified pressure level, assuming
+    Interpolates a scalar variable to a specified pressure level, assuming
     linear variation with log(p).
 
     Args:
@@ -220,39 +193,27 @@ def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
         n_pts = np.count_nonzero(pi < p[-1])
         print(f'WARNING: pi is above highest level for {n_pts} points')
 
-    # Initialise level 2 fields
-    p2 = p[0]
-    s2 = s[0]
-
     # Initialise scalar at zi
-    si = s2.copy()
+    si = np.atleast_1d(np.full_like(s[0], np.nan))
 
     # Loop over levels
     for k in range(1, n_lev):
 
-        # Update level 1 fields
-        p1 = p2.copy()
-        s1 = s2.copy()
-
-        # Update level 2 fields
-        p2 = p[k]
-        s2 = s[k]
-
-        if np.all(p2 > pi):
+        if np.all(p[k] > pi):
             # can skip this level
             continue
 
-        if np.all(p1 <= pi):
+        if np.all(p[k-1] <= pi):
             # can break out of loop
             break
         
         # Interpolate to get scalar at zi
-        crossed = (p1 > pi) & (p2 <= pi)
+        crossed = (p[k-1] > pi) & (p[k] <= pi)
         if np.any(crossed):
-            weight = np.log(p1[crossed] / pi[crossed]) / \
-                np.log(p1[crossed] / p2[crossed])
-            si[crossed] = (1 - weight) * s1[crossed] + \
-                weight * s2[crossed]
+            weight = np.log(p[k-1][crossed] / pi[crossed]) / \
+                np.log(p[k-1][crossed] / p[k][crossed])
+            si[crossed] = (1 - weight) * s[k-1][crossed] + \
+                weight * s[k][crossed]
 
     if len(si) == 1:
         return si[0]
@@ -307,45 +268,30 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         n_pts = np.count_nonzero(pi < p[-1])
         print(f'WARNING: pi is above highest level for {n_pts} points')
 
-    # Initialise level 2 fields
-    p2 = p[0]
-    u2 = u[0]
-    v2 = v[0]
-
     # Initialise vector components at zi
-    ui = u2.copy()
-    vi = v2.copy()
+    ui = np.atleast_1d(np.full_like(u[0], np.nan))
+    vi = np.atleast_1d(np.full_like(v[0], np.nan))
 
     # Loop over levels
     for k in range(1, n_lev):
 
-        # Update level 1 fields
-        p1 = p2.copy()
-        u1 = u2.copy()
-        v1 = v2.copy()
-
-        # Update level 2 fields
-        p2 = p[k]
-        u2 = u[k]
-        v2 = v[k]
-
-        if np.all(p2 > pi):
+        if np.all(p[k] > pi):
             # can skip this level
             continue
 
-        if np.all(p1 <= pi):
+        if np.all(p[k-1] <= pi):
             # can break out of loop
             break
         
         # Interpolate to get vector components at zi
-        crossed = (p1 > pi) & (p2 <= pi)
+        crossed = (p[k-1] > pi) & (p[k] <= pi)
         if np.any(crossed):
-            weight = np.log(p1[crossed] / pi[crossed]) / \
-                np.log(p1[crossed] / p2[crossed])
-            ui[crossed] = (1 - weight) * u1[crossed] + \
-                weight * u2[crossed]
-            vi[crossed] = (1 - weight) * v1[crossed] + \
-                weight * v2[crossed]
+            weight = np.log(p[k-1][crossed] / pi[crossed]) / \
+                np.log(p[k-1][crossed] / p[k][crossed])
+            ui[crossed] = (1 - weight) * u[k-1][crossed] + \
+                weight * u[k][crossed]
+            vi[crossed] = (1 - weight) * v[k-1][crossed] + \
+                weight * v[k][crossed]
 
     if len(ui) == 1:
         return ui[0], vi[0]
@@ -353,9 +299,9 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         return ui, vi
 
 
-def get_temperature_level_height(z, T, Ti, vertical_axis=0):
+def get_height_of_temperature_level(z, T, Ti, vertical_axis=0):
     """
-    Finds the lowest height corresponding to a set of specified temperatures.
+    Finds the lowest height corresponding to a specified temperature.
 
     Args:
         z (ndarray): height (m)
@@ -382,42 +328,30 @@ def get_temperature_level_height(z, T, Ti, vertical_axis=0):
     # Note the number of vertical levels
     n_lev = z.shape[0]
 
-    # Initialise level 2 fields
-    z2 = z[0]
-    T2 = T[0]
-
     # Create array for height at temperature level
-    zi = z2.copy()
+    zi = np.atleast_1d(np.full_like(z[0], np.nan))
 
-    # Create boolean array to indicate where level has been found
-    found = np.zeros_like(z2).astype(bool)
+    # Create boolean array to indicate whether level has been found
+    found = np.zeros_like(zi).astype(bool)
 
     # Loop over levels
     for k in range(1, n_lev):
 
-        # Update level 1 fields
-        z1 = z2.copy()
-        T1 = T2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        T2 = T[k]
-
-        if np.all(T2 > Ti):
+        if np.all(T[k] > Ti):
             # can skip this level
             continue
 
-        if np.all(T1 <= Ti) or np.all(found):
+        if np.all(T[k-1] <= Ti) or np.all(found):
             # can break out of loop
             break
         
         # Interpolate to get height at Ti
-        crossed = (T1 > Ti) & (T2 <= Ti)
+        crossed = (T[k-1] > Ti) & (T[k] <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T1[crossed] - Ti) / \
-                (T1[crossed] - T2[crossed])
-            zi[crossed] = (1 - weight) * z1[crossed] + \
-                weight * z2[crossed]
+            weight = (T[k-1][crossed] - Ti) / \
+                (T[k-1][crossed] - T[k][crossed])
+            zi[crossed] = (1 - weight) * z[k-1][crossed] + \
+                weight * z[k][crossed]
             found[crossed] = True
 
     if len(zi) == 1:
@@ -429,8 +363,8 @@ def get_temperature_level_height(z, T, Ti, vertical_axis=0):
 def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
                       level_weights=None):
     """
-    Computes mean o scalar variable between two specified height levels, with
-    optional weighting.
+    Computes the mean of a scalar variable between two specified height levels,
+    with optional weighting.
 
     Args:
         z (ndarray): height (m)
@@ -553,8 +487,8 @@ def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
 def layer_mean_vector(z, u, v, z_bot, z_top, vertical_axis=0,
                       level_weights=None):
     """
-    Computes mean vector components between two specified height levels, with
-    optional weighting.
+    Computes the mean vector components between two specified height levels,
+    with optional weighting.
 
     Args:
         z (ndarray): height (m)
