@@ -13,8 +13,7 @@ from atmos.thermo import (saturation_specific_humidity,
 
 
 def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
-                  T_sfc=None, q_sfc=None, z=None, z_lpl=None,
-                  vertical_axis=0, output_scalars=True,
+                  T_sfc=None, q_sfc=None, vertical_axis=0, output_scalars=True,
                   output_level_heights=False, which_lfc='first',
                   which_el='last', count_cape_below_lcl=False,
                   count_cin_below_lcl=True, count_cin_above_lfc=True,
@@ -48,8 +47,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         T_sfc (float or ndarray, optional): surface temperature (K)
         q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
-        z (ndarray, optional): height profile(s) (m AGL)
-        z_lpl (float or ndarray, optional): LPL height (m AGL)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
         output_scalars (bool, optional): flag indicating whether to convert
@@ -88,16 +85,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         EL (float or ndarray): equilibrium level (Pa)
 
     """
-
-    # Check that heights are provided if needed
-    if output_level_heights and z is None:
-        raise ValueError(
-            "z must be supplied for output_level_heights=True"
-        )
-    if output_level_heights and z_lpl is None:
-        raise ValueError(
-            "z_lpl must be supplied for output_level_heights=True"
-        )
 
     # Check that LFC and EL options are valid
     if which_lfc not in ['first', 'last', 'maxcape']:
@@ -151,14 +138,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     p_sfc = np.atleast_1d(p_sfc)
     T_sfc = np.atleast_1d(T_sfc)
     q_sfc = np.atleast_1d(q_sfc)
-
-    # Set heights as all zeros if not supplied
-    if z is None:
-        z = np.zeros_like(p)
-        z_lpl = np.zeros_like(p_lpl)
-
-    # Set surface height (zero by definition)
-    z_sfc = np.zeros_like(p_sfc)
 
     # Ensure that all thermodynamic variables have the same type
     p = p.astype(p_lpl.dtype)
@@ -217,8 +196,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     p_lcl = p_lcl.astype(p_lpl.dtype)
     Tp_lcl = Tp_lcl.astype(p_lpl.dtype)
 
-    # Create array to store LCL height
-    z_lcl = np.zeros_like(p_lcl)
+    # Save LCL
+    LCL = p_lcl
 
     # Set the total water mass fraction
     if pseudo:
@@ -260,13 +239,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         p2 = p_sfc.copy()
         T2 = T_sfc.copy()
         q2 = q_sfc.copy()
-        z2 = z_sfc.copy()
     else:
         k_start = k_lpl + 1
         p2 = p[k_lpl].copy()
         T2 = T[k_lpl].copy()
         q2 = q[k_lpl].copy()
-        z2 = z[k_lpl].copy()
 
     # Initialise level 2 parcel properties using LPL values
     Tp2 = Tp_lpl.copy()
@@ -297,7 +274,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         p1 = p2.copy()
         T1 = T2.copy()
         q1 = q2.copy()
-        z1 = z2.copy()
         Tp1 = Tp2.copy()
         qp1 = qp2.copy()
         B1 = B2.copy()
@@ -320,13 +296,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             p2[below_lcl] = p[k][below_lcl]
             T2[below_lcl] = T[k][below_lcl]
             q2[below_lcl] = q[k][below_lcl]
-            z2[below_lcl] = z[k][below_lcl]
         if np.any(above_lcl):
             # use level k-1 above LCL to account for additional level
             p2[above_lcl] = p[k-1][above_lcl]
             T2[above_lcl] = T[k-1][above_lcl]
             q2[above_lcl] = q[k-1][above_lcl]
-            z2[above_lcl] = z[k-1][above_lcl]
 
         # Set level 2 environmental fields
         # (use level k-1 above LCL to account for additional level)
@@ -340,7 +314,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         p2 = np.where(below_sfc, p_sfc, p2)
         T2 = np.where(below_sfc, T_sfc, T2)
         q2 = np.where(below_sfc, q_sfc, q2)
-        z2 = np.where(below_sfc, z_sfc, z2)
 
         # If all points are below the surface, skip this level
         if np.all(below_sfc):
@@ -367,7 +340,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                         
             # Use LPL pressure and height
             p1[cross_lpl] = p_lpl[cross_lpl]
-            z1[cross_lpl] = z_lpl[cross_lpl]
 
             # Recompute parcel buoyancy (virtual temperature excess) at level 1
             # (no need to include qt as LPL can't be above LCL)
@@ -387,10 +359,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 weight * T2[cross_lcl]
             q2[cross_lcl] = (1 - weight) * q1[cross_lcl] + \
                 weight * q2[cross_lcl]
-
-            # Interpolate to get LCL height
-            z_lcl[cross_lcl] = (1 - weight) * z1[cross_lcl] + \
-                weight * z2[cross_lcl]
 
             # Use LCL pressure
             p2[cross_lcl] = p_lcl[cross_lcl]
@@ -486,12 +454,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                                 B1[neg_to_pos] * lnp2[neg_to_pos]) / \
                                     (B2[neg_to_pos] - B1[neg_to_pos])
 
-            # Interpolate to get height at crossing level
-            zx = np.zeros_like(z2)
-            zx[neg_to_pos] = (B2[neg_to_pos] * z1[neg_to_pos] -
-                              B1[neg_to_pos] * z2[neg_to_pos]) / \
-                                (B2[neg_to_pos] - B1[neg_to_pos])
-
             # Update negative and positive areas
             neg_area[neg_to_pos] -= Rd * 0.5 * B1[neg_to_pos] * \
                 (lnp1[neg_to_pos] - lnpx[neg_to_pos])
@@ -507,10 +469,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 cin_total[neg_to_pos & above_lcl] += neg_area[neg_to_pos & above_lcl]
 
             # Set LFC if above LCL
-            if output_level_heights:
-                lfc[neg_to_pos & above_lcl] = zx[neg_to_pos & above_lcl]
-            else:
-                lfc[neg_to_pos & above_lcl] = np.exp(lnpx[neg_to_pos & above_lcl])
+            lfc[neg_to_pos & above_lcl] = np.exp(lnpx[neg_to_pos & above_lcl])
 
             # Reset the negative area to zero
             neg_area[neg_to_pos] = 0.0
@@ -535,12 +494,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             lnpx[pos_to_neg] = (B2[pos_to_neg] * lnp1[pos_to_neg] -
                                 B1[pos_to_neg] * lnp2[pos_to_neg]) / \
                                     (B2[pos_to_neg] - B1[pos_to_neg])
-            
-            # Interpolate to get height at crossing level
-            zx = np.zeros_like(z2)
-            zx[pos_to_neg] = (B2[pos_to_neg] * z1[pos_to_neg] -
-                              B1[pos_to_neg] * z2[pos_to_neg]) / \
-                                (B2[pos_to_neg] - B1[pos_to_neg])
 
             # Update positive and negative areas
             pos_area[pos_to_neg] += Rd * 0.5 * B1[pos_to_neg] * \
@@ -554,10 +507,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 # update if above LPL
                 cape_layer[pos_to_neg & above_lpl] = pos_area[pos_to_neg & above_lpl]
                 cape_total[pos_to_neg & above_lpl] += pos_area[pos_to_neg & above_lpl]
-                if output_level_heights:
-                    el[pos_to_neg & above_lpl] = zx[pos_to_neg & above_lpl]
-                else:
-                    el[pos_to_neg & above_lpl] = np.exp(lnpx[pos_to_neg & above_lpl])
+                el[pos_to_neg & above_lpl] = np.exp(lnpx[pos_to_neg & above_lpl])
                 done[pos_to_neg & above_lpl] = True
             else:
                 # update if above LCL
@@ -588,10 +538,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         # (use level 1 so that this also works where LCL = LPL)
         pos_at_lcl = (p1 == p_lcl) & (B1 > 0.0)
         if np.any(pos_at_lcl):
-            if output_level_heights:
-                lfc[pos_at_lcl] = z_lcl[pos_at_lcl]
-            else:
-                lfc[pos_at_lcl] = p_lcl[pos_at_lcl]
+            lfc[pos_at_lcl] = p_lcl[pos_at_lcl]
 
         # If positively buoyant at top level then set as EL, update layer and
         # total CAPE, and set positive area as complete
@@ -599,10 +546,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         if np.any(pos_at_top):
             n_pts = np.count_nonzero(pos_at_top)
             print(f'WARNING: Positive buoyancy at top level for {n_pts} points')
-            if output_level_heights:
-                el[pos_at_top] = z2[pos_at_top]
-            else:
-                el[pos_at_top] = p2[pos_at_top]
+            el[pos_at_top] = p2[pos_at_top]
             cape_layer[pos_at_top] = pos_area[pos_at_top]
             cape_total[pos_at_top] += pos_area[pos_at_top]
             done[pos_at_top] = True
@@ -719,12 +663,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
                 # Use CAPE for last positive area
                 CAPE[done] = cape_layer[done]
-
-    # Save LCL
-    if output_level_heights:
-        LCL = z_lcl
-    else:
-        LCL = p_lcl
 
     if len(CAPE) == 1 and output_scalars:
         # convert outputs to scalars
