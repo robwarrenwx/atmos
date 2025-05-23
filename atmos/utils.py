@@ -1,4 +1,6 @@
 import numpy as np
+from atmos.constant import g, Rd
+from atmos.thermo import virtual_temperature
 
 
 def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
@@ -358,6 +360,99 @@ def get_height_of_temperature_level(z, T, Ti, vertical_axis=0):
         return zi[0]
     else:
         return zi
+
+
+def geopotential_height(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                        Z_sfc=None, vertical_axis=0):
+    """
+    Computes geopotential height from profiles of pressure, temperature, and
+    specific humidity using the hypsometric equation.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        Z_sfc (float or ndarray, optional): surface geopotential height (m)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        Z (float or ndarray): geopotential height (m)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        T_sfc = T[0]
+        q_sfc = q[0]
+        Z_sfc = np.zeros_like(p_sfc)  # assumes surface is at MSL
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+    Z_sfc = np.atleast_1d(Z_sfc)
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Create array for geopotential height
+    Z = np.zeros_like(p)
+
+    # Initialise level 2 pressure and geopotential height
+    p2 = p_sfc.copy()
+    Z2 = Z_sfc.copy()
+
+    # Compute level 2 virtual temperature
+    Tv2 = virtual_temperature(T_sfc, q_sfc)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        Z1 = Z2.copy()
+        Tv1 = Tv2.copy()
+
+        # Find points above the surface
+        above_sfc = (p[k] <= p_sfc)
+        if np.any(above_sfc):
+
+            # Update level 2 pressure
+            p2[above_sfc] = p[k][above_sfc]
+
+            # Compute level 2 virtual temperature
+            Tv2[above_sfc] = virtual_temperature(T[k][above_sfc],
+                                                 q[k][above_sfc])
+
+            # Compute level 2 geopotential height
+            Z2[above_sfc] = Z1[above_sfc] + (Rd / g) * \
+                0.5 * (Tv1[above_sfc] + Tv2[above_sfc]) * \
+                np.log(p1[above_sfc] / p2[above_sfc])
+
+            # Save geopotential height for this level
+            Z[k][above_sfc] = Z2[above_sfc]
+
+    return Z.squeeze()  # remove dimensions of length 1
 
 
 def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
