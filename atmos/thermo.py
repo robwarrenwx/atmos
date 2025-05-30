@@ -1285,6 +1285,9 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
+    if not np.isscalar(Tw) and len(Tw) == 1:
+        Tw = Tw.item()
+
     return Tw
 
 
@@ -1752,6 +1755,9 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
+    if not np.isscalar(thw) and len(thw) == 1:
+        thw = thw.item()
+
     return thw
 
 
@@ -1776,5 +1782,8 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
     # Follow a pseudoadiabat to 1000 hPa
     thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
                                 polynomial=polynomial)
+
+    if not np.isscalar(thws) and len(thws) == 1:
+        thws = thws.item()
 
     return thws
