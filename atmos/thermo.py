@@ -1229,7 +1229,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
     return Tf
 
 
-def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
+def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
+                                explicit=False):
     """
     Computes pseudo wet-bulb temperature.
 
@@ -1248,6 +1249,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
 
     Returns:
         Tw (float or ndarray): pseudo wet-bulb temperature (K)
@@ -1261,7 +1264,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LCL to the original pressure
         Tw = follow_moist_adiabat(p_lcl, p, T_lcl, phase='liquid', pseudo=True,
-                                  polynomial=polynomial)
+                                  polynomial=polynomial, explicit=explicit)
 
     elif phase == 'ice':
 
@@ -1270,7 +1273,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LDL to the original pressure
         Tw = follow_moist_adiabat(p_ldl, p, T_ldl, phase='ice', pseudo=True,
-                                  polynomial=polynomial)
+                                  polynomial=polynomial, explicit=explicit)
 
     elif phase == 'mixed':
 
@@ -1279,7 +1282,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LSL to the original pressure
         Tw = follow_moist_adiabat(p_lsl, p, T_lsl, phase='mixed', pseudo=True,
-                                  polynomial=polynomial)
+                                  polynomial=polynomial, explicit=explicit)
 
     else:
 
