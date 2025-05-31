@@ -3,7 +3,8 @@ from atmos.constant import g, Rd
 from atmos.thermo import virtual_temperature
 
 
-def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
+def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
+                                    vertical_axis=0):
     """
     Interpolates a pressure level to height, assuming that height varies
     linearly with log(p).
@@ -13,6 +14,7 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
         z (ndarray): height profile(s) (m)
         pi (float or ndarray): pressure of level (Pa)
         p_sfc (float or ndarray, optional): surface pressure (Pa)
+        z_sfc (float or ndarray, optional): surface height (m)
         vertical_axis (int, optional):profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -30,9 +32,6 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
         p = np.atleast_2d(p).T  # transpose to preserve vertical axis
         z = np.atleast_2d(z).T
 
-    # Make sure that pi is least 1D
-    pi = np.atleast_1d(pi)
-
     # If surface pressure is not provided, use lowest level
     if p_sfc is None:
         k_start = 1  # start loop from second level
@@ -40,7 +39,8 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
         z_sfc = z[0]
     else:
         k_start = 0  # start loop from first level
-        z_sfc = np.zeros_like(p_sfc)
+        if z_sfc is None:
+            z_sfc = np.zeros_like(p_sfc)  # assumes height AGL
 
     # Make sure that surface pressure and height are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
@@ -60,7 +60,7 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
         print(f'WARNING: pi is above highest level for {n_pts} points')
 
     # Initialise height of pi
-    zi = np.full_like(pi, np.nan)
+    zi = np.full_like(z_sfc, np.nan)
 
     # Initialise level 2 pressure and height
     p2 = p_sfc.copy()
@@ -99,12 +99,13 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, vertical_axis=0):
     zi[pi_at_sfc] = z_sfc[pi_at_sfc]
 
     if len(zi) == 1:
-        return zi[0]
+        return zi.item()
     else:
         return zi
 
 
-def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
+def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
+                                    vertical_axis=0):
     """
     Interpolates a height level to pressure, assuming that p varies
     exponentially with height.
@@ -113,6 +114,7 @@ def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
         z (ndarray): height profile(s) (m)
         p (ndarray): pressure profile(s) (Pa)
         zi (float or ndarray): height of level (m)
+        z_sfc (float or ndarray, optional): surface height (m)
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         vertical_axis (int, optional):profile array axis corresponding to
             vertical dimension (default is 0)
@@ -131,9 +133,6 @@ def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
         z = np.atleast_2d(z).T  # transpose to preserve vertical axis
         p = np.atleast_2d(p).T
 
-    # Make sure that zi is least 1D
-    zi = np.atleast_1d(zi)
-
     # If surface pressure is not provided, use lowest level
     if p_sfc is None:
         k_start = 1  # start loop from second level
@@ -141,7 +140,8 @@ def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
         z_sfc = z[0]
     else:
         k_start = 0  # start loop from first level
-        z_sfc = np.zeros_like(p_sfc)
+        if z_sfc is None:
+            z_sfc = np.zeros_like(p_sfc)  # assumes height AGL
 
     # Make sure that surface pressure and height are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
@@ -161,7 +161,7 @@ def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
         print(f'WARNING: zi is above highest level for {n_pts} points')
 
     # Initialise pressure of zi
-    pi = np.full_like(zi, np.nan)
+    pi = np.full_like(p_sfc, np.nan)
 
     # Initialise level 2 height and pressure
     z2 = z_sfc.copy()
@@ -200,20 +200,23 @@ def interp_height_level_to_pressure(z, p, zi, p_sfc=None, vertical_axis=0):
     pi[zi_at_sfc] = p_sfc[zi_at_sfc]
 
     if len(pi) == 1:
-        return pi[0]
+        return pi.item()
     else:
         return pi
 
 
-def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
+def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
+                                  vertical_axis=0):
     """
     Interpolates a scalar variable to a specified height level, assuming
     linear variation with height.
 
     Args:
-        z (ndarray): height (m)
-        s (ndarray): scalar variable
+        z (ndarray): height profile(s) (m)
+        s (ndarray): scalar variable profile(s)
         zi (float or ndarray): height of level (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        s_sfc (float or ndarray, optional): scalar variable at surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -232,27 +235,42 @@ def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
         z = np.atleast_2d(z).T  # transpose to preserve vertical axis
         s = np.atleast_2d(s).T
 
-    # Make sure that zi is least 1D
-    zi = np.atleast_1d(zi)
+    # If surface fields are not provided, use lowest level
+    if s_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        s_sfc = s[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
 
-    # Check if zi is below lowest level
-    if np.any(zi < z[0]):
-        n_pts = np.count_nonzero(zi < z[0])
-        print(f'WARNING: zi is below lowest level for {n_pts} points')
+    # Check if zi is below the surface
+    if np.any(zi < z_sfc):
+        n_pts = np.count_nonzero(zi < z_sfc)
+        print(f'WARNING: zi is below surface for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
         n_pts = np.count_nonzero(zi > z[-1])
         print(f'WARNING: zi is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
     # Initialise scalar at zi
-    si = np.atleast_1d(np.full_like(s[0], np.nan))
+    si = np.full_like(s_sfc, np.nan)
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    s2 = s_sfc.copy()
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         if np.all(z[k] < zi):
             # can skip this level
@@ -261,22 +279,32 @@ def interp_scalar_to_height_level(z, s, zi, vertical_axis=0):
         if np.all(z[k-1] >= zi):
             # can break out of loop
             break
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        s1 = s2.copy()
+
+        # Set level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
         
         # Interpolate to get scalar at zi
-        crossed = (z[k-1] < zi) & (z[k] >= zi)
+        crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z[k-1][crossed]) / \
-                (z[k][crossed] - z[k-1][crossed])
-            si[crossed] = (1 - weight) * s[k-1][crossed] + \
-                weight * s[k][crossed]
+            weight = (zi[crossed] - z1[crossed]) / \
+                (z2[crossed] - z1[crossed])
+            si[crossed] = (1 - weight) * s1[crossed] + \
+                weight * s2[crossed]
 
     if len(si) == 1:
-        return si[0]
+        return si.item()
     else:
         return si
 
 
-def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
+def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
+                                  v_sfc=None, vertical_axis=0):
     """
     Interpolates vector components to a specified height level, assuming
     linear variation with height.
@@ -286,6 +314,11 @@ def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
         u (ndarray): eastward component of vector (m/s)
         v (ndarray): northward component of vector (m/s)
         zi (float or ndarray): height of level (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface (m/s)
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface (m/s)
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -307,28 +340,46 @@ def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
 
-    # Make sure that zi is least 1D
-    zi = np.atleast_1d(zi)
+    # If surface value of vector is not provided, use lowest level
+    if u_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
 
-    # Check if zi is below lowest level
-    if np.any(zi < z[0]):
-        n_pts = np.count_nonzero(zi < z[0])
-        print(f'WARNING: zi is below lowest level for {n_pts} points')
+    # Check if zi is below surface
+    if np.any(zi < z_sfc):
+        n_pts = np.count_nonzero(zi < z_sfc)
+        print(f'WARNING: zi is below surface for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
         n_pts = np.count_nonzero(zi > z[-1])
         print(f'WARNING: zi is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
     # Initialise vector components at zi
-    ui = np.atleast_1d(np.full_like(u[0], np.nan))
-    vi = np.atleast_1d(np.full_like(v[0], np.nan))
+    ui = np.full_like(u_sfc, np.nan)
+    vi = np.full_like(v_sfc, np.nan)
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         if np.all(z[k] < zi):
             # can skip this level
@@ -337,24 +388,36 @@ def interp_vector_to_height_level(z, u, v, zi, vertical_axis=0):
         if np.all(z[k-1] >= zi):
             # can break out of loop
             break
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+
+        # Set level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
         
         # Interpolate to get vector components at zi
-        crossed = (z[k-1] < zi) & (z[k] >= zi)
+        crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z[k-1][crossed]) / \
-                (z[k][crossed] - z[k-1][crossed])
-            ui[crossed] = (1 - weight) * u[k-1][crossed] + \
-                weight * u[k][crossed]
-            vi[crossed] = (1 - weight) * v[k-1][crossed] + \
-                weight * v[k][crossed]
+            weight = (zi[crossed] - z1[crossed]) / \
+                (z2[crossed] - z1[crossed])
+            ui[crossed] = (1 - weight) * u1[crossed] + \
+                weight * u2[crossed]
+            vi[crossed] = (1 - weight) * v1[crossed] + \
+                weight * v2[crossed]
 
     if len(ui) == 1:
-        return ui[0], vi[0]
+        return ui.item(), vi.item()
     else:
         return ui, vi
 
 
-def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
+def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
+                                    vertical_axis=0):
     """
     Interpolates a scalar variable to a specified pressure level, assuming
     linear variation with log(p).
@@ -363,6 +426,8 @@ def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
         p (ndarray): pressure (Pa)
         s (ndarray): scalar variable
         pi (float or ndarray): pressure of level (Pa)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        s_sfc (float or ndarray, optional): scalar variable at surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -381,27 +446,40 @@ def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
         p = np.atleast_2d(p).T  # transpose to preserve vertical axis
         s = np.atleast_2d(s).T
 
-    # Make sure that pi is least 1D
-    pi = np.atleast_1d(pi)
+    # If surface fields are not provided, use lowest level
+    if p_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        s_sfc = s[0]
+    else:
+        k_start = 0  # start loop from first level
 
-    # Note the number of vertical levels
-    n_lev = p.shape[0]
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
 
-    # Check if pi is below lowest level
+    # Check if pi is below surface
     if np.any(pi > p[0]):
-        n_pts = np.count_nonzero(pi > p[0])
-        print(f'WARNING: pi is below lowest level for {n_pts} points')
+        n_pts = np.count_nonzero(pi > p_sfc)
+        print(f'WARNING: pi is below surface for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
         n_pts = np.count_nonzero(pi < p[-1])
         print(f'WARNING: pi is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
     # Initialise scalar at zi
-    si = np.atleast_1d(np.full_like(s[0], np.nan))
+    si = np.full_like(s_sfc, np.nan)
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    s2 = s_sfc.copy()
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         if np.all(p[k] > pi):
             # can skip this level
@@ -411,21 +489,31 @@ def interp_scalar_to_pressure_level(p, s, pi, vertical_axis=0):
             # can break out of loop
             break
         
-        # Interpolate to get scalar at zi
-        crossed = (p[k-1] > pi) & (p[k] <= pi)
+        # Update level 1 fields
+        p1 = p2.copy()
+        s1 = s2.copy()
+
+        # Set level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
+
+        # Interpolate to get scalar at pi
+        crossed = (p1 > pi) & (p2 <= pi)
         if np.any(crossed):
-            weight = np.log(p[k-1][crossed] / pi[crossed]) / \
-                np.log(p[k-1][crossed] / p[k][crossed])
-            si[crossed] = (1 - weight) * s[k-1][crossed] + \
-                weight * s[k][crossed]
+            weight = np.log(p1[crossed] / pi[crossed]) / \
+                np.log(p1[crossed] / p2[crossed])
+            si[crossed] = (1 - weight) * s1[crossed] + \
+                weight * s2[crossed]
 
     if len(si) == 1:
-        return si[0]
+        return si.item()
     else:
         return si
 
 
-def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
+def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
+                                    v_sfc=None, vertical_axis=0):
     """
     Interpolates vector components to a specified pressure level, assuming
     linear variation with log(p).
@@ -435,6 +523,11 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         u (ndarray): eastward component of vector (m/s)
         v (ndarray): northward component of vector (m/s)
         pi (float or ndarray): pressure of level (Pa)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface (m/s)
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface (m/s)
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -456,28 +549,44 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
 
-    # Make sure that pi is least 1D
-    pi = np.atleast_1d(pi)
+    # If surface pressure is not provided, use lowest level
+    if u_sfc is None:
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        k_start = 0  # start loop from first level
 
-    # Note the number of vertical levels
-    n_lev = p.shape[0]
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
 
-    # Check if pi is below lowest level
-    if np.any(pi > p[0]):
-        n_pts = np.count_nonzero(pi > p[0])
-        print(f'WARNING: pi is below lowest level for {n_pts} points')
+    # Check if pi is below surface
+    if np.any(pi > p_sfc):
+        n_pts = np.count_nonzero(pi > p_sfc)
+        print(f'WARNING: pi is below surface for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
         n_pts = np.count_nonzero(pi < p[-1])
         print(f'WARNING: pi is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
     # Initialise vector components at zi
-    ui = np.atleast_1d(np.full_like(u[0], np.nan))
-    vi = np.atleast_1d(np.full_like(v[0], np.nan))
+    ui = np.full_like(u_sfc, np.nan)
+    vi = np.full_like(v_sfc, np.nan)
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         if np.all(p[k] > pi):
             # can skip this level
@@ -486,26 +595,38 @@ def interp_vector_to_pressure_level(p, u, v, pi, vertical_axis=0):
         if np.all(p[k-1] <= pi):
             # can break out of loop
             break
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+
+        # Set level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
         
         # Interpolate to get vector components at zi
-        crossed = (p[k-1] > pi) & (p[k] <= pi)
+        crossed = (p1 > pi) & (p2 <= pi)
         if np.any(crossed):
-            weight = np.log(p[k-1][crossed] / pi[crossed]) / \
-                np.log(p[k-1][crossed] / p[k][crossed])
-            ui[crossed] = (1 - weight) * u[k-1][crossed] + \
-                weight * u[k][crossed]
-            vi[crossed] = (1 - weight) * v[k-1][crossed] + \
-                weight * v[k][crossed]
+            weight = np.log(p1[crossed] / pi[crossed]) / \
+                np.log(p1[crossed] / p2[crossed])
+            ui[crossed] = (1 - weight) * u1[crossed] + \
+                weight * u2[crossed]
+            vi[crossed] = (1 - weight) * v1[crossed] + \
+                weight * v2[crossed]
 
     if len(ui) == 1:
-        return ui[0], vi[0]
+        return ui.item(), vi.item()
     else:
         return ui, vi
 
 
-def get_height_of_temperature_level(z, T, Ti, vertical_axis=0):
+def height_of_temperature_level(z, T, Ti, vertical_axis=0):
     """
-    Finds the lowest height corresponding to a specified temperature.
+    Finds the lowest height corresponding to a specified temperature, assuming
+    temperature varies linearly with height.
 
     Args:
         z (ndarray): height (m)
