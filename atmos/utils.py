@@ -665,10 +665,6 @@ def height_of_temperature_level(z, T, Ti, vertical_axis=0):
         if np.all(T[k] > Ti):
             # can skip this level
             continue
-
-        if np.all(T[k-1] <= Ti) or np.all(found):
-            # can break out of loop
-            break
         
         # Interpolate to get height at Ti
         crossed = (T[k-1] > Ti) & (T[k] <= Ti) & np.logical_not(found)
@@ -678,11 +674,73 @@ def height_of_temperature_level(z, T, Ti, vertical_axis=0):
             zi[crossed] = (1 - weight) * z[k-1][crossed] + \
                 weight * z[k][crossed]
             found[crossed] = True
+            if np.all(found):
+                break
 
     if len(zi) == 1:
-        return zi[0]
+        return zi.item()
     else:
         return zi
+
+
+def pressure_of_temperature_level(p, T, Ti, vertical_axis=0):
+    """
+    Finds the highest pressure corresponding to a specified temperature,
+    assuming temperature varies linearly with log(p).
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        Ti (float): temperature level (K)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        pi (float or ndarray): pressure of temperature level (Pa)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Create array for pressure at temperature level
+    pi = np.atleast_1d(np.full_like(p[0], np.nan))
+
+    # Create boolean array to indicate whether level has been found
+    found = np.zeros_like(pi).astype(bool)
+
+    # Loop over levels
+    for k in range(1, n_lev):
+
+        if np.all(T[k] > Ti):
+            # can skip this level
+            continue
+
+        # Interpolate to get pressure at Ti
+        crossed = (T[k-1] > Ti) & (T[k] <= Ti) & np.logical_not(found)
+        if np.any(crossed):
+            weight = (T[k-1][crossed] - Ti) / \
+                (T[k-1][crossed] - T[k][crossed])
+            pi[crossed] = p[k-1][crossed] ** (1 - weight) + \
+                p[k][crossed] ** weight
+            found[crossed] = True
+            if np.all(found):
+                break
+
+    if len(pi) == 1:
+        return pi.item()
+    else:
+        return pi
 
 
 def geopotential_height(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
