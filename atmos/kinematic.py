@@ -34,8 +34,9 @@ def wind_direction(u, v):
     """
     wdir = 90. - np.degrees(np.arctan2(-v, -u))
     
+    u = np.atleast_1d(u)
+    v = np.atleast_1d(v)
     wdir = np.atleast_1d(wdir)
-
     
     # Correct negative values
     neg_mask = np.array(wdir < 0.)
@@ -43,12 +44,12 @@ def wind_direction(u, v):
         wdir[neg_mask] += 360.
 
     # Set to 0 where wind speed is zero
-    calm_mask = (np.asanyarray(u) == 0.) & (np.asanyarray(v) == 0.)
+    calm_mask = (u == 0.) & (v == 0.)
     if np.any(calm_mask):
         wdir[calm_mask] = 0.
         
     if len(wdir) == 1:
-        wdir = wdir[0]
+        wdir = wdir.item()
 
     return wdir
     
@@ -73,22 +74,30 @@ def wind_components(wspd, wdir):
     return u, v
 
 
-def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
+def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
+                         v_sfc=None, vertical_axis=0):
     """
     Computes bulk wind difference across a specified layer.
 
     Args:
         z (float or ndarray): height (m)
-        u (float or ndarray): zonal wind velocity (m/s)
-        v (float or ndarray): meridional wind velocity (m/s)
+        u (float or ndarray): eastward component of wind (m/s)
+        v (float or ndarray): northward component of wind (m/s)
         z_bot (float or ndarray): height of bottom of layer (m)
         z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of wind at
+            surface (m/s)
+        v_sfc (float or ndarray, optional): northward component of wind at
+            surface (m/s)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
 
     Returns:
-        BWDmag (float or ndarray): bulk wind difference magnitude (m/s)
-        BWDdir (float or ndarray, optional): bulk wind difference direction (deg)
+        BWDu (float or ndarray): eastward component of bulk wind difference
+            (m/s)
+        BWDv (float or ndarray): northward component of bulk wind difference
+            (m/s)
 
     """
 
@@ -108,52 +117,68 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
     z_bot = np.atleast_1d(z_bot)
     z_top = np.atleast_1d(z_top)
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
 
-    # Initialise winds at bottom and top of layer
-    u_bot = u[0]
-    v_bot = v[0]
-    u_top = u[-1]
-    v_top = v[-1]
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
 
-    # Initialise level 2 fields
-    z2 = z[0]
-    u2 = u[0]
-    v2 = v[0]
-
-    # Check if bottom of layer is below lowest level
-    if np.any(z_bot < z[0]):
-        n_pts = np.count_nonzero(z_bot < z[0])
-        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        print(f'WARNING: z_bot is below surface for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
         print(f'WARNING: z_top is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Initialise winds at bottom and top of layer
+    u_bot = u_sfc.copy()
+    v_bot = v_sfc.copy()
+    u_top = np.atleast_1d(u[-1])
+    v_top = np.atleast_1d(v[-1])
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         # Update level 1 fields
         z1 = z2.copy()
         u1 = u2.copy()
         v1 = v2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        u2 = u[k]
-        v2 = v[k]
-
-        if np.all(z2 < z_bot):
-            # can skip this level
-            continue
         if np.all(z1 >= z_top):
             # can break out of loop
             break
 
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
+
         # Set winds at bottom of layer
-        cross_bot = (z1 < z_bot) & (z2 >= z_bot)
+        cross_bot = (z1 <= z_bot) & (z2 > z_bot)
         if np.any(cross_bot):
             weight = (z_bot[cross_bot] - z1[cross_bot]) / \
                 (z2[cross_bot] - z1[cross_bot])
@@ -177,12 +202,13 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, vertical_axis=0):
     BWDv = v_top - v_bot
 
     if len(BWDu) == 1:
-        return BWDu[0], BWDv[0]
+        return BWDu.item(), BWDv.item()
     else:
         return BWDu, BWDv
 
 
-def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
+def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
+                         vertical_axis=0, level_weights=None,
                          mean_wind_layer_base=0, mean_wind_layer_top=6000.0,
                          shear_layer_base=0.0, shear_layer_top=6000.0,
                          shear_layer_base_average=500.0,
@@ -195,6 +221,11 @@ def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
         z (ndarray): height (m)
         u (ndarray): eastward component of wind (m/s)
         v (ndarray): northward component of wind (m/s)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of wind at
+            surface (m/s)
+        v_sfc (float or ndarray, optional): northward component of wind at
+            surface (m/s)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
         level_weights (ndarray, optional): weights to apply to winds at each
@@ -231,28 +262,33 @@ def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
 
     # Compute advective component of storm motion
     u_adv, v_adv = layer_mean_vector(
-        z, u, v, mean_wind_layer_base, mean_wind_layer_top,
-        vertical_axis=vertical_axis, level_weights=level_weights
+        z, u, v, mean_wind_layer_base, mean_wind_layer_top, z_sfc=z_sfc,
+        u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
+        level_weights=level_weights
     )
     
     # Compute shear vector
     if shear_layer_base_average == 0.0:
         u_bot, v_bot = interp_vector_to_height_level(
-            z, u, v, shear_layer_base, vertical_axis=vertical_axis
+            z, u, v, shear_layer_base, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            vertical_axis=vertical_axis
         )
     else:
         u_bot, v_bot = layer_mean_vector(
             z, u, v, shear_layer_base, shear_layer_base+shear_layer_base_average,
-            vertical_axis=vertical_axis, level_weights=level_weights
+            z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
+            level_weights=level_weights
         )
     if shear_layer_top_average == 0.0:
         u_top, v_top = interp_vector_to_height_level(
-            z, u, v, shear_layer_top, vertical_axis=vertical_axis
+            z, u, v, shear_layer_top, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            vertical_axis=vertical_axis
         )
     else:
         u_top, v_top = layer_mean_vector(
             z, u, v, shear_layer_top-shear_layer_top_average, shear_layer_top,
-            vertical_axis=vertical_axis, level_weights=level_weights
+            vertical_axis=vertical_axis, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            level_weights=level_weights
         )
     u_shr = u_top - u_bot
     v_shr = v_top - v_bot
@@ -270,6 +306,7 @@ def bunkers_storm_motion(z, u, v, vertical_axis=0, level_weights=None,
 
 
 def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
+                            z_sfc=None, u_sfc=None, v_sfc=None,
                             vertical_axis=0):
     
     # Reorder profile array dimensions if needed
@@ -292,46 +329,62 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
     z_bot = np.atleast_1d(z_bot)
     z_top = np.atleast_1d(z_top)
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
 
-    # Check if bottom of layer is below lowest level
-    if np.any(z_bot < z[0]):
-        n_pts = np.count_nonzero(z_bot < z[0])
-        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        print(f'WARNING: z_bot is below surface for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
         print(f'WARNING: z_top is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
     # Initialise level 2 fields
-    z2 = z[0]
-    u2 = u[0]
-    v2 = v[0]
+    z2 = z_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
 
     # Initialise SRH
     SRH = np.zeros_like(z2)
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         # Update level 1 fields
         z1 = z2.copy()
         u1 = u2.copy()
         v1 = v2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        u2 = u[k]
-        v2 = v[k]
-
-        if np.all(z2 <= z_bot):
-            # can skip this level
-            continue
         if np.all(z1 >= z_top):
             # can break out of loop
             break
+
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
         
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
@@ -364,7 +417,6 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
                 (v2[in_layer] - v_storm[in_layer])
 
     if len(SRH) == 1:
-        return SRH[0]
+        return SRH.item()
     else:
         return SRH
-
