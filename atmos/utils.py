@@ -67,22 +67,20 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(p[k] > p_sfc):
-            # can skip this level
-            continue
-
-        if np.all(p[k-1] <= pi):
-            # can break out of loop
-            break
-
         # Update level 1 pressure and height
         p1 = p2.copy()
         z1 = z2.copy()
+        if np.all(p1 <= pi):
+            # can break out of loop
+            break
 
         # Set level 2 pressure and height
         above_sfc = (p[k] < p_sfc)
         p2 = np.where(above_sfc, p[k], p_sfc)
         z2 = np.where(above_sfc, z[k], z_sfc)
+        if np.all(p2 > p_sfc):
+            # can skip this level
+            continue
 
         # Interpolate to get height of pi
         crossed = (p1 > pi) & (p2 <= pi)
@@ -94,7 +92,8 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
 
     # Deal with points where pi is at the surface
     pi_at_sfc = (pi == p_sfc)
-    zi[pi_at_sfc] = z_sfc[pi_at_sfc]
+    if np.any(pi_at_sfc):
+        zi[pi_at_sfc] = z_sfc[pi_at_sfc]
 
     if len(zi) == 1:
         return zi.item()
@@ -168,22 +167,20 @@ def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(z[k] < zi):
-            # can skip this level
-            continue
-
-        if np.all(z[k-1] >= zi):
-            # can break out of loop
-            break
-
         # Update level 1 height and pressure
         z1 = z2.copy()
         p1 = p2.copy()
+        if np.all(z1 >= zi):
+            # can break out of loop
+            break
 
         # Set level 2 height and pressure
         above_sfc = (p[k] < p_sfc)
         z2 = np.where(above_sfc, z[k], z_sfc)
         p2 = np.where(above_sfc, p[k], p_sfc)
+        if np.all(z2 < zi):
+            # can skip this level
+            continue
 
         # Interpolate to get height of pi
         crossed = (z1 < zi) & (z2 >= zi)
@@ -195,7 +192,8 @@ def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
 
     # Deal with points where zi is at the surface
     zi_at_sfc = (zi == z_sfc)
-    pi[zi_at_sfc] = p_sfc[zi_at_sfc]
+    if np.any(zi_at_sfc):
+        pi[zi_at_sfc] = p_sfc[zi_at_sfc]
 
     if len(pi) == 1:
         return pi.item()
@@ -270,23 +268,21 @@ def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(z[k] < zi):
-            # can skip this level
-            continue
-
-        if np.all(z[k-1] >= zi):
-            # can break out of loop
-            break
-
         # Update level 1 fields
         z1 = z2.copy()
         s1 = s2.copy()
+        if np.all(z1 >= zi):
+            # can break out of loop
+            break
 
         # Set level 2 fields
         above_sfc = (z[k] > z_sfc)
         z2 = np.where(above_sfc, z[k], z_sfc)
         s2 = np.where(above_sfc, s[k], s_sfc)
-        
+        if np.all(z2 < zi):
+            # can skip this level
+            continue
+
         # Interpolate to get scalar at zi
         crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
@@ -294,6 +290,11 @@ def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
                 (z2[crossed] - z1[crossed])
             si[crossed] = (1 - weight) * s1[crossed] + \
                 weight * s2[crossed]
+
+    # Deal with points where zi is at the surface
+    zi_at_sfc = (zi == z_sfc)
+    if np.any(zi_at_sfc):
+        si[zi_at_sfc] = s_sfc[zi_at_sfc]
 
     if len(si) == 1:
         return si.item()
@@ -379,24 +380,22 @@ def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(z[k] < zi):
-            # can skip this level
-            continue
-
-        if np.all(z[k-1] >= zi):
-            # can break out of loop
-            break
-
         # Update level 1 fields
         z1 = z2.copy()
         u1 = u2.copy()
         v1 = v2.copy()
+        if np.all(z1 >= zi):
+            # can break out of loop
+            break
 
         # Set level 2 fields
         above_sfc = (z[k] > z_sfc)
         z2 = np.where(above_sfc, z[k], z_sfc)
         u2 = np.where(above_sfc, u[k], u_sfc)
         v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(z2 < zi):
+            # can skip this level
+            continue
         
         # Interpolate to get vector components at zi
         crossed = (z1 < zi) & (z2 >= zi)
@@ -407,6 +406,12 @@ def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
                 weight * u2[crossed]
             vi[crossed] = (1 - weight) * v1[crossed] + \
                 weight * v2[crossed]
+
+    # Deal with points where zi is at the surface
+    zi_at_sfc = (zi == z_sfc)
+    if np.any(zi_at_sfc):
+        ui[zi_at_sfc] = u_sfc[zi_at_sfc]
+        vi[zi_at_sfc] = v_sfc[zi_at_sfc]
 
     if len(ui) == 1:
         return ui.item(), vi.item()
@@ -479,22 +484,20 @@ def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(p[k] > pi):
-            # can skip this level
-            continue
-
-        if np.all(p[k-1] <= pi):
-            # can break out of loop
-            break
-        
         # Update level 1 fields
         p1 = p2.copy()
         s1 = s2.copy()
+        if np.all(p1 <= pi):
+            # can break out of loop
+            break
 
         # Set level 2 fields
         above_sfc = (p[k] < p_sfc)
         p2 = np.where(above_sfc, p[k], p_sfc)
         s2 = np.where(above_sfc, s[k], s_sfc)
+        if np.all(p2 > pi):
+            # can skip this level
+            continue
 
         # Interpolate to get scalar at pi
         crossed = (p1 > pi) & (p2 <= pi)
@@ -503,6 +506,11 @@ def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
                 np.log(p1[crossed] / p2[crossed])
             si[crossed] = (1 - weight) * s1[crossed] + \
                 weight * s2[crossed]
+
+    # Deal with points where pi is at the surface
+    pi_at_sfc = (pi == p_sfc)
+    if np.any(pi_at_sfc):
+        si[pi_at_sfc] = s_sfc[pi_at_sfc]
 
     if len(si) == 1:
         return si.item()
@@ -586,24 +594,22 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     # Loop over levels
     for k in range(k_start, n_lev):
 
-        if np.all(p[k] > pi):
-            # can skip this level
-            continue
-
-        if np.all(p[k-1] <= pi):
-            # can break out of loop
-            break
-
         # Update level 1 fields
         p1 = p2.copy()
         u1 = u2.copy()
         v1 = v2.copy()
+        if np.all(p1 <= pi):
+            # can break out of loop
+            break
 
         # Set level 2 fields
         above_sfc = (p[k] < p_sfc)
         p2 = np.where(above_sfc, p[k], p_sfc)
         u2 = np.where(above_sfc, u[k], u_sfc)
         v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(p2 > pi):
+            # can skip this level
+            continue
         
         # Interpolate to get vector components at zi
         crossed = (p1 > pi) & (p2 <= pi)
@@ -614,6 +620,12 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
                 weight * u2[crossed]
             vi[crossed] = (1 - weight) * v1[crossed] + \
                 weight * v2[crossed]
+
+    # Deal with points where pi is at the surface
+    pi_at_sfc = (pi == p_sfc)
+    if np.any(pi_at_sfc):
+        ui[pi_at_sfc] = u_sfc[pi_at_sfc]
+        vi[pi_at_sfc] = v_sfc[pi_at_sfc]
 
     if len(ui) == 1:
         return ui.item(), vi.item()
@@ -710,8 +722,9 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
                 break
 
     # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc)
-    zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
+    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
+    if np.any(Ti_at_sfc):
+        zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
 
     if len(zi) == 1:
         return zi.item()
@@ -806,8 +819,9 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
                 break
 
     # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc)
-    pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
+    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
+    if np.any(Ti_at_sfc):
+        pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
 
     if len(pi) == 1:
         return pi.item()
