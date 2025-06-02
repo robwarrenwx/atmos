@@ -209,7 +209,7 @@ def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
 
     Args:
         z (ndarray): height profile(s) (m)
-        s (ndarray): scalar variable profile(s)
+        s (ndarray): profile(s) of scalar variable
         zi (float or ndarray): height of level (m)
         z_sfc (float or ndarray, optional): surface height (m)
         s_sfc (float or ndarray, optional): scalar variable at surface
@@ -309,15 +309,15 @@ def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     linear variation with height.
 
     Args:
-        z (ndarray): height (m)
-        u (ndarray): eastward component of vector (m/s)
-        v (ndarray): northward component of vector (m/s)
+        z (ndarray): height profile(s) (m)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) northward component of vector
         zi (float or ndarray): height of level (m)
         z_sfc (float or ndarray, optional): surface height (m)
         u_sfc (float or ndarray, optional): eastward component of vector at
-            surface (m/s)
+            surface
         v_sfc (float or ndarray, optional): northward component of vector at
-            surface (m/s)
+            surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -426,8 +426,8 @@ def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     linear variation with log(p).
 
     Args:
-        p (ndarray): pressure (Pa)
-        s (ndarray): scalar variable
+        p (ndarray): pressure profile(s) (Pa)
+        s (ndarray): prrofile(s) of scalar variable
         pi (float or ndarray): pressure of level (Pa)
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         s_sfc (float or ndarray, optional): scalar variable at surface
@@ -525,15 +525,15 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     linear variation with log(p).
 
     Args:
-        p (ndarray): pressure (Pa)
-        u (ndarray): eastward component of vector (m/s)
-        v (ndarray): northward component of vector (m/s)
+        p (ndarray): pressure profile(s) (Pa)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) of northward component of vector
         pi (float or ndarray): pressure of level (Pa)
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         u_sfc (float or ndarray, optional): eastward component of vector at
-            surface (m/s)
+            surface
         v_sfc (float or ndarray, optional): northward component of vector at
-            surface (m/s)
+            surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -829,21 +829,26 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
         return pi
 
 
-def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
-                      level_weights=None):
+def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
+                      vertical_axis=0, level_weights=None,
+                      surface_weight=None):
     """
     Computes the mean of a scalar variable between two specified height levels,
     with optional weighting.
 
     Args:
-        z (ndarray): height (m)
-        s (ndarray): scalar variable
+        z (ndarray): height profile(s) (m)
+        s (ndarray): profile(s) of scalar variable
         z_bot (float or ndarray): height of bottom of layer (m)
         z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        s_sfc (float or ndarray, optional): scalar variable at surface
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        level_weights (ndarray, optional): weights to apply to winds at each
+        level_weights (ndarray, optional): weights to apply to scalar at each
             level (default is None, in which case no weighting is applied)
+        surface_weight (float or ndarray, optional): weight to apply to scalar
+            at surface (default is None, in which case no weighting is applied)
 
     Returns:
         s_mean (float or ndarray): layer-mean scalar variable
@@ -851,67 +856,85 @@ def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
     """
 
     if level_weights is None:
-        wt = np.ones_like(z)
+        w = np.ones_like(z)
     else:
-        wt = level_weights
+        w = level_weights
 
     # Reorder profile array dimensions if needed
     if vertical_axis != 0:
         z = np.moveaxis(z, vertical_axis, 0)
         s = np.moveaxis(s, vertical_axis, 0)
-        wt = np.moveaxis(wt, vertical_axis, 0)
+        w = np.moveaxis(w, vertical_axis, 0)
 
     # Make sure that profile arrays are at least 2D
     if z.ndim == 1:
         z = np.atleast_2d(z).T  # transpose to preserve vertical axis
         s = np.atleast_2d(s).T
-        wt = np.atleast_2d(wt).T
+        w = np.atleast_2d(w).T
 
     # Make sure that z_bot and z_top are at least 1D
     z_bot = np.atleast_1d(z_bot)
     z_top = np.atleast_1d(z_top)
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # If surface fields are not provided, use lowest level
+    if s_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        s_sfc = s[0]
+        w_sfc = w[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
+        if surface_weight is None:
+            w_sfc = np.ones_like(s_sfc)
 
-    # Check if bottom of layer is below lowest level
-    if np.any(z_bot < z[0]):
-        n_pts = np.count_nonzero(z_bot < z[0])
-        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
+    w_sfc = np.atleast_1d(w_sfc)
+
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        print(f'WARNING: z_bot is below surface for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
         print(f'WARNING: z_top is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
     # Initialise level 2 fields
-    z2 = z[0]
-    s2 = s[0]
-    wt2 = wt[0]
+    z2 = z_sfc.copy()
+    s2 = s_sfc.copy()
+    w2 = w_sfc.copy()
 
     # Initialise intergrals
     s_int = np.zeros_like(z2)
-    wt_int = np.zeros_like(z2)
+    w_int = np.zeros_like(z2)
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         # Update level 1 fields
         z1 = z2.copy()
         s1 = s2.copy()
-        wt1 = wt2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        s2 = s[k]
-        wt2 = wt[k]
-
-        if np.all(z2 <= z_bot):
-            # can skip this level
-            continue
+        w1 = w2.copy()
         if np.all(z1 >= z_top):
             # can break out of loop
             break
+
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
+        w2 = np.where(above_sfc, w[k], w_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
         
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
@@ -920,8 +943,8 @@ def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
                 (z2[cross_bot] - z1[cross_bot])
             s1[cross_bot] = (1 - weight) * s1[cross_bot] + \
                 weight * s2[cross_bot]
-            wt1[cross_bot] = (1 - weight) * wt1[cross_bot] + \
-                weight * wt2[cross_bot]
+            w1[cross_bot] = (1 - weight) * w1[cross_bot] + \
+                weight * w2[cross_bot]
             z1[cross_bot] = z_bot[cross_bot]
 
         # If crossing top of layer, reset level 2
@@ -931,44 +954,52 @@ def layer_mean_scalar(z, s, z_bot, z_top, vertical_axis=0,
                 (z2[cross_top] - z1[cross_top])
             s2[cross_top] = (1 - weight) * s1[cross_top] + \
                 weight * s2[cross_top]
-            wt2[cross_top] = (1 - weight) * wt1[cross_top] + \
-                weight * wt2[cross_top]
+            w2[cross_top] = (1 - weight) * w1[cross_top] + \
+                weight * w2[cross_top]
             z2[cross_top] = z_top[cross_top]
 
         # If within layer, update intergrals
         in_layer = (z1 >= z_bot) & (z2 <= z_top)
         if np.any(in_layer):
-            s_int[in_layer] += 0.5 * (wt1[in_layer] + wt2[in_layer]) * \
+            s_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 0.5 * (s1[in_layer] + s2[in_layer]) * \
                     (z2[in_layer] - z1[in_layer])
-            wt_int[in_layer] += 0.5 * (wt1[in_layer] + wt2[in_layer]) * \
+            w_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 (z2[in_layer] - z1[in_layer])
 
     # Compute layer mean
-    s_mean = s_int / wt_int
+    s_mean = s_int / w_int
 
     if len(s_mean) == 1:
-        return s_mean[0]
+        return s_mean.item()
     else:
         return s_mean
 
 
-def layer_mean_vector(z, u, v, z_bot, z_top, vertical_axis=0,
-                      level_weights=None):
+def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
+                      v_sfc=None, vertical_axis=0, level_weights=None,
+                      surface_weight=None):
     """
     Computes the mean vector components between two specified height levels,
     with optional weighting.
 
     Args:
-        z (ndarray): height (m)
-        u (ndarray): eastward component of vector (m/s)
-        v (ndarray): northward component of vector (m/s)
+        z (ndarray): height profile(s) (m)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) of northward component of vector
         z_bot (float or ndarray): height of bottom of layer (m)
         z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        level_weights (ndarray, optional): weights to apply to winds at each
+        level_weights (ndarray, optional): weights to apply to vector at each
             level (default is None, in which case no weighting is applied)
+        surface_weight (float or ndarray, optional): weight to apply to vector
+            at surface (default is None, in which case no weighting is applied)
 
     Returns:
         u_mean (float or ndarray): eastward component of layer-mean vector (m/s)
@@ -977,74 +1008,93 @@ def layer_mean_vector(z, u, v, z_bot, z_top, vertical_axis=0,
     """
 
     if level_weights is None:
-        wt = np.ones_like(z)
+        w = np.ones_like(z)
     else:
-        wt = level_weights
+        w = level_weights
 
     # Reorder profile array dimensions if needed
     if vertical_axis != 0:
         z = np.moveaxis(z, vertical_axis, 0)
         u = np.moveaxis(u, vertical_axis, 0)
         v = np.moveaxis(v, vertical_axis, 0)
-        wt = np.moveaxis(wt, vertical_axis, 0)
+        w = np.moveaxis(w, vertical_axis, 0)
 
     # Make sure that profile arrays are at least 2D
     if z.ndim == 1:
         z = np.atleast_2d(z).T  # transpose to preserve vertical axis
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
-        wt = np.atleast_2d(wt).T
+        w = np.atleast_2d(w).T
 
     # Make sure that z_bot and z_top are at least 1D
     z_bot = np.atleast_1d(z_bot)
     z_top = np.atleast_1d(z_top)
 
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+        w_sfc = w[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
+        if surface_weight is None:
+            w_sfc = np.ones_like(u_sfc)
 
-    # Check if bottom of layer is below lowest level
-    if np.any(z_bot < z[0]):
-        n_pts = np.count_nonzero(z_bot < z[0])
-        print(f'WARNING: z_bot is below lowest level for {n_pts} points')
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+    w_sfc = np.atleast_1d(w_sfc)
+
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        print(f'WARNING: z_bot is below surface for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
         print(f'WARNING: z_top is above highest level for {n_pts} points')
 
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
     # Initialise level 2 fields
-    z2 = z[0]
-    u2 = u[0]
-    v2 = v[0]
-    wt2 = wt[0]
+    z2 = z_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+    w2 = w_sfc.copy()
 
     # Initialise intergrals
     u_int = np.zeros_like(z2)
     v_int = np.zeros_like(z2)
-    wt_int = np.zeros_like(z2)
+    w_int = np.zeros_like(z2)
 
     # Loop over levels
-    for k in range(1, n_lev):
+    for k in range(k_start, n_lev):
 
         # Update level 1 fields
         z1 = z2.copy()
         u1 = u2.copy()
         v1 = v2.copy()
-        wt1 = wt2.copy()
-
-        # Update level 2 fields
-        z2 = z[k]
-        u2 = u[k]
-        v2 = v[k]
-        wt2 = wt[k]
-
-        if np.all(z2 <= z_bot):
-            # can skip this level
-            continue
-
+        w1 = w2.copy()
         if np.all(z1 >= z_top):
             # can break out of loop
             break
+
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        w2 = np.where(above_sfc, w[k], w_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
         
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
@@ -1055,8 +1105,8 @@ def layer_mean_vector(z, u, v, z_bot, z_top, vertical_axis=0,
                 weight * u2[cross_bot]
             v1[cross_bot] = (1 - weight) * v1[cross_bot] + \
                 weight * v2[cross_bot]
-            wt1[cross_bot] = (1 - weight) * wt1[cross_bot] + \
-                weight * wt2[cross_bot]
+            w1[cross_bot] = (1 - weight) * w1[cross_bot] + \
+                weight * w2[cross_bot]
             z1[cross_bot] = z_bot[cross_bot]
 
         # If crossing top of layer, reset level 2
@@ -1068,27 +1118,27 @@ def layer_mean_vector(z, u, v, z_bot, z_top, vertical_axis=0,
                 weight * u2[cross_top]
             v2[cross_top] = (1 - weight) * v1[cross_top] + \
                 weight * v2[cross_top]
-            wt2[cross_top] = (1 - weight) * wt1[cross_top] + \
-                weight * wt2[cross_top]
+            w2[cross_top] = (1 - weight) * w1[cross_top] + \
+                weight * w2[cross_top]
             z2[cross_top] = z_top[cross_top]
 
         # If within layer, update intergrals
         in_layer = (z1 >= z_bot) & (z2 <= z_top)
         if np.any(in_layer):
-            u_int[in_layer] += 0.5 * (wt1[in_layer] + wt2[in_layer]) * \
+            u_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 0.5 * (u1[in_layer] + u2[in_layer]) * \
                 (z2[in_layer] - z1[in_layer])
-            v_int[in_layer] += 0.5 * (wt1[in_layer] + wt2[in_layer]) * \
+            v_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 0.5 * (v1[in_layer] + v2[in_layer]) * \
                 (z2[in_layer] - z1[in_layer])
-            wt_int[in_layer] += 0.5 * (wt1[in_layer] + wt2[in_layer]) * \
+            w_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 (z2[in_layer] - z1[in_layer])
 
     # Compute layer mean vector components
-    u_mean = u_int / wt_int
-    v_mean = v_int / wt_int
+    u_mean = u_int / w_int
+    v_mean = v_int / w_int
 
     if len(u_mean) == 1:
-        return u_mean[0], v_mean[0]
+        return u_mean.item(), v_mean.item()
     else:
         return u_mean, v_mean
