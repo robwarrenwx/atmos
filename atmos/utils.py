@@ -621,15 +621,18 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         return ui, vi
 
 
-def height_of_temperature_level(z, T, Ti, vertical_axis=0):
+def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
+                                vertical_axis=0):
     """
     Finds the lowest height corresponding to a specified temperature, assuming
     temperature varies linearly with height.
 
     Args:
-        z (ndarray): height (m)
-        T (ndarray): temperature (K)
+        z (ndarray): height profile(s) (m)
+        T (ndarray): temperature profile(s) (K)
         Ti (float): temperature level (K)
+        z_sfc (float or ndarray, optional): surface height (m)
+        T_sfc (float or ndarray, optional): surface temperature (K)
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -648,32 +651,67 @@ def height_of_temperature_level(z, T, Ti, vertical_axis=0):
         z = np.atleast_2d(z).T  # transpose to preserve vertical axis
         T = np.atleast_2d(T).T
 
+    # If surface temperature is not provided, use lowest level
+    if T_sfc is None:
+        k_start = 1  # start loop from second level
+        T_sfc = T[0]
+        z_sfc = z[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(T_sfc)  # assumes height AGL
+
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+
+    # Check if Ti is above the surface temperature
+    if np.any(Ti > T_sfc):
+        n_pts = np.count_nonzero(Ti > T_sfc)
+        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+
     # Note the number of vertical levels
     n_lev = z.shape[0]
 
     # Create array for height at temperature level
-    zi = np.atleast_1d(np.full_like(z[0], np.nan))
+    zi = np.full_like(z_sfc, np.nan)
 
     # Create boolean array to indicate whether level has been found
     found = np.zeros_like(zi).astype(bool)
 
-    # Loop over levels
-    for k in range(1, n_lev):
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    T2 = T_sfc.copy()
 
-        if np.all(T[k] > Ti):
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        T1 = T2.copy()
+
+        # Set level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        T2 = np.where(above_sfc, T[k], T_sfc)
+
+        if np.all(T2 > Ti):
             # can skip this level
             continue
-        
+
         # Interpolate to get height at Ti
-        crossed = (T[k-1] > Ti) & (T[k] <= Ti) & np.logical_not(found)
+        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T[k-1][crossed] - Ti) / \
-                (T[k-1][crossed] - T[k][crossed])
-            zi[crossed] = (1 - weight) * z[k-1][crossed] + \
-                weight * z[k][crossed]
+            weight = (T1[crossed] - Ti) / \
+                (T1[crossed] - T2[crossed])
+            zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
             found[crossed] = True
             if np.all(found):
                 break
+
+    # Deal with points where Ti is at the surface
+    Ti_at_sfc = (Ti == T_sfc)
+    zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
 
     if len(zi) == 1:
         return zi.item()
@@ -681,7 +719,8 @@ def height_of_temperature_level(z, T, Ti, vertical_axis=0):
         return zi
 
 
-def pressure_of_temperature_level(p, T, Ti, vertical_axis=0):
+def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
+                                  vertical_axis=0):
     """
     Finds the highest pressure corresponding to a specified temperature,
     assuming temperature varies linearly with log(p).
@@ -690,6 +729,8 @@ def pressure_of_temperature_level(p, T, Ti, vertical_axis=0):
         p (ndarray): pressure profile(s) (Pa)
         T (ndarray): temperature profile(s) (K)
         Ti (float): temperature level (K)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
 
@@ -708,32 +749,65 @@ def pressure_of_temperature_level(p, T, Ti, vertical_axis=0):
         p = np.atleast_2d(p).T  # transpose to preserve vertical axis
         T = np.atleast_2d(T).T
 
+    # If surface temperature is not provided, use lowest level
+    if T_sfc is None:
+        k_start = 1  # start loop from second level
+        T_sfc = T[0]
+        p_sfc = p[0]
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+
+    # Check if Ti is above the surface temperature
+    if np.any(Ti > T_sfc):
+        n_pts = np.count_nonzero(Ti > T_sfc)
+        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+
     # Note the number of vertical levels
     n_lev = p.shape[0]
 
     # Create array for pressure at temperature level
-    pi = np.atleast_1d(np.full_like(p[0], np.nan))
+    pi = np.full_like(p_sfc, np.nan)
 
     # Create boolean array to indicate whether level has been found
     found = np.zeros_like(pi).astype(bool)
 
-    # Loop over levels
-    for k in range(1, n_lev):
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    T2 = T_sfc.copy()
 
-        if np.all(T[k] > Ti):
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        T1 = T2.copy()
+
+        # Set level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        T2 = np.where(above_sfc, T[k], T_sfc)
+
+        if np.all(T2 > Ti):
             # can skip this level
             continue
 
         # Interpolate to get pressure at Ti
-        crossed = (T[k-1] > Ti) & (T[k] <= Ti) & np.logical_not(found)
+        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T[k-1][crossed] - Ti) / \
-                (T[k-1][crossed] - T[k][crossed])
-            pi[crossed] = p[k-1][crossed] ** (1 - weight) + \
-                p[k][crossed] ** weight
+            weight = (T1[crossed] - Ti) / \
+                (T1[crossed] - T2[crossed])
+            pi[crossed] = p1[crossed] ** (1 - weight) + p2[crossed] ** weight
             found[crossed] = True
             if np.all(found):
                 break
+
+    # Deal with points where Ti is at the surface
+    Ti_at_sfc = (Ti == T_sfc)
+    pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
 
     if len(pi) == 1:
         return pi.item()
