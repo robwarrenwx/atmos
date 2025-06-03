@@ -17,8 +17,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                   which_lfc='first', which_el='last',
                   count_cape_below_lcl=False, count_cin_below_lcl=True,
                   count_cin_above_lfc=True, phase='liquid', pseudo=True,
-                  polynomial=True, explicit=False, dp=500.0,
-                  return_profiles=False):
+                  polynomial=True, explicit=False, dp=500.0):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -26,12 +25,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     (LCL), level of free convection (LFC), and equilibrium level (EL). In the
     case of multiple layers of positive buoyancy, the final LFC and EL are
     selected according to 'which_lfc' and 'which_el', where
-        * 'first' corresponds to the LFC/EL of the first layer of positive
-          buoyancy above the LCL
-        * 'maxcape' corresponds to the LFC/EL of the layer of positive buoyancy
-          with the largest CAPE
-        * 'last' corresponds to the LFC/EL of the last layer of positive
-          buoyancy encountered
+        * 'first' corresponds to the first layer of positive buoyancy
+        * 'maxcape' corresponds to the layer of positive buoyancy with the
+          largest CAPE
+        * 'last' corresponds to the last layer of positive buoyancy
     Options also exist to count layers of positive buoyancy below the LCL
     towards CAPE and to count layers of negative buoyancy below the LCL or
     above the LFC towards CIN.
@@ -71,9 +68,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             integration of lapse rate equation (default is False)
         dp (float, optional): pressure increment for integration of lapse rate
             equation (default is 500 Pa = 5 hPa)
-        return_profiles (bool, optional): flag indicating whether to return
-            profiles of pressure, parcel temperature, and parcel specific
-            humidity (default is False)
 
     Returns:
         CAPE (float or ndarray): convective available potential energy (J/kg)
@@ -251,16 +245,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     #print(p_lcl, Tp_lcl, qt)
     #print(Tp2, qp2, B2)
 
-    if return_profiles:
-
-        # Create arrays to store parcel profiles
-        shape = list(p.shape)
-        shape[0] = k_max+1
-        shape = tuple(shape)
-        pp = np.full(shape, np.nan)
-        Tp = np.full(shape, np.nan)
-        qp = np.full(shape, np.nan)
-
     # Loop over levels, accounting for addition of extra level for LCL
     for k in range(k_start, k_max+1):
 
@@ -402,19 +386,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                     p2[above_lcl], Tp2[above_lcl], qt=qt[above_lcl],
                     phase=phase, omega=omega
                     )
-
-        if return_profiles:
-
-            # Store parcel properties at this level
-            pp[k] = p2
-            Tp[k] = Tp2
-            qp[k] = qp2
-
-            p1_is_lpl = (p1 == p_lpl)
-            if np.any(p1_is_lpl):
-                pp[k-1][p1_is_lpl] = p1[p1_is_lpl]
-                Tp[k-1][p1_is_lpl] = Tp1[p1_is_lpl]
-                qp[k-1][p1_is_lpl] = qp1[p1_is_lpl]
 
         # Compute the log of pressure at both levels
         lnp1 = np.log(p1)
@@ -667,10 +638,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         LFC = LFC.item()
         EL = EL.item()
 
-    if return_profiles:
-        return CAPE, CIN, LCL, LFC, EL, pp, Tp, qp
-    else:
-        return CAPE, CIN, LCL, LFC, EL
+    return CAPE, CIN, LCL, LFC, EL
 
 
 def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None, 
@@ -719,7 +687,8 @@ def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     # Call code to perform parcel ascent
     CAPE, CIN, LCL, LFC, EL = parcel_ascent(
-        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        p, T, q, p_lpl, Tp_lpl, qp_lpl,
+        p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
         **kwargs
     )
     
@@ -941,7 +910,8 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     # Call code to perform parcel ascent
     CAPE, CIN, LCL, LFC, EL = parcel_ascent(
-        p, T, q, p_lpl, Tp_lpl, qp_lpl, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        p, T, q, p_lpl, Tp_lpl, qp_lpl,
+        p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
         **kwargs
     )
 
@@ -1301,8 +1271,10 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         # Find the pressure, parcel temperature, and parcel specific humidity
         # corresponding to the MU LPL
         p_lpl, Tp_lpl, qp_lpl = most_unstable_parcel(
-            p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-            min_pressure=min_pressure, phase=phase, polynomial=polynomial
+            p, T, q, p_sfc=p_sfc,
+            T_sfc=T_sfc, q_sfc=q_sfc,
+            min_pressure=min_pressure,
+            phase=phase, polynomial=polynomial
         )
 
         # Note the LPL
