@@ -44,6 +44,10 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
     p_sfc = np.atleast_1d(p_sfc)
     z_sfc = np.atleast_1d(z_sfc)
 
+    # Make sure that pi matches shape of surface fields
+    if np.isscalar(pi):
+        pi = np.full_like(p_sfc, pi)
+
     # Note the number of vertical levels
     n_lev = p.shape[0]
 
@@ -143,6 +147,10 @@ def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
     # Make sure that surface pressure and height are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
     z_sfc = np.atleast_1d(z_sfc)
+
+    # Make sure that zi matches shape of surface fields
+    if np.isscalar(zi):
+        zi = np.full_like(z_sfc, zi)
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
@@ -244,6 +252,10 @@ def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     # Make sure that surface fields are at least 1D
     z_sfc = np.atleast_1d(z_sfc)
     s_sfc = np.atleast_1d(s_sfc)
+
+    # Make sure that zi matches shape of surface fields
+    if np.isscalar(zi):
+        zi = np.full_like(z_sfc, zi)
 
     # Check if zi is below the surface
     if np.any(zi < z_sfc):
@@ -355,6 +367,10 @@ def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     u_sfc = np.atleast_1d(u_sfc)
     v_sfc = np.atleast_1d(v_sfc)
 
+    # Make sure that zi matches shape of surface fields
+    if np.isscalar(zi):
+        zi = np.full_like(z_sfc, zi)
+
     # Check if zi is below surface
     if np.any(zi < z_sfc):
         n_pts = np.count_nonzero(zi < z_sfc)
@@ -460,6 +476,10 @@ def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     # Make sure that surface fields are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
     s_sfc = np.atleast_1d(s_sfc)
+
+    # Make sure that pi matches shape of surface fields
+    if np.isscalar(pi):
+        pi = np.full_like(p_sfc, pi)
 
     # Check if pi is below surface
     if np.any(pi > p[0]):
@@ -568,6 +588,10 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     p_sfc = np.atleast_1d(p_sfc)
     u_sfc = np.atleast_1d(u_sfc)
     v_sfc = np.atleast_1d(v_sfc)
+
+    # Make sure that pi matches shape of surface fields
+    if np.isscalar(pi):
+        pi = np.full_like(p_sfc, pi)
 
     # Check if pi is below surface
     if np.any(pi > p_sfc):
