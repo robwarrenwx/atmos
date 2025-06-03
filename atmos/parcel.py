@@ -14,11 +14,11 @@ from atmos.thermo import (saturation_specific_humidity,
 
 def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                   T_sfc=None, q_sfc=None, vertical_axis=0, output_scalars=True,
-                  output_level_heights=False, which_lfc='first',
-                  which_el='last', count_cape_below_lcl=False,
-                  count_cin_below_lcl=True, count_cin_above_lfc=True,
-                  phase='liquid', pseudo=True, polynomial=True,
-                  explicit=False, dp=500.0, return_profiles=False):
+                  which_lfc='first', which_el='last',
+                  count_cape_below_lcl=False, count_cin_below_lcl=True,
+                  count_cin_above_lfc=True, phase='liquid', pseudo=True,
+                  polynomial=True, explicit=False, dp=500.0,
+                  return_profiles=False):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -51,8 +51,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             vertical dimension (default is 0)
         output_scalars (bool, optional): flag indicating whether to convert
             output arrays to scalars if input profiles are 1D (default is True)
-        output_level_heights (bool, optional): flag indicating whether to
-            output level heights instead of pressures (default is False)
         which_lfc (str, optional): choice for LFC (valid options are 'first', 
             'last', or 'maxcape'; default is 'first')
         which_el (str, optional): choice for EL (valid options are 'first', 
@@ -249,10 +247,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     Tp2 = Tp_lpl.copy()
     qp2 = qp_lpl.copy()
 
-    # Compute parcel buoyancy (virtual temperature excess) at level 2
-    # (no need to include qt as LPL can't be above LCL)
-    B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
-
     #print(p_lpl, Tp_lpl, qp_lpl)
     #print(p_lcl, Tp_lcl, qt)
     #print(Tp2, qp2, B2)
@@ -276,7 +270,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         q1 = q2.copy()
         Tp1 = Tp2.copy()
         qp1 = qp2.copy()
-        B1 = B2.copy()
 
         # If at or above 100 hPa with negative buoyancy, break out of loop
         if np.all(p1 <= 10000.0) and np.all(B1 < 0.0):
@@ -341,9 +334,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Use LPL pressure and height
             p1[cross_lpl] = p_lpl[cross_lpl]
 
-            # Recompute parcel buoyancy (virtual temperature excess) at level 1
-            # (no need to include qt as LPL can't be above LCL)
-            B1 = virtual_temperature(Tp1, qp1) - virtual_temperature(T1, q1)
+            # Update masks for points above and below the LPL
+            above_lpl[cross_lpl] = True
+            below_lpl[cross_lpl] = False
 
         # If crossing the LCL, reset level 2 as the LCL
         cross_lcl = (p1 > p_lcl) & (p2 < p_lcl)
@@ -362,10 +355,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Use LCL pressure
             p2[cross_lcl] = p_lcl[cross_lcl]
-
-        # Compute the log of p1 and p2
-        lnp1 = np.log(p1)
-        lnp2 = np.log(p2)
 
         # Set parcel temperature and specific humidity at level 2
         if np.any(above_lpl & below_lcl):
@@ -427,7 +416,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 Tp[k-1][p1_is_lpl] = Tp1[p1_is_lpl]
                 qp[k-1][p1_is_lpl] = qp1[p1_is_lpl]
 
-        # Update parcel buoyancy (virtual temperature excess)
+        # Compute the log of pressure at both levels
+        lnp1 = np.log(p1)
+        lnp2 = np.log(p2)
+
+        # Compute parcel buoyancy (virtual temperature excess) at both levels
+        B1 = virtual_temperature(Tp1, qp1, qt=qt) - virtual_temperature(T1, q1)
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
 
         # Initialise mask indicating where positive area is complete
@@ -436,6 +430,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         # Find points where parcel is within negative area
         neg_to_neg = (B1 <= 0.0) & (B2 <= 0.0)
         if np.any(neg_to_neg):
+
+            #print('In negative area', p1, p2, B1, B2)
 
             # Update the negative area
             neg_area[neg_to_neg] -= Rd * 0.5 * \
@@ -478,6 +474,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         pos_to_pos = (B1 > 0.0) & (B2 > 0.0)
         if np.any(pos_to_pos):
 
+            #print('In positive area', p1, p2, B1, B2)
+
             # Update the positive area
             pos_area[pos_to_pos] += Rd * 0.5 * \
                 (B1[pos_to_pos] + B2[pos_to_pos]) * \
@@ -513,10 +511,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 # update if above LCL
                 cape_layer[pos_to_neg & above_lcl] = pos_area[pos_to_neg & above_lcl]
                 cape_total[pos_to_neg & above_lcl] += pos_area[pos_to_neg & above_lcl]
-                if output_level_heights:
-                    el[pos_to_neg & above_lcl] = zx[pos_to_neg & above_lcl]
-                else:
-                    el[pos_to_neg & above_lcl] = np.exp(lnpx[pos_to_neg & above_lcl])
+                el[pos_to_neg & above_lcl] = np.exp(lnpx[pos_to_neg & above_lcl])
                 done[pos_to_neg & above_lcl] = True
 
             # Reset the positive area to zero
@@ -552,7 +547,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             done[pos_at_top] = True
 
         #print(k, p1, p2, T2, q2, Tp2, qp2, qt, B2)
-        #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total)
+        #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total, above_lpl, above_lcl)
 
         if np.any(done):
 
@@ -1220,8 +1215,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         for k in range(k_start, n_lev):
 
             # Note the pressure and EIL mask from previous level
-            in_eil_prev = in_eil
-            p_lpl_prev = p_lpl
+            in_eil_prev = in_eil.copy()
+            p_lpl_prev = p_lpl.copy()
 
             # Find points above and below the surface
             above_sfc = (p[k] <= p_sfc)
@@ -1282,14 +1277,14 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             
         if len(CAPE) == 1:
             # convert outputs to scalars
-            CAPE = CAPE[0]
-            CIN = CIN[0]
-            LPL = LPL[0]
-            LCL = LCL[0]
-            LFC = LFC[0]
-            EL = EL[0]
-            EILbase = EILbase[0]
-            EILtop = EILtop[0]
+            CAPE = CAPE.item()
+            CIN = CIN.item()
+            LPL = LPL.item()
+            LCL = LCL.item()
+            LFC = LFC.item()
+            EL = EL.item()
+            EILbase = EILbase.item()
+            EILtop = EILtop.item()
 
         if return_parcel_props:
             return (CAPE, CIN, LPL, LCL, LFC, EL, EILbase, EILtop,
