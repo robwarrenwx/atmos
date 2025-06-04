@@ -54,7 +54,7 @@ References:
 
 import numpy as np
 from scipy.special import lambertw
-from atmos.constant import (Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
+from atmos.constant import (g, Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
                             T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
 import atmos.pseudoadiabat as pseudoadiabat
 
@@ -1880,3 +1880,98 @@ def geopotential_height(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             Z[k][above_sfc] = Z2[above_sfc]
 
     return Z.squeeze()  # remove dimensions of length 1
+
+
+def hydrostatic_pressure(z, T, q, p_sfc, z_sfc=None, T_sfc=None, q_sfc=None,
+                         vertical_axis=0):
+    """
+    Computes hydrostatic pressure from profiles of height, temperature, and
+    specific humidity and surface pressure using the hypsometric equation.
+
+    Args:
+        z (ndarray): height profile(s) (m)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray): surface pressure (Pa)
+        z_sfc (float or ndarray, optional): surface height (m)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        P (float or ndarray): hydrostatic pressure (Pa)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    # If surface-level fields not provided, use lowest level values
+    if T_sfc is None:
+        k_start = 1  # start loop from second level
+        T_sfc = T[0]
+        q_sfc = q[0]
+        z_sfc = z[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(p_sfc)  # assumes height AGL
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    z_sfc = np.atleast_1d(z_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Create array for hydrostatic pressure
+    P = np.zeros_like(z)
+
+    # Initialise level 2 height and hydrostatic pressure
+    z2 = z_sfc.copy()
+    P2 = p_sfc.copy()
+
+    # Compute level 2 virtual temperature
+    Tv2 = virtual_temperature(T_sfc, q_sfc)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        P1 = P2.copy()
+        Tv1 = Tv2.copy()
+
+        # Find points above the surface
+        above_sfc = (z[k] >= z_sfc)
+        if np.any(above_sfc):
+
+            # Update level 2 height
+            z2[above_sfc] = z[k][above_sfc]
+
+            # Compute level 2 virtual temperature
+            Tv2[above_sfc] = virtual_temperature(T[k][above_sfc],
+                                                 q[k][above_sfc])
+
+            # Compute level 2 hydrostatic pressure
+            P2[above_sfc] = P1[above_sfc] * np.exp(
+                -1 * g * (z2[above_sfc] - z1[above_sfc]) /
+                (Rd * 0.5 * (Tv1[above_sfc] + Tv2[above_sfc]))
+            )
+
+            # Save hydrostatic pressure for this level
+            P[k][above_sfc] = P[above_sfc]
+
+    return P.squeeze()  # remove dimensions of length 1
