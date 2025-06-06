@@ -1,11 +1,11 @@
 import numpy as np
 
 
-def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
-                                    vertical_axis=0):
+def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
+                             vertical_axis=0):
     """
-    Interpolates a pressure level to height, assuming that height varies
-    linearly with log(p).
+    Finds the height corresponding to a specified pressure level, assuming
+    that height varies linearly with log(pressure).
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -105,11 +105,11 @@ def interp_pressure_level_to_height(p, z, pi, p_sfc=None, z_sfc=None,
         return zi
 
 
-def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
-                                    vertical_axis=0):
+def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
+                             vertical_axis=0):
     """
-    Interpolates a height level to pressure, assuming that p varies
-    exponentially with height.
+    Finds the height corresponding to a specified pressure level, assuming
+    that height varies linearly with log(pressure).
 
     Args:
         z (ndarray): height profile(s) (m)
@@ -209,8 +209,204 @@ def interp_height_level_to_pressure(z, p, zi, z_sfc=None, p_sfc=None,
         return pi
 
 
-def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
+def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
+                                vertical_axis=0):
+    """
+    Finds the lowest height corresponding to a specified temperature, assuming
+    that temperature varies linearly with height.
+
+    Args:
+        z (ndarray): height profile(s) (m)
+        T (ndarray): temperature profile(s) (K)
+        Ti (float): temperature level (K)
+        z_sfc (float or ndarray, optional): surface height (m)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        zi (float or ndarray): height of temperature level (m)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+
+    # If surface temperature is not provided, use lowest level
+    if T_sfc is None:
+        k_start = 1  # start loop from second level
+        T_sfc = T[0]
+        z_sfc = z[0]
+    else:
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(T_sfc)  # assumes height AGL
+
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+
+    # Check if Ti is above the surface temperature
+    if np.any(Ti > T_sfc):
+        n_pts = np.count_nonzero(Ti > T_sfc)
+        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Create array for height at temperature level
+    zi = np.full_like(z_sfc, np.nan)
+
+    # Create boolean array to indicate whether level has been found
+    found = np.zeros_like(zi).astype(bool)
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    T2 = T_sfc.copy()
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        T1 = T2.copy()
+
+        # Set level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        T2 = np.where(above_sfc, T[k], T_sfc)
+
+        if np.all(T2 > Ti):
+            # can skip this level
+            continue
+
+        # Interpolate to get height at Ti
+        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
+        if np.any(crossed):
+            weight = (T1[crossed] - Ti) / \
+                (T1[crossed] - T2[crossed])
+            zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
+            found[crossed] = True
+            if np.all(found):
+                break
+
+    # Deal with points where Ti is at the surface
+    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
+    if np.any(Ti_at_sfc):
+        zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
+
+    if len(zi) == 1:
+        return zi.item()
+    else:
+        return zi
+
+
+def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
                                   vertical_axis=0):
+    """
+    Finds the highest pressure corresponding to a specified temperature,
+    assuming that temperature varies linearly with log(pressure).
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        Ti (float): temperature level (K)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        pi (float or ndarray): pressure of temperature level (Pa)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+
+    # If surface temperature is not provided, use lowest level
+    if T_sfc is None:
+        k_start = 1  # start loop from second level
+        T_sfc = T[0]
+        p_sfc = p[0]
+    else:
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+
+    # Check if Ti is above the surface temperature
+    if np.any(Ti > T_sfc):
+        n_pts = np.count_nonzero(Ti > T_sfc)
+        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Create array for pressure at temperature level
+    pi = np.full_like(p_sfc, np.nan)
+
+    # Create boolean array to indicate whether level has been found
+    found = np.zeros_like(pi).astype(bool)
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    T2 = T_sfc.copy()
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        T1 = T2.copy()
+
+        # Set level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        T2 = np.where(above_sfc, T[k], T_sfc)
+
+        if np.all(T2 > Ti):
+            # can skip this level
+            continue
+
+        # Interpolate to get pressure at Ti
+        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
+        if np.any(crossed):
+            weight = (T1[crossed] - Ti) / \
+                (T1[crossed] - T2[crossed])
+            pi[crossed] = p1[crossed] ** (1 - weight) + p2[crossed] ** weight
+            found[crossed] = True
+            if np.all(found):
+                break
+
+    # Deal with points where Ti is at the surface
+    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
+    if np.any(Ti_at_sfc):
+        pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
+
+    if len(pi) == 1:
+        return pi.item()
+    else:
+        return pi
+
+
+def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
+                                       vertical_axis=0):
     """
     Interpolates a scalar variable to a specified height level, assuming
     linear variation with height.
@@ -314,8 +510,8 @@ def interp_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
         return si
 
 
-def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
-                                  v_sfc=None, vertical_axis=0):
+def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
+                                       v_sfc=None, vertical_axis=0):
     """
     Interpolates vector components to a specified height level, assuming
     linear variation with height.
@@ -435,11 +631,11 @@ def interp_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
         return ui, vi
 
 
-def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
-                                    vertical_axis=0):
+def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
+                                         vertical_axis=0):
     """
     Interpolates a scalar variable to a specified pressure level, assuming
-    linear variation with log(p).
+    linear variation with log(pressure).
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -538,11 +734,11 @@ def interp_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
         return si
 
 
-def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
-                                    v_sfc=None, vertical_axis=0):
+def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
+                                         v_sfc=None, vertical_axis=0):
     """
     Interpolates vector components to a specified pressure level, assuming
-    linear variation with log(p).
+    linear variation with log(pressure).
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -655,202 +851,6 @@ def interp_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         return ui.item(), vi.item()
     else:
         return ui, vi
-
-
-def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
-                                vertical_axis=0):
-    """
-    Finds the lowest height corresponding to a specified temperature, assuming
-    temperature varies linearly with height.
-
-    Args:
-        z (ndarray): height profile(s) (m)
-        T (ndarray): temperature profile(s) (K)
-        Ti (float): temperature level (K)
-        z_sfc (float or ndarray, optional): surface height (m)
-        T_sfc (float or ndarray, optional): surface temperature (K)
-        vertical_axis (int, optional): profile array axis corresponding to
-            vertical dimension (default is 0)
-
-    Returns:
-        zi (float or ndarray): height of temperature level (m)
-
-    """
-
-    # Reorder profile array dimensions if needed
-    if vertical_axis != 0:
-        z = np.moveaxis(z, vertical_axis, 0)
-        T = np.moveaxis(T, vertical_axis, 0)
-
-    # Make sure that profile arrays are at least 2D
-    if z.ndim == 1:
-        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-
-    # If surface temperature is not provided, use lowest level
-    if T_sfc is None:
-        k_start = 1  # start loop from second level
-        T_sfc = T[0]
-        z_sfc = z[0]
-    else:
-        k_start = 0  # start loop from first level
-        if z_sfc is None:
-            z_sfc = np.zeros_like(T_sfc)  # assumes height AGL
-
-    # Make sure that surface fields are at least 1D
-    z_sfc = np.atleast_1d(z_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-
-    # Check if Ti is above the surface temperature
-    if np.any(Ti > T_sfc):
-        n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
-
-    # Note the number of vertical levels
-    n_lev = z.shape[0]
-
-    # Create array for height at temperature level
-    zi = np.full_like(z_sfc, np.nan)
-
-    # Create boolean array to indicate whether level has been found
-    found = np.zeros_like(zi).astype(bool)
-
-    # Initialise level 2 fields
-    z2 = z_sfc.copy()
-    T2 = T_sfc.copy()
-
-    # Loop over levels
-    for k in range(k_start, n_lev):
-
-        # Update level 1 fields
-        z1 = z2.copy()
-        T1 = T2.copy()
-
-        # Set level 2 fields
-        above_sfc = (z[k] > z_sfc)
-        z2 = np.where(above_sfc, z[k], z_sfc)
-        T2 = np.where(above_sfc, T[k], T_sfc)
-
-        if np.all(T2 > Ti):
-            # can skip this level
-            continue
-
-        # Interpolate to get height at Ti
-        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
-        if np.any(crossed):
-            weight = (T1[crossed] - Ti) / \
-                (T1[crossed] - T2[crossed])
-            zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
-            found[crossed] = True
-            if np.all(found):
-                break
-
-    # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
-    if np.any(Ti_at_sfc):
-        zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
-
-    if len(zi) == 1:
-        return zi.item()
-    else:
-        return zi
-
-
-def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
-                                  vertical_axis=0):
-    """
-    Finds the highest pressure corresponding to a specified temperature,
-    assuming temperature varies linearly with log(p).
-
-    Args:
-        p (ndarray): pressure profile(s) (Pa)
-        T (ndarray): temperature profile(s) (K)
-        Ti (float): temperature level (K)
-        p_sfc (float or ndarray, optional): surface pressure (Pa)
-        T_sfc (float or ndarray, optional): surface temperature (K)
-        vertical_axis (int, optional): profile array axis corresponding to
-            vertical dimension (default is 0)
-
-    Returns:
-        pi (float or ndarray): pressure of temperature level (Pa)
-
-    """
-
-    # Reorder profile array dimensions if needed
-    if vertical_axis != 0:
-        p = np.moveaxis(p, vertical_axis, 0)
-        T = np.moveaxis(T, vertical_axis, 0)
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-
-    # If surface temperature is not provided, use lowest level
-    if T_sfc is None:
-        k_start = 1  # start loop from second level
-        T_sfc = T[0]
-        p_sfc = p[0]
-    else:
-        k_start = 0  # start loop from first level
-
-    # Make sure that surface fields are at least 1D
-    p_sfc = np.atleast_1d(p_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-
-    # Check if Ti is above the surface temperature
-    if np.any(Ti > T_sfc):
-        n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
-
-    # Note the number of vertical levels
-    n_lev = p.shape[0]
-
-    # Create array for pressure at temperature level
-    pi = np.full_like(p_sfc, np.nan)
-
-    # Create boolean array to indicate whether level has been found
-    found = np.zeros_like(pi).astype(bool)
-
-    # Initialise level 2 fields
-    p2 = p_sfc.copy()
-    T2 = T_sfc.copy()
-
-    # Loop over levels
-    for k in range(k_start, n_lev):
-
-        # Update level 1 fields
-        p1 = p2.copy()
-        T1 = T2.copy()
-
-        # Set level 2 fields
-        above_sfc = (p[k] < p_sfc)
-        p2 = np.where(above_sfc, p[k], p_sfc)
-        T2 = np.where(above_sfc, T[k], T_sfc)
-
-        if np.all(T2 > Ti):
-            # can skip this level
-            continue
-
-        # Interpolate to get pressure at Ti
-        crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
-        if np.any(crossed):
-            weight = (T1[crossed] - Ti) / \
-                (T1[crossed] - T2[crossed])
-            pi[crossed] = p1[crossed] ** (1 - weight) + p2[crossed] ** weight
-            found[crossed] = True
-            if np.all(found):
-                break
-
-    # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
-    if np.any(Ti_at_sfc):
-        pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
-
-    if len(pi) == 1:
-        return pi.item()
-    else:
-        return pi
 
 
 def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
