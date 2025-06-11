@@ -156,7 +156,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                          {p.shape}, {p_lpl.shape}""")
     if p[0].shape != p_sfc.shape:
         raise ValueError(f"""Incompatible profile and surface arrays: 
-                         {p.shape}, {p_lcl.shape}""")
+                         {p.shape}, {p_sfc.shape}""")
 
     # Check that LPL is not below the surface
     lpl_below_sfc = (p_lpl > p_sfc)
