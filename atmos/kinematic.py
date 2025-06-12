@@ -1,5 +1,5 @@
 import numpy as np
-from atmos.utils import interp_vector_to_height_level, layer_mean_vector
+from atmos.utils import interpolate_vector_to_height_level, layer_mean_vector
 
 
 def wind_speed(u, v):
@@ -269,7 +269,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
     
     # Compute shear vector
     if shear_layer_base_average == 0.0:
-        u_bot, v_bot = interp_vector_to_height_level(
+        u_bot, v_bot = interpolate_vector_to_height_level(
             z, u, v, shear_layer_base, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
             vertical_axis=vertical_axis
         )
@@ -280,7 +280,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
             level_weights=level_weights
         )
     if shear_layer_top_average == 0.0:
-        u_top, v_top = interp_vector_to_height_level(
+        u_top, v_top = interpolate_vector_to_height_level(
             z, u, v, shear_layer_top, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
             vertical_axis=vertical_axis
         )
