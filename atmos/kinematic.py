@@ -115,11 +115,13 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
 
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         u_sfc = u[0]
         v_sfc = v[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
@@ -135,10 +137,15 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     if np.isscalar(z_top):
         z_top = np.full_like(z_sfc, z_top)
 
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below surface for {n_pts} points')
+        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
@@ -336,11 +343,13 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
 
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         u_sfc = u[0]
         v_sfc = v[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
@@ -362,10 +371,15 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
     if np.isscalar(z_top):
         z_top = np.full_like(z_sfc, z_top)
 
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below surface for {n_pts} points')
+        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):

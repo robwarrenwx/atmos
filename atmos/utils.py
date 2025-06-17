@@ -32,10 +32,12 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
 
     # If surface pressure is not provided, use lowest level
     if p_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         z_sfc = z[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(p_sfc)  # assumes height AGL
@@ -54,7 +56,7 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
     # Check if pi is below the surface
     if np.any(pi > p_sfc):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below surface for {n_pts} points')
+        print(f'WARNING: pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
@@ -136,10 +138,12 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
 
     # If surface pressure is not provided, use lowest level
     if p_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         z_sfc = z[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(p_sfc)  # assumes height AGL
@@ -158,7 +162,7 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
     # Check if zi is below surface
     if np.any(zi < 0):
         n_pts = np.count_nonzero(zi < 0)
-        print(f'WARNING: zi is below surface for {n_pts} points')
+        print(f'WARNING: zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
@@ -241,10 +245,12 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
 
     # If surface temperature is not provided, use lowest level
     if T_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         T_sfc = T[0]
         z_sfc = z[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(T_sfc)  # assumes height AGL
@@ -256,7 +262,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
         n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+        print(f'WARNING: Ti is above {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -340,10 +346,12 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
 
     # If surface temperature is not provided, use lowest level
     if T_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         T_sfc = T[0]
         p_sfc = p[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
 
     # Make sure that surface fields are at least 1D
@@ -353,7 +361,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
         n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above surface temperature for {n_pts} points')
+        print(f'WARNING: Ti is above {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
@@ -437,10 +445,12 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
 
     # If surface fields are not provided, use lowest level
     if s_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         s_sfc = s[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
@@ -456,7 +466,7 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     # Check if zi is below the surface
     if np.any(zi < z_sfc):
         n_pts = np.count_nonzero(zi < z_sfc)
-        print(f'WARNING: zi is below surface for {n_pts} points')
+        print(f'WARNING: zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
@@ -549,11 +559,13 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
 
     # If surface value of vector is not provided, use lowest level
     if u_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         u_sfc = u[0]
         v_sfc = v[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
@@ -570,7 +582,7 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     # Check if zi is below surface
     if np.any(zi < z_sfc):
         n_pts = np.count_nonzero(zi < z_sfc)
-        print(f'WARNING: zi is below surface for {n_pts} points')
+        print(f'WARNING: zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
@@ -663,10 +675,12 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
 
     # If surface fields are not provided, use lowest level
     if p_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         s_sfc = s[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
 
     # Make sure that surface fields are at least 1D
@@ -680,7 +694,7 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     # Check if pi is below surface
     if np.any(pi > p[0]):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below surface for {n_pts} points')
+        print(f'WARNING: pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
@@ -773,11 +787,13 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
 
     # If surface pressure is not provided, use lowest level
     if u_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         u_sfc = u[0]
         v_sfc = v[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
 
     # Make sure that surface fields are at least 1D
@@ -792,7 +808,7 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     # Check if pi is below surface
     if np.any(pi > p_sfc):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below surface for {n_pts} points')
+        print(f'WARNING: pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
@@ -898,11 +914,13 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
 
     # If surface fields are not provided, use lowest level
     if s_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         s_sfc = s[0]
         w_sfc = w[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
@@ -920,10 +938,15 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
     if np.isscalar(z_top):
         z_top = np.full_like(z_sfc, z_top)
 
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below surface for {n_pts} points')
+        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
@@ -1054,12 +1077,14 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
 
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         z_sfc = z[0]
         u_sfc = u[0]
         v_sfc = v[0]
         w_sfc = w[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
         if z_sfc is None:
             z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
@@ -1078,10 +1103,15 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     if np.isscalar(z_top):
         z_top = np.full_like(z_sfc, z_top)
 
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below surface for {n_pts} points')
+        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):

@@ -119,11 +119,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
     # If surface-level fields not provided, use lowest level values
     if p_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         T_sfc = T[0]
         q_sfc = q[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
 
     # Make sure that surface fields are at least 1D
@@ -162,7 +164,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     lpl_below_sfc = (p_lpl > p_sfc)
     if np.any(lpl_below_sfc):
         n_pts = np.count_nonzero(lpl_below_sfc)
-        raise ValueError(f'LPL below surface at {n_pts} points')
+        raise ValueError(f'LPL below {bottom} at {n_pts} points')
     
     # Check that LPL is not above top level
     lpl_above_top = (p_lpl < p[-1])
@@ -1670,6 +1672,10 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
         if Tf.shape != qf.shape:
             raise ValueError('''Final temperature and specific humidity arrays
                              must have identical shape''', Tf.shape, qf.shape)
+
+    # Check that final pressure is less than initial pressure
+    if np.any(pi < pf):
+        raise ValueError('Final pressure must be less than initial pressure')
 
     # Compute the LCL/LDL/LSL pressure and parcel temperature (hereafter, we
     # refer to all of these as the LCL for simplicity)
