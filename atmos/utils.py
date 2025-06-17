@@ -896,10 +896,6 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         s = np.atleast_2d(s).T
         w = np.atleast_2d(w).T
 
-    # Make sure that z_bot and z_top are at least 1D
-    z_bot = np.atleast_1d(z_bot)
-    z_top = np.atleast_1d(z_top)
-
     # If surface fields are not provided, use lowest level
     if s_sfc is None:
         k_start = 1  # start loop from second level
@@ -917,6 +913,12 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
     z_sfc = np.atleast_1d(z_sfc)
     s_sfc = np.atleast_1d(s_sfc)
     w_sfc = np.atleast_1d(w_sfc)
+
+    # Make sure that z_bot and z_top match shape of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
@@ -1050,10 +1052,6 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         v = np.atleast_2d(v).T
         w = np.atleast_2d(w).T
 
-    # Make sure that z_bot and z_top are at least 1D
-    z_bot = np.atleast_1d(z_bot)
-    z_top = np.atleast_1d(z_top)
-
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
         k_start = 1  # start loop from second level
@@ -1073,6 +1071,12 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     u_sfc = np.atleast_1d(u_sfc)
     v_sfc = np.atleast_1d(v_sfc)
     w_sfc = np.atleast_1d(w_sfc)
+
+    # Make sure that z_bot and z_top match shape of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
