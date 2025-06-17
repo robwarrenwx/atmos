@@ -307,6 +307,14 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
     u_br = u_adv + deviation_right * v_shr / shr
     v_br = v_adv - deviation_right * u_shr / shr
 
+    # Deal with points where the shear is zero
+    shr_eq_zero = (shr == 0.0)
+    if np.any(shr_eq_zero):
+        u_bl[shr_eq_zero] = u_adv
+        v_bl[shr_eq_zero] = v_adv
+        u_br[shr_eq_zero] = u_adv
+        v_br[shr_eq_zero] = v_adv
+
     return u_bl, v_bl, u_br, v_br
 
 
