@@ -113,10 +113,6 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
 
-    # Make sure that z_bot and z_top are at least 1D
-    z_bot = np.atleast_1d(z_bot)
-    z_top = np.atleast_1d(z_top)
-
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
         k_start = 1  # start loop from second level
@@ -132,6 +128,12 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     z_sfc = np.atleast_1d(z_sfc)
     u_sfc = np.atleast_1d(u_sfc)
     v_sfc = np.atleast_1d(v_sfc)
+
+    # Make sure that z_bot and z_top match dimensions of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
@@ -321,14 +323,6 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
         u = np.atleast_2d(u).T
         v = np.atleast_2d(v).T
 
-    # Make sure that u_storm and v_storm are at least 1D
-    u_storm = np.atleast_1d(u_storm)
-    v_storm = np.atleast_1d(v_storm)
-
-    # Make sure that z_bot and z_top are at least 1D
-    z_bot = np.atleast_1d(z_bot)
-    z_top = np.atleast_1d(z_top)
-
     # If surface fields are not provided, use lowest level
     if u_sfc is None:
         k_start = 1  # start loop from second level
@@ -344,6 +338,18 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
     z_sfc = np.atleast_1d(z_sfc)
     u_sfc = np.atleast_1d(u_sfc)
     v_sfc = np.atleast_1d(v_sfc)
+
+    # Make sure that u_storm and v_storm match dimensions of surface arrays
+    if np.isscalar(u_storm):
+        u_storm = np.full_like(u_sfc, u_storm)
+    if np.isscalar(v_storm):
+        v_storm = np.full_like(v_sfc, v_storm)
+
+    # Make sure that z_bot and z_top match dimensions of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
