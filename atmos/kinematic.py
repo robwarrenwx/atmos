@@ -211,7 +211,8 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
 
 def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
                          vertical_axis=0, level_weights=None,
-                         mean_wind_layer_base=0, mean_wind_layer_top=6000.0,
+                         surface_weight=None, mean_wind_layer_base=0.0,
+                         mean_wind_layer_top=6000.0,
                          shear_layer_base=0.0, shear_layer_top=6000.0,
                          shear_layer_base_average=500.0,
                          shear_layer_top_average=500.0,
@@ -233,6 +234,8 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
         level_weights (ndarray, optional): weights to apply to winds at each
             level in mean wind calculations (default is None, in which case no
             weighting is applied)
+        surface_weight (float or ndarray, optional): weight to apply to vector
+            at surface (default is None, in which case no weighting is applied)
         mean_wind_layer_base (float or ndarray, optional): height of base of
             mean wind layer (m) (default is 0.0)
         mean_wind_layer_top (float or ndarray, optional): height of top of
@@ -279,7 +282,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
         u_bot, v_bot = layer_mean_vector(
             z, u, v, shear_layer_base, shear_layer_base+shear_layer_base_average,
             z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
-            level_weights=level_weights
+            level_weights=level_weights, surface_weight=surface_weight
         )
     if shear_layer_top_average == 0.0:
         u_top, v_top = interpolate_vector_to_height_level(
@@ -290,7 +293,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
         u_top, v_top = layer_mean_vector(
             z, u, v, shear_layer_top-shear_layer_top_average, shear_layer_top,
             vertical_axis=vertical_axis, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
-            level_weights=level_weights
+            level_weights=level_weights, surface_weight=surface_weight
         )
     u_shr = u_top - u_bot
     v_shr = v_top - v_bot
