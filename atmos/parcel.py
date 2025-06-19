@@ -245,7 +245,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
     #print(p_lpl, Tp_lpl, qp_lpl)
     #print(p_lcl, Tp_lcl, qt)
-    #print(Tp2, qp2, B2)
+    #print(Tp2, qp2)
 
     # Loop over levels, accounting for addition of extra level for LCL
     for k in range(k_start, k_max+1):
@@ -258,7 +258,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         qp1 = qp2.copy()
 
         # If at or above 100 hPa with negative buoyancy, break out of loop
-        if np.all(p1 <= 10000.0) and np.all(B1 < 0.0):
+        # (note that moisture contribution to buoyancy is neglected here)
+        if np.all(p1 <= 10000.0) and np.all(T1 > Tp1):
             break
 
         # Find points above and below the LPL
@@ -317,7 +318,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             q1[cross_lpl] = (1 - weight) * q1[cross_lpl] + \
                 weight * q2[cross_lpl]
                         
-            # Use LPL pressure and height
+            # Use LPL pressure
             p1[cross_lpl] = p_lpl[cross_lpl]
 
             # Update masks for points above and below the LPL
@@ -389,10 +390,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                     phase=phase, omega=omega
                     )
 
-        # Compute the log of pressure at both levels
-        lnp1 = np.log(p1)
-        lnp2 = np.log(p2)
-
         # Compute parcel buoyancy (virtual temperature excess) at both levels
         B1 = virtual_temperature(Tp1, qp1, qt=qt) - virtual_temperature(T1, q1)
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
@@ -409,7 +406,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update the negative area
             neg_area[neg_to_neg] -= Rd * 0.5 * \
                 (B1[neg_to_neg] + B2[neg_to_neg]) * \
-                    (lnp1[neg_to_neg] - lnp2[neg_to_neg])
+                    np.log(p1[neg_to_neg] / p2[neg_to_neg])
 
         # Find points where parcel is crossing from negative to positive area
         neg_to_pos = (B1 <= 0.0) & (B2 > 0.0)
@@ -418,16 +415,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             #print('Crossing LFC', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
-            lnpx = np.zeros_like(p2)
-            lnpx[neg_to_pos] = (B2[neg_to_pos] * lnp1[neg_to_pos] -
-                                B1[neg_to_pos] * lnp2[neg_to_pos]) / \
-                                    (B2[neg_to_pos] - B1[neg_to_pos])
+            px = np.zeros_like(p2)
+            weight = B2[neg_to_pos] / (B2[neg_to_pos] - B1[neg_to_pos])
+            px[neg_to_pos] = p1[neg_to_pos] ** (1 - weight) * \
+                p2[neg_to_pos] ** weight
 
             # Update negative and positive areas
             neg_area[neg_to_pos] -= Rd * 0.5 * B1[neg_to_pos] * \
-                (lnp1[neg_to_pos] - lnpx[neg_to_pos])
+                np.log(p1[neg_to_pos] / px[neg_to_pos])
             pos_area[neg_to_pos] += Rd * 0.5 * B2[neg_to_pos] * \
-                (lnpx[neg_to_pos] - lnp2[neg_to_pos])
+                np.log(px[neg_to_pos] / p2[neg_to_pos])
             
             # Update total CIN
             if count_cin_below_lcl:
@@ -438,7 +435,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 cin_total[neg_to_pos & above_lcl] += neg_area[neg_to_pos & above_lcl]
 
             # Set LFC if above LCL
-            lfc[neg_to_pos & above_lcl] = np.exp(lnpx[neg_to_pos & above_lcl])
+            lfc[neg_to_pos & above_lcl] = px[neg_to_pos & above_lcl]
 
             # Reset the negative area to zero
             neg_area[neg_to_pos] = 0.0
@@ -452,7 +449,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update the positive area
             pos_area[pos_to_pos] += Rd * 0.5 * \
                 (B1[pos_to_pos] + B2[pos_to_pos]) * \
-                    (lnp1[pos_to_pos] - lnp2[pos_to_pos])
+                    np.log(p1[pos_to_pos] / p2[pos_to_pos])
 
         # Find points where parcel is crossing from positive to negative area
         pos_to_neg = (B1 > 0.0) & (B2 <= 0.0)
@@ -461,16 +458,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             #print('Crossing EL', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
-            lnpx = np.zeros_like(p2)
-            lnpx[pos_to_neg] = (B2[pos_to_neg] * lnp1[pos_to_neg] -
-                                B1[pos_to_neg] * lnp2[pos_to_neg]) / \
-                                    (B2[pos_to_neg] - B1[pos_to_neg])
+            px = np.zeros_like(p2)
+            weight = B2[pos_to_neg] / (B2[pos_to_neg] - B1[pos_to_neg])
+            px[pos_to_neg] = p1[pos_to_neg] ** (1 - weight) * \
+                p2[pos_to_neg] ** weight
 
             # Update positive and negative areas
             pos_area[pos_to_neg] += Rd * 0.5 * B1[pos_to_neg] * \
-                (lnp1[pos_to_neg] - lnpx[pos_to_neg])
+                np.log(p1[pos_to_neg] / px[pos_to_neg])
             neg_area[pos_to_neg] -= Rd * 0.5 * B2[pos_to_neg] * \
-                (lnpx[pos_to_neg] - lnp2[pos_to_neg])
+                np.log(px[pos_to_neg] / p2[pos_to_neg])
             
             # Update layer and total CAPE, set EL, and mark positive area as
             # complete
@@ -478,13 +475,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 # update if above LPL
                 cape_layer[pos_to_neg & above_lpl] = pos_area[pos_to_neg & above_lpl]
                 cape_total[pos_to_neg & above_lpl] += pos_area[pos_to_neg & above_lpl]
-                el[pos_to_neg & above_lpl] = np.exp(lnpx[pos_to_neg & above_lpl])
+                el[pos_to_neg & above_lpl] = px[pos_to_neg & above_lpl]
                 done[pos_to_neg & above_lpl] = True
             else:
                 # update if above LCL
                 cape_layer[pos_to_neg & above_lcl] = pos_area[pos_to_neg & above_lcl]
                 cape_total[pos_to_neg & above_lcl] += pos_area[pos_to_neg & above_lcl]
-                el[pos_to_neg & above_lcl] = np.exp(lnpx[pos_to_neg & above_lcl])
+                el[pos_to_neg & above_lcl] = px[pos_to_neg & above_lcl]
                 done[pos_to_neg & above_lcl] = True
 
             # Reset the positive area to zero
@@ -519,7 +516,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             cape_total[pos_at_top] += pos_area[pos_at_top]
             done[pos_at_top] = True
 
-        #print(k, p1, p2, T2, q2, Tp2, qp2, qt, B2)
+        #print(k, p2, T2, q2, Tp2, qp2, qt)
+        #print(k, p1, p2, B1, B2)
         #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total, above_lpl, above_lcl)
 
         if np.any(done):
