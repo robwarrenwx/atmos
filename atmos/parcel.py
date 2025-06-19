@@ -851,7 +851,7 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                               mixed_layer_depth=5000.0, vertical_axis=0,
-                              return_parcel_props=False, **kwargs):
+                              return_parcel_properties=False, **kwargs):
     """
     Performs a mixed-layer (ML) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -871,8 +871,8 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             5000 Pa = 50 hPa)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        return_parcel_props (bool, optional): flag indicating whether to return
-            parcel temperature and specific humidity)
+        return_parcel_properties (bool, optional): flag indicating whether to
+            return parcel temperature and specific humidity (default is False)
         **kwargs: additional keyword arguments passed to parcel_ascent
 
     Returns:
@@ -915,7 +915,7 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         **kwargs
     )
 
-    if return_parcel_props:
+    if return_parcel_properties:
         return CAPE, CIN, LCL, LFC, EL, Tp_lpl, qp_lpl
     else:
         return CAPE, CIN, LCL, LFC, EL
@@ -1048,8 +1048,8 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                                 mu_parcel='max_wbpt', min_pressure=50000.0,
                                 eil_min_cape=100.0, eil_max_cin=250.0,
-                                vertical_axis=0, return_parcel_props=False,
-                                **kwargs):
+                                vertical_axis=0,
+                                return_parcel_properties=False, **kwargs):
     """
     Performs a most-unstable (MU) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -1080,8 +1080,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             the EIL (J/kg) (default is 250 J/kg)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        return_parcel_props (bool, optional): flag indicating whether to return
-            parcel temperature and specific humidity)
+        return_parcel_properties (bool, optional): flag indicating whether to
+            return parcel temperature and specific humidity (default is False)
         **kwargs: additional keyword arguments passed to parcel_ascent
 
     Returns:
@@ -1256,7 +1256,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             EILbase = EILbase.item()
             EILtop = EILtop.item()
 
-        if return_parcel_props:
+        if return_parcel_properties:
             return (CAPE, CIN, LPL, LCL, LFC, EL, EILbase, EILtop,
                     Tp_lpl, qp_lpl)
         else:
@@ -1308,7 +1308,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             Tp_lpl = Tp_lpl.item()
             qp_lpl = qp_lpl.item()
 
-        if return_parcel_props:
+        if return_parcel_properties:
             return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
         else:
             return CAPE, CIN, LPL, LCL, LFC, EL
@@ -1515,7 +1515,7 @@ def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                             p_eib=None, p_eit=None, vertical_axis=0,
-                            return_parcel_props=False, **kwargs):
+                            return_parcel_properties=False, **kwargs):
     """
     Performs an effective (EFF) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -1537,8 +1537,8 @@ def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_eit (float or ndarray, optional): effective inflow top pressure (Pa)
         vertical_axis (int, optional): profile array axis corresponding to 
             vertical dimension (default is 0)
-        return_parcel_props (bool, optional): flag indicating whether to return
-            parcel temperature and specific humidity)
+        return_parcel_properties (bool, optional): flag indicating whether to
+            return parcel temperature and specific humidity (default is False)
         **kwargs: additional keyword arguments passed to parcel_ascent
 
     Returns:
@@ -1596,7 +1596,7 @@ def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         LFC = LFC[0]
         EL = EL[0]
 
-    if return_parcel_props:
+    if return_parcel_properties:
         return CAPE, CIN, LPL, LCL, LFC, EL, Tp_lpl, qp_lpl
     else:
         return CAPE, CIN, LPL, LCL, LFC, EL
