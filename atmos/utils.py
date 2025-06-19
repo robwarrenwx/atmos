@@ -93,8 +93,7 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
         if np.any(crossed):
             weight = np.log(p1[crossed] / pi[crossed]) / \
                 np.log(p1[crossed] / p2[crossed])
-            zi[crossed] = (1 - weight) * z1[crossed] + \
-                weight * z2[crossed]
+            zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
 
     # Deal with points where pi is at the surface
     pi_at_sfc = (pi == p_sfc)
@@ -197,10 +196,8 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
         # Interpolate to get height of pi
         crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z1[crossed]) / \
-                (z2[crossed] - z1[crossed])
-            pi[crossed] = p1 ** (1 - weight) + \
-                p2[crossed] ** weight
+            weight = (zi[crossed] - z1[crossed]) / (z2[crossed] - z1[crossed])
+            pi[crossed] = p1[crossed] ** (1 - weight) * p2[crossed] ** weight
 
     # Deal with points where zi is at the surface
     zi_at_sfc = (zi == z_sfc)
@@ -296,8 +293,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
         # Interpolate to get height at Ti
         crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T1[crossed] - Ti) / \
-                (T1[crossed] - T2[crossed])
+            weight = (T1[crossed] - Ti) / (T1[crossed] - T2[crossed])
             zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
             found[crossed] = True
             if np.all(found):
@@ -395,9 +391,8 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
         # Interpolate to get pressure at Ti
         crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T1[crossed] - Ti) / \
-                (T1[crossed] - T2[crossed])
-            pi[crossed] = p1[crossed] ** (1 - weight) + p2[crossed] ** weight
+            weight = (T1[crossed] - Ti) / (T1[crossed] - T2[crossed])
+            pi[crossed] = p1[crossed] ** (1 - weight) * p2[crossed] ** weight
             found[crossed] = True
             if np.all(found):
                 break
@@ -504,10 +499,8 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
         # Interpolate to get scalar at zi
         crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z1[crossed]) / \
-                (z2[crossed] - z1[crossed])
-            si[crossed] = (1 - weight) * s1[crossed] + \
-                weight * s2[crossed]
+            weight = (zi[crossed] - z1[crossed]) / (z2[crossed] - z1[crossed])
+            si[crossed] = (1 - weight) * s1[crossed] + weight * s2[crossed]
 
     # Deal with points where zi is at the surface
     zi_at_sfc = (zi == z_sfc)
@@ -624,12 +617,9 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
         # Interpolate to get vector components at zi
         crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
-            weight = (zi[crossed] - z1[crossed]) / \
-                (z2[crossed] - z1[crossed])
-            ui[crossed] = (1 - weight) * u1[crossed] + \
-                weight * u2[crossed]
-            vi[crossed] = (1 - weight) * v1[crossed] + \
-                weight * v2[crossed]
+            weight = (zi[crossed] - z1[crossed]) / (z2[crossed] - z1[crossed])
+            ui[crossed] = (1 - weight) * u1[crossed] + weight * u2[crossed]
+            vi[crossed] = (1 - weight) * v1[crossed] + weight * v2[crossed]
 
     # Deal with points where zi is at the surface
     zi_at_sfc = (zi == z_sfc)
@@ -734,8 +724,7 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
         if np.any(crossed):
             weight = np.log(p1[crossed] / pi[crossed]) / \
                 np.log(p1[crossed] / p2[crossed])
-            si[crossed] = (1 - weight) * s1[crossed] + \
-                weight * s2[crossed]
+            si[crossed] = (1 - weight) * s1[crossed] + weight * s2[crossed]
 
     # Deal with points where pi is at the surface
     pi_at_sfc = (pi == p_sfc)
@@ -852,10 +841,8 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         if np.any(crossed):
             weight = np.log(p1[crossed] / pi[crossed]) / \
                 np.log(p1[crossed] / p2[crossed])
-            ui[crossed] = (1 - weight) * u1[crossed] + \
-                weight * u2[crossed]
-            vi[crossed] = (1 - weight) * v1[crossed] + \
-                weight * v2[crossed]
+            ui[crossed] = (1 - weight) * u1[crossed] + weight * u2[crossed]
+            vi[crossed] = (1 - weight) * v1[crossed] + weight * v2[crossed]
 
     # Deal with points where pi is at the surface
     pi_at_sfc = (pi == p_sfc)
