@@ -243,9 +243,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     Tp2 = Tp_lpl.copy()
     qp2 = qp_lpl.copy()
 
+    # Initialise parcel buoyancy (virtual temperature excess) at level 2
+    B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
+
     #print(p_lpl, Tp_lpl, qp_lpl)
-    #print(p_lcl, Tp_lcl, qt)
-    #print(Tp2, qp2)
+    #print(p_lcl, Tp_lcl, qp_lcl)
+    #print(Tp2, qp2, B2)
 
     # Loop over levels, accounting for addition of extra level for LCL
     for k in range(k_start, k_max+1):
@@ -256,10 +259,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         q1 = q2.copy()
         Tp1 = Tp2.copy()
         qp1 = qp2.copy()
+        B1 = B2.copy()
 
         # If at or above 100 hPa with negative buoyancy, break out of loop
-        # (note that moisture contribution to buoyancy is neglected here)
-        if np.all(p1 <= 10000.0) and np.all(T1 > Tp1):
+        if np.all(p1 <= 10000.0) and np.all(B1 < 0.0):
             break
 
         # Find points above and below the LPL
@@ -324,6 +327,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update masks for points above and below the LPL
             above_lpl[cross_lpl] = True
             below_lpl[cross_lpl] = False
+
+            # Update buoyancy
+            B1[cross_lpl] = virtual_temperature(
+                Tp1[cross_lpl], qp1[cross_lpl]
+                ) - virtual_temperature(
+                T1[cross_lpl], q1[cross_lpl]
+                )
 
         # If crossing the LCL, reset level 2 as the LCL
         cross_lcl = (p1 > p_lcl) & (p2 < p_lcl)
@@ -390,8 +400,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                     phase=phase, omega=omega
                     )
 
-        # Compute parcel buoyancy (virtual temperature excess) at both levels
-        B1 = virtual_temperature(Tp1, qp1, qt=qt) - virtual_temperature(T1, q1)
+        # Compute parcel buoyancy at level 2
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
 
         # Initialise mask indicating where positive area is complete
