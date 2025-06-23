@@ -248,7 +248,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     qp2 = qp_lpl.copy()
 
     # Initialise parcel buoyancy (virtual temperature excess) at level 2
-    B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
+    B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
 
     # Initialise the maximum buoyancy and corresponding pressure
     Bmax = B2.copy()
