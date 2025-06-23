@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 
 def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
@@ -56,12 +57,12 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
     # Check if pi is below the surface
     if np.any(pi > p_sfc):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below {bottom} for {n_pts} points')
+        warnings.warn(f'pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
         n_pts = np.count_nonzero(pi < p[-1])
-        print(f'WARNING: pi is above highest level for {n_pts} points')
+        warnings.warn(f'pi is above highest level for {n_pts} points')
 
     # Initialise height of pi
     zi = np.full_like(z_sfc, np.nan)
@@ -161,12 +162,12 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
     # Check if zi is below surface
     if np.any(zi < 0):
         n_pts = np.count_nonzero(zi < 0)
-        print(f'WARNING: zi is below {bottom} for {n_pts} points')
+        warnings.warn(f'zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
         n_pts = np.count_nonzero(zi > z[-1])
-        print(f'WARNING: zi is above highest level for {n_pts} points')
+        warnings.warn(f'zi is above highest level for {n_pts} points')
 
     # Initialise pressure of zi
     pi = np.full_like(p_sfc, np.nan)
@@ -259,7 +260,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
         n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above {bottom} temperature for {n_pts} points')
+        warnings.warn(f'Ti exceeds {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -357,7 +358,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
         n_pts = np.count_nonzero(Ti > T_sfc)
-        print(f'WARNING: Ti is above {bottom} temperature for {n_pts} points')
+        warnings.warn(f'Ti exceeds {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
@@ -461,12 +462,12 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     # Check if zi is below the surface
     if np.any(zi < z_sfc):
         n_pts = np.count_nonzero(zi < z_sfc)
-        print(f'WARNING: zi is below {bottom} for {n_pts} points')
+        warnings.warn(f'zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
         n_pts = np.count_nonzero(zi > z[-1])
-        print(f'WARNING: zi is above highest level for {n_pts} points')
+        warnings.warn(f'zi is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -575,12 +576,12 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     # Check if zi is below surface
     if np.any(zi < z_sfc):
         n_pts = np.count_nonzero(zi < z_sfc)
-        print(f'WARNING: zi is below {bottom} for {n_pts} points')
+        warnings.warn(f'zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
     if np.any(zi > z[-1]):
         n_pts = np.count_nonzero(zi > z[-1])
-        print(f'WARNING: zi is above highest level for {n_pts} points')
+        warnings.warn(f'zi is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -684,12 +685,12 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     # Check if pi is below surface
     if np.any(pi > p[0]):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below {bottom} for {n_pts} points')
+        warnings.warn(f'pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
         n_pts = np.count_nonzero(pi < p[-1])
-        print(f'WARNING: pi is above highest level for {n_pts} points')
+        warnings.warn(f'pi is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
@@ -797,12 +798,12 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     # Check if pi is below surface
     if np.any(pi > p_sfc):
         n_pts = np.count_nonzero(pi > p_sfc)
-        print(f'WARNING: pi is below {bottom} for {n_pts} points')
+        warnings.warn(f'pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
     if np.any(pi < p[-1]):
         n_pts = np.count_nonzero(pi < p[-1])
-        print(f'WARNING: pi is above highest level for {n_pts} points')
+        warnings.warn(f'pi is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
@@ -928,17 +929,17 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
     # Check if bottom of layer is above top of layer
     if np.any(z_bot > z_top):
         n_pts = np.count_nonzero(z_bot > z_top)
-        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
-        print(f'WARNING: z_top is above highest level for {n_pts} points')
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -1093,17 +1094,17 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     # Check if bottom of layer is above top of layer
     if np.any(z_bot > z_top):
         n_pts = np.count_nonzero(z_bot > z_top)
-        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
-        print(f'WARNING: z_top is above highest level for {n_pts} points')
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]

@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from atmos.utils import interpolate_vector_to_height_level, layer_mean_vector
 
 
@@ -140,17 +141,17 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     # Check if bottom of layer is above top of layer
     if np.any(z_bot > z_top):
         n_pts = np.count_nonzero(z_bot > z_top)
-        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
-        print(f'WARNING: z_top is above highest level for {n_pts} points')
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
@@ -374,17 +375,17 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
     # Check if bottom of layer is above top of layer
     if np.any(z_bot > z_top):
         n_pts = np.count_nonzero(z_bot > z_top)
-        print(f'WARNING: z_bot is above z_top for {n_pts} points')
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
 
     # Check if bottom of layer is below surface
     if np.any(z_bot < z_sfc):
         n_pts = np.count_nonzero(z_bot < z_sfc)
-        print(f'WARNING: z_bot is below {bottom} for {n_pts} points')
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
 
     # Check if top of layer is above highest level
     if np.any(z_top > z[-1]):
         n_pts = np.count_nonzero(z_top > z[-1])
-        print(f'WARNING: z_top is above highest level for {n_pts} points')
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
 
     # Note the number of vertical levels
     n_lev = z.shape[0]

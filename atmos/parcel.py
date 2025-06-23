@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from atmos.constant import Rd
 from atmos.thermo import (saturation_specific_humidity,
                           virtual_temperature,
@@ -205,7 +206,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     lcl_above_top = (p_lcl < p[-1])
     if np.any(lcl_above_top):
         n_pts = np.count_nonzero(lcl_above_top)
-        print(f'WARNING: LCL above top level for {n_pts} points')
+        warnings.warn(f'LCL above top level for {n_pts} points')
         k_max = n_lev-1  # stop loop a level early
     else:
         k_max = n_lev
@@ -519,7 +520,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         pos_at_top = (p2 == p[-1]) & (B2 > 0.0)
         if np.any(pos_at_top):
             n_pts = np.count_nonzero(pos_at_top)
-            print(f'WARNING: Positive buoyancy at top level for {n_pts} points')
+            warnings.warn('Positive buoyancy at top level for {n_pts} points')
             el[pos_at_top] = p2[pos_at_top]
             cape_layer[pos_at_top] = pos_area[pos_at_top]
             cape_total[pos_at_top] += pos_area[pos_at_top]
@@ -1378,11 +1379,13 @@ def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     # If surface-level fields not provided, use lowest level values
     if p_sfc is None:
+        bottom = 'lowest level'
         k_start = 1  # start loop from second level
         p_sfc = p[0]
         T_sfc = T[0]
         q_sfc = q[0]
     else:
+        bottom = 'surface'
         k_start = 0  # start loop from first level
 
     # Make sure that surface fields are at least 1D
@@ -1401,7 +1404,7 @@ def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     eib_below_sfc = (p_eib > p_sfc)
     if np.any(eib_below_sfc):
         n_pts = np.count_nonzero(eib_below_sfc)
-        raise ValueError(f'Effective inflow base below surface at {n_pts} points')
+        raise ValueError(f'Effective inflow base below {bottom} at {n_pts} points')
 
     # Check that the EIL top is not above the top level
     eit_above_top = (p_eit < p[-1])
