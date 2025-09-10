@@ -218,8 +218,8 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
 
 
 def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
-                         vertical_axis=0, level_weights=None,
-                         surface_weight=None,
+                         vertical_axis=0,
+                         level_weights=None, surface_weight=None,
                          mean_layer_base=0.0, mean_layer_top=6000.0,
                          shear_layer_base=0.0, shear_layer_top=6000.0,
                          shear_layer_base_average=500.0,
@@ -274,42 +274,52 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
     """
 
     # Compute advective component of storm motion
+    z_bot = mean_layer_base
+    z_top = mean_layer_top
     u_adv, v_adv = layer_mean_vector(
-        z, u, v, mean_layer_base, mean_layer_top, z_sfc=z_sfc,
-        u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
-        level_weights=level_weights
+        z, u, v, z_bot, z_top, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+        level_weights=level_weights, surface_weight=surface_weight,
+        vertical_axis=vertical_axis
     )
 
-    # Compute shear vector
+    # Compute winds at bottom of shear layer
+    z1 = shear_layer_base
     if shear_layer_base_average == 0.0:
-        u_bot, v_bot = interpolate_vector_to_height_level(
-            z, u, v, shear_layer_base, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+        u1, v1 = interpolate_vector_to_height_level(
+            z, u, v, z1, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
             vertical_axis=vertical_axis
         )
     else:
-        u_bot, v_bot = layer_mean_vector(
-            z, u, v, shear_layer_base, shear_layer_base+shear_layer_base_average,
-            z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
-            level_weights=level_weights, surface_weight=surface_weight
-        )
-    if shear_layer_top_average == 0.0:
-        u_top, v_top = interpolate_vector_to_height_level(
-            z, u, v, shear_layer_top, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+        dz = shear_layer_base_average
+        u1, v1 = layer_mean_vector(
+            z, u, v, z1, z1+dz, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            level_weights=level_weights, surface_weight=surface_weight,
             vertical_axis=vertical_axis
         )
-    else:
-        u_top, v_top = layer_mean_vector(
-            z, u, v, shear_layer_top-shear_layer_top_average, shear_layer_top,
-            vertical_axis=vertical_axis, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
-            level_weights=level_weights, surface_weight=surface_weight
-        )
-    u_shr = u_top - u_bot
-    v_shr = v_top - v_bot
 
-    # Compute the shear magnitude
+    # Compute winds at top of shear layer
+    z2 = shear_layer_top
+    if shear_layer_top_average == 0.0:
+        u2, v2 = interpolate_vector_to_height_level(
+            z, u, v, z2, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            vertical_axis=vertical_axis
+        )
+    else:
+        dz = shear_layer_top_average
+        u2, v2 = layer_mean_vector(
+            z, u, v, z2-dz, z2, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
+            level_weights=level_weights, surface_weight=surface_weight,
+            vertical_axis=vertical_axis
+        )
+
+    # Compute shear vector components
+    u_shr = u2 - u1
+    v_shr = v2 - v1
+
+    # Compute shear magnitude
     shr = np.hypot(u_shr, v_shr)
 
-    # Compute the Bunkers left and Bunkers right storm motion components
+    # Compute Bunkers left and Bunkers right storm motion components
     u_bl = u_adv - deviation_left * v_shr / shr
     v_bl = v_adv + deviation_left * u_shr / shr
     u_br = u_adv + deviation_right * v_shr / shr
@@ -318,10 +328,10 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
     # Deal with points where the shear is zero
     shr_eq_zero = (shr == 0.0)
     if np.any(shr_eq_zero):
-        u_bl[shr_eq_zero] = u_adv
-        v_bl[shr_eq_zero] = v_adv
-        u_br[shr_eq_zero] = u_adv
-        v_br[shr_eq_zero] = v_adv
+        u_bl[shr_eq_zero] = u_adv[shr_eq_zero]
+        v_bl[shr_eq_zero] = v_adv[shr_eq_zero]
+        u_br[shr_eq_zero] = u_adv[shr_eq_zero]
+        v_br[shr_eq_zero] = v_adv[shr_eq_zero]
 
     return u_bl, v_bl, u_br, v_br
 
