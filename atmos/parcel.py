@@ -413,8 +413,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         # Update the maximum buoyancy and corresponding pressure
         is_max = (B2 > Bmax)
         if np.any(is_max):
-            Bmax[is_max] = B2[is_max]
-            pmax[is_max] = p2[is_max]
+            if count_cape_below_lcl:
+                Bmax[is_max & above_lpl] = B2[is_max & above_lpl]
+                pmax[is_max & above_lpl] = p2[is_max & above_lpl]
+            else:
+                Bmax[is_max & above_lcl] = B2[is_max & above_lcl]
+                pmax[is_max & above_lcl] = p2[is_max & above_lcl]
 
         # Initialise mask indicating where positive area is complete
         done = np.zeros_like(p2).astype(bool)
@@ -520,12 +524,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         # Reset positive areas that shouldn't be counted
         if count_cape_below_lcl:
             pos_area[below_lpl] = 0.0
-            Bmax[below_lpl] = 0.0
-            pmax[below_lpl] = 0.0
         else:
             pos_area[below_lcl] = 0.0
-            Bmax[below_lcl] = 0.0
-            pmax[below_lcl] = 0.0
 
         # If positively buoyant at LCL then set LFC = LCL
         # (use level 1 so that this also works where LCL = LPL)
