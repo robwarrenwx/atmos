@@ -219,8 +219,8 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
 
 def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
                          vertical_axis=0, level_weights=None,
-                         surface_weight=None, mean_wind_layer_base=0.0,
-                         mean_wind_layer_top=6000.0,
+                         surface_weight=None,
+                         mean_layer_base=0.0, mean_layer_top=6000.0,
                          shear_layer_base=0.0, shear_layer_top=6000.0,
                          shear_layer_base_average=500.0,
                          shear_layer_top_average=500.0,
@@ -244,14 +244,14 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
             weighting is applied)
         surface_weight (float or ndarray, optional): weight to apply to vector
             at surface (default is None, in which case no weighting is applied)
-        mean_wind_layer_base (float or ndarray, optional): height of base of
-            mean wind layer (m) (default is 0.0)
-        mean_wind_layer_top (float or ndarray, optional): height of top of
-            mean wind layer (m) (default is 6000.0)
+        mean_layer_base (float or ndarray, optional): height of base of mean
+            wind layer (m) (default is 0.0)
+        mean_layer_top (float or ndarray, optional): height of top of mean
+            wind layer (m) (default is 6000.0)
         shear_layer_base (float or ndarray, optional): height of base of shear
             layer (m) (default is 0.0)
         shear_layer_top (float or ndarray, optional): height of top of shear
-            layer (m) (default is 0.0)
+            layer (m) (default is 6000.0)
         shear_layer_base_average (float, optional): depth over which to average
             winds at base of shear layer (m) (default is 500.0)
         shear_layer_top_average (float, optional): depth over which to average
@@ -275,11 +275,11 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
 
     # Compute advective component of storm motion
     u_adv, v_adv = layer_mean_vector(
-        z, u, v, mean_wind_layer_base, mean_wind_layer_top, z_sfc=z_sfc,
+        z, u, v, mean_layer_base, mean_layer_top, z_sfc=z_sfc,
         u_sfc=u_sfc, v_sfc=v_sfc, vertical_axis=vertical_axis,
         level_weights=level_weights
     )
-    
+
     # Compute shear vector
     if shear_layer_base_average == 0.0:
         u_bot, v_bot = interpolate_vector_to_height_level(
