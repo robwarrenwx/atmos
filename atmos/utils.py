@@ -1188,3 +1188,345 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         return u_mean.item(), v_mean.item()
     else:
         return u_mean, v_mean
+
+
+def layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
+                        statistic='max', vertical_axis=0):
+    """
+    Computes the maximum/minimum of a scalar variable between two specified
+    height levels and returns the value and corresponding height.
+
+    Args:
+        z (ndarray): height profile(s) (m)
+        s (ndarray): profile(s) of scalar variable
+        z_bot (float or ndarray): height of bottom of layer (m)
+        z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        s_sfc (float or ndarray, optional): scalar variable at surface
+        statistic (str, optional): statistic to compute (valid options are
+            'max' or 'min'; default is 'max')
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        sx (float or ndarray): layer-max/min scalar variable
+        zx (float or ndarray): height corresponding to layer-max/min (m)
+
+    """
+
+    if statistic not in ['max', 'min']:
+        raise ValueError(f"statistic must be either 'max' or 'min'")
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        s = np.moveaxis(s, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        s = np.atleast_2d(s).T
+
+    # If surface fields are not provided, use lowest level
+    if s_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        s_sfc = s[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
+
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
+
+    # Make sure that z_bot and z_top match shape of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(z_top > z[-1]):
+        n_pts = np.count_nonzero(z_top > z[-1])
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    s2 = s_sfc.copy()
+
+    # Initialise max/min scalar value and associated level
+    if statistic == 'max':
+        dummy = -1e24
+    else:
+        dummy = 1e24
+    sx = np.full_like(z2, dummy)
+    zx = np.full_like(z2, dummy)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        s1 = s2.copy()
+        if np.all(z1 >= z_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
+        
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (z1 < z_bot) & (z2 > z_bot)
+        if np.any(cross_bot):
+            weight = (z_bot[cross_bot] - z1[cross_bot]) / \
+                (z2[cross_bot] - z1[cross_bot])
+            s1[cross_bot] = (1 - weight) * s1[cross_bot] + \
+                weight * s2[cross_bot]
+            z1[cross_bot] = z_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (z1 < z_top) & (z2 > z_top)
+        if np.any(cross_top):
+            weight = (z_top[cross_top] - z1[cross_top]) / \
+                (z2[cross_top] - z1[cross_top])
+            s2[cross_top] = (1 - weight) * s1[cross_top] + \
+                weight * s2[cross_top]
+            z2[cross_top] = z_top[cross_top]
+
+        # If within layer, update the max/min value
+        in_layer = (z1 >= z_bot) & (z2 <= z_top)
+        if np.any(in_layer):
+            if statistic == 'max':
+                s1_is_max = (s1 > sx) & (s1 > s2)
+                sx[in_layer & s1_is_max] = s1[in_layer & s1_is_max]
+                zx[in_layer & s1_is_max] = z1[in_layer & s1_is_max]
+                s2_is_max = (s2 > s_max) & (s2 > s1)
+                sx[in_layer & s2_is_max] = s2[in_layer & s2_is_max]
+                zx[in_layer & s2_is_max] = z2[in_layer & s2_is_max]
+            else:
+                s1_is_min = (s1 < sx) & (s1 < s2)
+                sx[in_layer & s1_is_min] = s1[in_layer & s1_is_min]
+                zx[in_layer & s1_is_min] = z1[in_layer & s1_is_min]
+                s2_is_min = (s2 < sx) & (s2 < s1)
+                sx[in_layer & s2_is_min] = s2[in_layer & s2_is_min]
+                zx[in_layer & s2_is_min] = z2[in_layer & s2_is_min]
+
+    # Deal with unset values
+    is_unset = (sx == dummy)
+    if np.any(is_unset):
+        sx[is_unset] = np.nan
+        zx[is_unset] = np.nan
+
+    if len(sx) == 1:
+        return sx.item(), zx.item()
+    else:
+        return sx, zx
+
+
+def layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
+                        v_sfc=None, statistic='max', vertical_axis=0):
+    """
+    Computes the maximum/minimum magnitude of a vector variable between two
+    specified height levels and returns the corresponding vector components
+    and height.
+
+    Args:
+        z (ndarray): height profile(s) (m)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) of northward component of vector
+        z_bot (float or ndarray): height of bottom of layer (m)
+        z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface
+        statistic (str, optional): statistic to compute (valid options are
+            'max' or 'min'; default is 'max')
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        ux (float or ndarray): eastward component of layer-max/min vector (m/s)
+        vx (float or ndarray): northward component of layer-max/min vector (m/s)
+        zx (float or ndarray): height corresponding to layer-max/min (m)
+
+    """
+
+    if statistic not in ['max', 'min']:
+        raise ValueError(f"statistic must be either 'max' or 'min'")
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        z = np.moveaxis(z, vertical_axis, 0)
+        u = np.moveaxis(u, vertical_axis, 0)
+        v = np.moveaxis(v, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if z.ndim == 1:
+        z = np.atleast_2d(z).T  # transpose to preserve vertical axis
+        u = np.atleast_2d(u).T
+        v = np.atleast_2d(v).T
+
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        z_sfc = z[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if z_sfc is None:
+            z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
+
+    # Make sure that surface fields are at least 1D
+    z_sfc = np.atleast_1d(z_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+
+    # Make sure that z_bot and z_top match shape of surface arrays
+    if np.isscalar(z_bot):
+        z_bot = np.full_like(z_sfc, z_bot)
+    if np.isscalar(z_top):
+        z_top = np.full_like(z_sfc, z_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(z_bot > z_top):
+        n_pts = np.count_nonzero(z_bot > z_top)
+        raise ValueError(f'z_bot is above z_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(z_bot < z_sfc):
+        n_pts = np.count_nonzero(z_bot < z_sfc)
+        warnings.warn(f'z_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(z_top > z[-1]):
+        n_pts = np.count_nonzero(z_top > z[-1])
+        warnings.warn(f'z_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = z.shape[0]
+
+    # Initialise level 2 fields
+    z2 = z_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+
+    # Initialise max/min vector magnitude and associated components and level
+    if statistic == 'max':
+        dummy = -1e24
+    else:
+        dummy = 1e24
+    Vx = np.full_like(z2, dummy)
+    ux = np.full_like(z2, dummy)
+    vx = np.full_like(z2, dummy)
+    zx = np.full_like(z2, dummy)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        z1 = z2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+        if np.all(z1 >= z_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (z[k] > z_sfc)
+        z2 = np.where(above_sfc, z[k], z_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(z2 <= z_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (z1 < z_bot) & (z2 > z_bot)
+        if np.any(cross_bot):
+            weight = (z_bot[cross_bot] - z1[cross_bot]) / \
+                (z2[cross_bot] - z1[cross_bot])
+            u1[cross_bot] = (1 - weight) * u1[cross_bot] + \
+                weight * u2[cross_bot]
+            v1[cross_bot] = (1 - weight) * v1[cross_bot] + \
+                weight * v2[cross_bot]
+            z1[cross_bot] = z_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (z1 < z_top) & (z2 > z_top)
+        if np.any(cross_top):
+            weight = (z_top[cross_top] - z1[cross_top]) / \
+                (z2[cross_top] - z1[cross_top])
+            u2[cross_top] = (1 - weight) * u1[cross_top] + \
+                weight * u2[cross_top]
+            v2[cross_top] = (1 - weight) * v1[cross_top] + \
+                weight * v2[cross_top]
+            z2[cross_top] = z_top[cross_top]
+
+        # Compute the vector magnitude at levels 1 and 2
+        V1 = np.hypot(u1, v1)
+        V2 = np.hypot(u2, v2)
+
+        # If within layer, update the max/min values
+        in_layer = (z1 >= z_bot) & (z2 <= z_top)
+        if np.any(in_layer):
+            if statistic == 'max':
+                V1_is_max = (V1 > Vx) & (V1 > V2)
+                Vx[in_layer & V1_is_max] = V1[in_layer & V1_is_max]
+                ux[in_layer & V1_is_max] = u1[in_layer & V1_is_max]
+                vx[in_layer & V1_is_max] = v1[in_layer & V1_is_max]
+                zx[in_layer & V1_is_max] = z1[in_layer & V1_is_max]
+                V2_is_max = (V2 > Vx) & (V2 > V1)
+                Vx[in_layer & V2_is_max] = V2[in_layer & V2_is_max]
+                ux[in_layer & V2_is_max] = u2[in_layer & V2_is_max]
+                vx[in_layer & V2_is_max] = v2[in_layer & V2_is_max]
+                zx[in_layer & V2_is_max] = z2[in_layer & V2_is_max]
+            else:
+                V1_is_min = (V1 < Vx) & (V1 < V2)
+                Vx[in_layer & V1_is_min] = V1[in_layer & V1_is_min]
+                ux[in_layer & V1_is_min] = u1[in_layer & V1_is_min]
+                vx[in_layer & V1_is_min] = v1[in_layer & V1_is_min]
+                zx[in_layer & V1_is_min] = z1[in_layer & V1_is_min]
+                V2_is_min = (V2 < Vx) & (V2 < V1)
+                Vx[in_layer & V2_is_min] = V2[in_layer & V2_is_min]
+                ux[in_layer & V2_is_min] = u2[in_layer & V2_is_min]
+                vx[in_layer & V2_is_min] = v2[in_layer & V2_is_min]
+                zx[in_layer & V2_is_min] = z2[in_layer & V2_is_min]
+
+    # Deal with unset values
+    is_unset = (Vx == dummy)
+    if np.any(is_unset):
+        ux[is_unset] = np.nan
+        vx[is_unset] = np.nan
+        zx[is_unset] = np.nan
+
+    if len(Vx) == 1:
+        return ux.item(), vx.item(), zx.item()
+    else:
+        return ux, vx, zx
