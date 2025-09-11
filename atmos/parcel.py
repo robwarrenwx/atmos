@@ -1695,6 +1695,307 @@ def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         return CAPE, CIN, LPL, LCL, LFC, LMB, EL
 
 
+
+def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
+                   p_sfc=None, T_sfc=None, q_sfc=None,
+                   vertical_axis=0, output_scalars=True,
+                   phase='liquid', polynomial=True,
+                   explicit=False, dp=500.0):
+    """
+    Performs a parcel descent from a specified downdraft parcel level (DPL) 
+    and returns the resulting downdraft convective available potential energy
+    (DCAPE) and downdraft convective inhibition (DCIN).
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_dpl (float or ndarray): DPL pressure (Pa)
+        Tp_dpl (float or ndarray): parcel temperature at the DPL (K)
+        k_dpl (int, optional): index of vertical axis corresponding to the DPL
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        output_scalars (bool, optional): flag indicating whether to convert
+            output arrays to scalars if input profiles are 1D (default is True)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudo (bool, optional): flag indicating whether to perform
+            pseudoadiabatic parcel ascent (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
+
+    Returns:
+        DCAPE (float or ndarray): downdraft convective available potential
+            energy (J/kg)
+        DCIN (float or ndarray): downdraft convective inhibition (J/kg)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    # Make sure that DPL quantities are at least 1D
+    p_dpl = np.atleast_1d(p_dpl)
+    Tp_dpl = np.atleast_1d(Tp_dpl)
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        bottom = 'lowest level'
+        k_stop = 0  # stop loop at first level
+        p_sfc = p[0]
+        T_sfc = T[0]
+        q_sfc = q[0]
+    else:
+        bottom = 'surface'
+        k_stop = -1  # stop loop below first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    T_sfc = np.atleast_1d(T_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
+    # Ensure that all thermodynamic variables have the same type
+    p = p.astype(p_dpl.dtype)
+    T = T.astype(p_dpl.dtype)
+    q = q.astype(p_dpl.dtype)
+    Tp_dpl = Tp_dpl.astype(p_dpl.dtype)
+    p_sfc = p_sfc.astype(p_dpl.dtype)
+    T_sfc = T_sfc.astype(p_dpl.dtype)
+    q_sfc = q_sfc.astype(p_dpl.dtype)
+
+    # Check that array dimensions are compatible
+    if p.shape != T.shape or T.shape != q.shape:
+        raise ValueError(f"""Incompatible profile arrays: 
+                         {p.shape}, {T.shape}, {q.shape}""")
+    if p_dpl.shape != Tp_dpl.shape:
+        raise ValueError(f"""Incompatible DPL arrays: 
+                         {p_dpl.shape}, {Tp_dpl.shape}""")
+    if p_sfc.shape != T_sfc.shape or T_sfc.shape != q_sfc.shape:
+        raise ValueError(f"""Incompatible surface arrays: 
+                         {p_sfc.shape}, {T_sfc.shape}, {q_sfc.shape}""")
+    if p[0].shape != p_dpl.shape:
+        raise ValueError(f"""Incompatible profile and DPL arrays: 
+                         {p.shape}, {p_dpl.shape}""")
+    if p[0].shape != p_sfc.shape:
+        raise ValueError(f"""Incompatible profile and surface arrays: 
+                         {p.shape}, {p_sfc.shape}""")
+
+    # Check that DPL is not below the surface
+    dpl_below_sfc = (p_dpl > p_sfc)
+    if np.any(dpl_below_sfc):
+        n_pts = np.count_nonzero(dpl_below_sfc)
+        raise ValueError(f'DPL below {bottom} at {n_pts} points')
+    
+    # Check that DPL is not above top level
+    dpl_above_top = (p_dpl < p[-1])
+    if np.any(dpl_above_top):
+        n_pts = np.count_nonzero(dpl_above_top)
+        raise ValueError(f'DPL above top level at {n_pts} points')
+
+    # Note the number of levels
+    n_lev = p.shape[0]
+
+    # Compute the parcel specific humidity at the DPL
+    omega = ice_fraction(Tp_dpl)
+    qp_dpl = saturation_specific_humidity(p_dpl, Tp_dpl, phase=phase,
+                                          omega=omega)
+
+    # Create arrays for DCAPE and DCIN
+    DCAPE = np.zeros_like(p_dpl)
+    DCIN = np.zeros_like(p_dpl)
+
+    # Initialise level 2 environmental fields
+    if k_dpl is None:
+        k_start = n_lev - 2
+        p2 = p[-1].copy()
+        T2 = T[-1].copy()
+        q2 = q[-1].copy()
+    else:
+        k_start = k_dpl - 1
+        p2 = p[k_dpl].copy()
+        T2 = T[k_dpl].copy()
+        q2 = q[k_dpl].copy()
+
+    # Initialise level 2 parcel properties using DPL values
+    Tp2 = Tp_dpl.copy()
+    qp2 = qp_dpl.copy()
+
+    # Initialise parcel buoyancy (virtual temperature excess) at level 2
+    B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
+
+    # Initialise the maximum buoyancy and corresponding pressure
+    Bmax = B2.copy()
+    pmax = p2.copy()
+
+    #print(p_dpl, Tp_dpl, qp_dpl)
+    #print(p2, T2, q2, Tp2, qp2, B2)
+
+    # Loop downward over levels
+    for k in range(k_start, k_stop-1, -1):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        T1 = T2.copy()
+        q1 = q2.copy()
+        Tp1 = Tp2.copy()
+        qp1 = qp2.copy()
+        B1 = B2.copy()
+
+        # If all points are below the surface, skip this level
+        p1_below_sfc = (p1 >= p_sfc)
+        if np.all(p1_below_sfc):
+            continue
+
+        # Set level 2 environmental fields
+        if k > k_stop:
+            pk_above_sfc = (p[k] < p_sfc)
+            p2 = np.where(pk_above_sfc, p[k], p_sfc)
+            T2 = np.where(pk_above_sfc, T[k], T_sfc)
+            q2 = np.where(pk_above_sfc, q[k], q_sfc)
+        else:
+            p2 = p_sfc
+            T2 = T_sfc
+            q2 = q_sfc
+
+        # Find level 2 points below and above the DPL
+        p2_below_dpl = (p2 > p_dpl)
+        p2_above_dpl = np.logical_not(p2_below_dpl)
+
+        # If all points are above the DPL, skip this level
+        if np.all(p2_above_dpl):
+            continue
+
+        # If crossing the DPL, reset level 1 as the DPL
+        cross_dpl = (p1 < p_dpl) & (p2 > p_dpl)
+        if np.any(cross_dpl):
+
+            #print('Crossing DPL', p1, p2, p_dpl)
+
+            # Interpolate to get environmental temperature and specific
+            # humidity at the DPL
+            weight = np.log(p_dpl[cross_dpl] / p1[cross_dpl]) / \
+                np.log(p1[cross_dpl] / p2[cross_dpl])
+            T1[cross_dpl] = (1 - weight) * T1[cross_dpl] + \
+                weight * T2[cross_dpl]
+            q1[cross_dpl] = (1 - weight) * q1[cross_dpl] + \
+                weight * q2[cross_dpl]
+                        
+            # Use DPL pressure
+            p1[cross_dpl] = p_dpl[cross_dpl]
+
+        # Find level 1 points that are at the LPL
+        p1_is_dpl = (p1 == p_dpl)
+        if np.any(p1_is_dpl):
+
+            # Recompute parcel buoyancy at level 1
+            B1[p1_is_dpl] = virtual_temperature(
+                Tp1[p1_is_dpl], qp1[p1_is_dpl]
+                ) - virtual_temperature(
+                T1[p1_is_dpl], q1[p1_is_dpl]
+                )
+
+        # Follow a pseudoadiabat to get parcel temperature
+        Tp2 = follow_moist_adiabat(
+            p1, p2, Tp1, phase=phase, pseudo=True, polynomial=polynomial,
+            explicit=explicit, dp=dp
+        )
+
+        # Set parcel specific humidity equal to its value at saturation
+        omega = ice_fraction(Tp2)
+        qp2 = saturation_specific_humidity(p2, Tp2, phase=phase, omega=omega)
+
+        # Compute parcel buoyancy at level 2
+        B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
+
+        # Find points where parcel is within negative area
+        neg_to_neg = (B1 <= 0.0) & (B2 <= 0.0)
+        if np.any(neg_to_neg):
+
+            #print('In negative area', p1, p2, B1, B2)
+
+            # Update DCAPE
+            DCAPE[neg_to_neg] -= Rd * 0.5 * \
+                (B1[neg_to_neg] + B2[neg_to_neg]) * \
+                np.log(p2[neg_to_neg] / p1[neg_to_neg])
+
+        # Find points where parcel is crossing from negative to positive area
+        neg_to_pos = (B1 <= 0.0) & (B2 > 0.0)
+        if np.any(neg_to_pos):
+
+            #print('Crossing from negative to positive area', p1, p2, B1, B2)
+
+            # Interpolate to get pressure at crossing level
+            px = np.zeros_like(p2)
+            weight = B1[neg_to_pos] / (B1[neg_to_pos] - B2[neg_to_pos])
+            px[neg_to_pos] = p1[neg_to_pos] ** (1 - weight) * \
+                p2[neg_to_pos] ** weight
+
+            # Update DCAPE and DCIN
+            DCAPE[neg_to_pos] -= Rd * 0.5 * B1[neg_to_pos] * \
+                np.log(px[neg_to_pos] / p1[neg_to_pos])
+            DCIN[neg_to_pos] += Rd * 0.5 * B2[neg_to_pos] * \
+                np.log(p2[neg_to_pos] / px[neg_to_pos])
+
+        # Find where parcel is within positive area
+        pos_to_pos = (B1 > 0.0) & (B2 > 0.0)
+        if np.any(pos_to_pos):
+
+            #print('In positive area', p1, p2, B1, B2)
+
+            # Update DCIN
+            DCIN[pos_to_pos] += Rd * 0.5 * \
+                (B1[pos_to_pos] + B2[pos_to_pos]) * \
+                np.log(p2[pos_to_pos] / p1[pos_to_pos])
+
+        # Find points where parcel is crossing from positive to negative area
+        pos_to_neg = (B1 > 0.0) & (B2 <= 0.0)
+        if np.any(pos_to_neg):
+
+            #print('Crossing from positive to negative area', p1, p2, B1, B2)
+
+            # Interpolate to get pressure at crossing level
+            px = np.zeros_like(p2)
+            weight = B1[pos_to_neg] / (B1[pos_to_neg] - B2[pos_to_neg])
+            px[pos_to_neg] = p1[pos_to_neg] ** (1 - weight) * \
+                p2[pos_to_neg] ** weight
+
+            # Update DCAPE and DCIN
+            DCIN[pos_to_neg] += Rd * 0.5 * B1[pos_to_neg] * \
+                np.log(px[pos_to_neg] / p1[pos_to_neg])
+            DCAPE[pos_to_neg] -= Rd * 0.5 * B2[pos_to_neg] * \
+                np.log(p2[pos_to_neg] / px[pos_to_neg])
+
+        # Reset DCAPE and DCIN where p2 is above the DPL
+        DCAPE[p2_above_dpl] = 0.0
+        DCIN[p2_above_dpl] = 0.0
+
+        #print(k, p2, T2, q2, Tp2, qp2)
+        #print(k, p1, p2, B1, B2, DCAPE, DCIN)
+
+    if len(DCAPE) == 1 and output_scalars:
+        # convert outputs to scalars
+        DCAPE = DCAPE.item()
+        DCIN = DCIN.item()
+
+    return DCAPE, DCIN
+
+
 def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
                  polynomial=True, explicit=False, dp=500.0,
                  use_virtual_temperature=False):
