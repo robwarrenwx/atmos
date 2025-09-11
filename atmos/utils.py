@@ -1666,7 +1666,7 @@ def height_layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
                 s1_is_max = (s1 > sx) & (s1 > s2)
                 sx[in_layer & s1_is_max] = s1[in_layer & s1_is_max]
                 zx[in_layer & s1_is_max] = z1[in_layer & s1_is_max]
-                s2_is_max = (s2 > s_max) & (s2 > s1)
+                s2_is_max = (s2 > sx) & (s2 > s1)
                 sx[in_layer & s2_is_max] = s2[in_layer & s2_is_max]
                 zx[in_layer & s2_is_max] = z2[in_layer & s2_is_max]
             else:
