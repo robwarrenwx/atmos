@@ -614,7 +614,7 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
         if np.all(z2 < zi):
             # can skip this level
             continue
-        
+
         # Interpolate to get vector components at zi
         crossed = (z1 < zi) & (z2 >= zi)
         if np.any(crossed):
@@ -836,7 +836,7 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         if np.all(p2 > pi):
             # can skip this level
             continue
-        
+
         # Interpolate to get vector components at zi
         crossed = (p1 > pi) & (p2 <= pi)
         if np.any(crossed):
@@ -857,9 +857,9 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         return ui, vi
 
 
-def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
-                      vertical_axis=0, level_weights=None,
-                      surface_weight=None):
+def height_layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
+                             vertical_axis=0, level_weights=None,
+                             surface_weight=None):
     """
     Computes the mean of a scalar variable between two specified height levels,
     with optional weighting.
@@ -972,7 +972,7 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         if np.all(z2 <= z_bot):
             # can skip this level
             continue
-        
+
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
         if np.any(cross_bot):
@@ -1000,7 +1000,7 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         if np.any(in_layer):
             s_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 0.5 * (s1[in_layer] + s2[in_layer]) * \
-                    (z2[in_layer] - z1[in_layer])
+                (z2[in_layer] - z1[in_layer])
             w_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
                 (z2[in_layer] - z1[in_layer])
 
@@ -1013,9 +1013,9 @@ def layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         return s_mean
 
 
-def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
-                      v_sfc=None, vertical_axis=0, level_weights=None,
-                      surface_weight=None):
+def height_layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
+                             v_sfc=None, vertical_axis=0, level_weights=None,
+                             surface_weight=None):
     """
     Computes the mean vector components between two specified height levels,
     with optional weighting.
@@ -1141,7 +1141,7 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         if np.all(z2 <= z_bot):
             # can skip this level
             continue
-        
+
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
         if np.any(cross_bot):
@@ -1190,8 +1190,352 @@ def layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         return u_mean, v_mean
 
 
-def layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
-                        statistic='max', vertical_axis=0):
+def pressure_layer_mean_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
+                               vertical_axis=0, level_weights=None,
+                               surface_weight=None):
+    """
+    Computes the mean of a scalar variable between two specified pressure
+    levels, with optional weighting. By default no explicit weighting is
+    applied; however, mass weighting is implictly applied through the use
+    of pressure as the vertical coordinate. To eliminate this implicit
+    weighting, the reciprical of air density should be used as the explicit
+    weight since, under hydrostatic balance:
+        sum(s * dp) / sum(dp) = sum(rho * s * dz) / sum(rho * dz)
+
+    Args:
+        p (ndarray): pressure profile(s) (m)
+        s (ndarray): profile(s) of scalar variable
+        p_bot (float or ndarray): pressure of bottom of layer (m)
+        p_top (float or ndarray): pressure of top of layer (m)
+        p_sfc (float or ndarray, optional): surface pressure (m)
+        s_sfc (float or ndarray, optional): scalar variable at surface
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        level_weights (ndarray, optional): weights to apply to scalar at each
+            level (default is None, in which case no weighting is applied)
+        surface_weight (float or ndarray, optional): weight to apply to scalar
+            at surface (default is None, in which case no weighting is applied)
+
+    Returns:
+        s_mean (float or ndarray): layer-mean scalar variable
+
+    """
+
+    if level_weights is None:
+        w = np.ones_like(p)
+    else:
+        w = level_weights
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        s = np.moveaxis(s, vertical_axis, 0)
+        w = np.moveaxis(w, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        s = np.atleast_2d(s).T
+        w = np.atleast_2d(w).T
+
+    # If surface fields are not provided, use lowest level
+    if s_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        s_sfc = s[0]
+        w_sfc = w[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if p_sfc is None:
+            raise ValueError('Pressure at surface must be specified')
+        if surface_weight is None:
+            w_sfc = np.ones_like(s_sfc)
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
+    w_sfc = np.atleast_1d(w_sfc)
+
+    # Make sure that p_bot and p_top match shape of surface arrays
+    if np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+    if np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    s2 = s_sfc.copy()
+    w2 = w_sfc.copy()
+
+    # Initialise intergrals
+    s_int = np.zeros_like(p2)
+    w_int = np.zeros_like(p2)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        s1 = s2.copy()
+        w1 = w2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
+        w2 = np.where(above_sfc, w[k], w_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            s1[cross_bot] = (1 - weight) * p1[cross_bot] + \
+                weight * p2[cross_bot]
+            w1[cross_bot] = (1 - weight) * w1[cross_bot] + \
+                weight * w2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 > p_top) & (p2 < p_top)
+        if np.any(cross_top):
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            s2[cross_top] = (1 - weight) * s1[cross_top] + \
+                weight * s2[cross_top]
+            w2[cross_top] = (1 - weight) * w1[cross_top] + \
+                weight * w2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # If within layer, update intergrals
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        if np.any(in_layer):
+            s_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
+                0.5 * (s1[in_layer] + s2[in_layer]) * \
+                (p1[in_layer] - p2[in_layer])
+            w_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
+                (p1[in_layer] - p2[in_layer])
+
+    # Compute layer mean
+    s_mean = s_int / w_int
+
+    if len(s_mean) == 1:
+        return s_mean.item()
+    else:
+        return s_mean
+
+
+def pressure_layer_mean_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
+                               v_sfc=None, vertical_axis=0, level_weights=None,
+                               surface_weight=None):
+    """
+    Computes the mean vector components between two specified pressure levels,
+    with optional weighting. By default no explicit weighting is applied;
+    however, mass weighting is implictly applied through the use of pressure as
+    the vertical coordinate. To eliminate this implicit weighting, the
+    reciprical of air density should be used as the explicit weight since, under
+    hydrostatic balance:
+        sum(u * dp) / sum(dp) = sum(rho * u * dz) / sum(rho * dz)
+        sum(v * dp) / sum(dp) = sum(rho * v * dz) / sum(rho * dz)
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) of northward component of vector
+        p_bot (float or ndarray): pressure of bottom of layer (Pa)
+        p_top (float or ndarray): pressure of top of layer (Pa)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        level_weights (ndarray, optional): weights to apply to vector at each
+            level (default is None, in which case no weighting is applied)
+        surface_weight (float or ndarray, optional): weight to apply to vector
+            at surface (default is None, in which case no weighting is applied)
+
+    Returns:
+        u_mean (float or ndarray): eastward component of layer-mean vector (m/s)
+        v_mean (float or ndarray): northward component of layer-mean vector (m/s)
+
+    """
+
+    if level_weights is None:
+        w = np.ones_like(p)
+    else:
+        w = level_weights
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        u = np.moveaxis(u, vertical_axis, 0)
+        v = np.moveaxis(v, vertical_axis, 0)
+        w = np.moveaxis(w, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        u = np.atleast_2d(u).T
+        v = np.atleast_2d(v).T
+        w = np.atleast_2d(w).T
+
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+        w_sfc = w[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if p_sfc is None:
+            raise ValueError('Pressure at surface must be specified')
+        if surface_weight is None:
+            w_sfc = np.ones_like(u_sfc)
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+    w_sfc = np.atleast_1d(w_sfc)
+
+    # Make sure that p_bot and p_top match shape of surface arrays
+    if np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+    if np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+    w2 = w_sfc.copy()
+
+    # Initialise intergrals
+    u_int = np.zeros_like(p2)
+    v_int = np.zeros_like(p2)
+    w_int = np.zeros_like(p2)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+        w1 = w2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        w2 = np.where(above_sfc, w[k], w_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            u1[cross_bot] = (1 - weight) * u1[cross_bot] + \
+                weight * u2[cross_bot]
+            v1[cross_bot] = (1 - weight) * v1[cross_bot] + \
+                weight * v2[cross_bot]
+            w1[cross_bot] = (1 - weight) * w1[cross_bot] + \
+                weight * w2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 > p_top) & (p2 < p_top)
+        if np.any(cross_top):
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            u2[cross_top] = (1 - weight) * u1[cross_top] + \
+                weight * u2[cross_top]
+            v2[cross_top] = (1 - weight) * v1[cross_top] + \
+                weight * v2[cross_top]
+            w2[cross_top] = (1 - weight) * w1[cross_top] + \
+                weight * w2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # If within layer, update intergrals
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        if np.any(in_layer):
+            u_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
+                0.5 * (u1[in_layer] + u2[in_layer]) * \
+                (p1[in_layer] - p2[in_layer])
+            v_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
+                0.5 * (v1[in_layer] + v2[in_layer]) * \
+                (p1[in_layer] - p2[in_layer])
+            w_int[in_layer] += 0.5 * (w1[in_layer] + w2[in_layer]) * \
+                (p1[in_layer] - p2[in_layer])
+
+    # Compute layer mean vector components
+    u_mean = u_int / w_int
+    v_mean = v_int / w_int
+
+    if len(u_mean) == 1:
+        return u_mean.item(), v_mean.item()
+    else:
+        return u_mean, v_mean
+
+
+def height_layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
+                               statistic='max', vertical_axis=0):
     """
     Computes the maximum/minimum of a scalar variable between two specified
     height levels and returns the value and corresponding height.
@@ -1296,7 +1640,7 @@ def layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         if np.all(z2 <= z_bot):
             # can skip this level
             continue
-        
+
         # If crossing bottom of layer, reset level 1
         cross_bot = (z1 < z_bot) & (z2 > z_bot)
         if np.any(cross_bot):
@@ -1345,8 +1689,8 @@ def layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         return sx, zx
 
 
-def layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
-                        v_sfc=None, statistic='max', vertical_axis=0):
+def height_layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
+                               v_sfc=None, statistic='max', vertical_axis=0):
     """
     Computes the maximum/minimum magnitude of a vector variable between two
     specified height levels and returns the corresponding vector components
@@ -1530,3 +1874,345 @@ def layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         return ux.item(), vx.item(), zx.item()
     else:
         return ux, vx, zx
+
+
+def pressure_layer_maxmin_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
+                                 statistic='max', vertical_axis=0):
+    """
+    Computes the maximum/minimum of a scalar variable between two specified
+    pressure levels and returns the value and corresponding pressure.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        s (ndarray): profile(s) of scalar variable
+        p_bot (float or ndarray): pressure of bottom of layer (Pa)
+        p_top (float or ndarray): pressure of top of layer (Pa)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        s_sfc (float or ndarray, optional): scalar variable at surface
+        statistic (str, optional): statistic to compute (valid options are
+            'max' or 'min'; default is 'max')
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        sx (float or ndarray): layer-max/min scalar variable
+        px (float or ndarray): pressure corresponding to layer-max/min (Pa)
+
+    """
+
+    if statistic not in ['max', 'min']:
+        raise ValueError(f"statistic must be either 'max' or 'min'")
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        s = np.moveaxis(s, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        s = np.atleast_2d(s).T
+
+    # If surface fields are not provided, use lowest level
+    if s_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        s_sfc = s[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if p_sfc is None:
+            raise ValueError('Pressure at surface must be specified')
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    s_sfc = np.atleast_1d(s_sfc)
+
+    # Make sure that p_bot and p_top match shape of surface arrays
+    if np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+    if np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    s2 = s_sfc.copy()
+
+    # Initialise max/min scalar value and associated level
+    if statistic == 'max':
+        dummy = -1e24
+    else:
+        dummy = 1e24
+    sx = np.full_like(p2, dummy)
+    px = np.full_like(p2, dummy)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        s1 = s2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        s2 = np.where(above_sfc, s[k], s_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            s1[cross_bot] = (1 - weight) * s1[cross_bot] + \
+                weight * s2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 > p_top) & (p2 < p_top)
+        if np.any(cross_top):
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            s2[cross_top] = (1 - weight) * s1[cross_top] + \
+                weight * s2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # If within layer, update the max/min value
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        if np.any(in_layer):
+            if statistic == 'max':
+                s1_is_max = (s1 > sx) & (s1 > s2)
+                sx[in_layer & s1_is_max] = s1[in_layer & s1_is_max]
+                px[in_layer & s1_is_max] = p1[in_layer & s1_is_max]
+                s2_is_max = (s2 > s_max) & (s2 > s1)
+                sx[in_layer & s2_is_max] = s2[in_layer & s2_is_max]
+                px[in_layer & s2_is_max] = p2[in_layer & s2_is_max]
+            else:
+                s1_is_min = (s1 < sx) & (s1 < s2)
+                sx[in_layer & s1_is_min] = s1[in_layer & s1_is_min]
+                px[in_layer & s1_is_min] = p1[in_layer & s1_is_min]
+                s2_is_min = (s2 < sx) & (s2 < s1)
+                sx[in_layer & s2_is_min] = s2[in_layer & s2_is_min]
+                px[in_layer & s2_is_min] = p2[in_layer & s2_is_min]
+
+    # Deal with unset values
+    is_unset = (sx == dummy)
+    if np.any(is_unset):
+        sx[is_unset] = np.nan
+        px[is_unset] = np.nan
+
+    if len(sx) == 1:
+        return sx.item(), px.item()
+    else:
+        return sx, px
+
+
+def pressure_layer_maxmin_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
+                                 v_sfc=None, statistic='max', vertical_axis=0):
+    """
+    Computes the maximum/minimum magnitude of a vector variable between two
+    specified pressure levels and returns the corresponding vector components
+    and pressure.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        u (ndarray): profile(s) of eastward component of vector
+        v (ndarray): profile(s) of northward component of vector
+        p_bot (float or ndarray): pressure of bottom of layer (Pa)
+        p_top (float or ndarray): pressure of top of layer (Pa)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        u_sfc (float or ndarray, optional): eastward component of vector at
+            surface
+        v_sfc (float or ndarray, optional): northward component of vector at
+            surface
+        statistic (str, optional): statistic to compute (valid options are
+            'max' or 'min'; default is 'max')
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        ux (float or ndarray): eastward component of layer-max/min vector (m/s)
+        vx (float or ndarray): northward component of layer-max/min vector (m/s)
+        px (float or ndarray): pressure corresponding to layer-max/min (Pa)
+
+    """
+
+    if statistic not in ['max', 'min']:
+        raise ValueError(f"statistic must be either 'max' or 'min'")
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        u = np.moveaxis(u, vertical_axis, 0)
+        v = np.moveaxis(v, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        u = np.atleast_2d(u).T
+        v = np.atleast_2d(v).T
+
+    # If surface fields are not provided, use lowest level
+    if u_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+        if p_sfc is None:
+            raise ValueError('Pressure at surface must be specified')
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+
+    # Make sure that p_bot and p_top match shape of surface arrays
+    if np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+    if np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+
+    # Initialise max/min vector magnitude and associated components and level
+    if statistic == 'max':
+        dummy = -1e24
+    else:
+        dummy = 1e24
+    Vx = np.full_like(p2, dummy)
+    ux = np.full_like(p2, dummy)
+    vx = np.full_like(p2, dummy)
+    px = np.full_like(p2, dummy)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] < p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            u1[cross_bot] = (1 - weight) * u1[cross_bot] + \
+                weight * u2[cross_bot]
+            v1[cross_bot] = (1 - weight) * v1[cross_bot] + \
+                weight * v2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 < p_top) & (p2 > p_top)
+        if np.any(cross_top):
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            u2[cross_top] = (1 - weight) * u1[cross_top] + \
+                weight * u2[cross_top]
+            v2[cross_top] = (1 - weight) * v1[cross_top] + \
+                weight * v2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # Compute the vector magnitude at levels 1 and 2
+        V1 = np.hypot(u1, v1)
+        V2 = np.hypot(u2, v2)
+
+        # If within layer, update the max/min values
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        if np.any(in_layer):
+            if statistic == 'max':
+                V1_is_max = (V1 > Vx) & (V1 > V2)
+                Vx[in_layer & V1_is_max] = V1[in_layer & V1_is_max]
+                ux[in_layer & V1_is_max] = u1[in_layer & V1_is_max]
+                vx[in_layer & V1_is_max] = v1[in_layer & V1_is_max]
+                px[in_layer & V1_is_max] = p1[in_layer & V1_is_max]
+                V2_is_max = (V2 > Vx) & (V2 > V1)
+                Vx[in_layer & V2_is_max] = V2[in_layer & V2_is_max]
+                ux[in_layer & V2_is_max] = u2[in_layer & V2_is_max]
+                vx[in_layer & V2_is_max] = v2[in_layer & V2_is_max]
+                px[in_layer & V2_is_max] = p2[in_layer & V2_is_max]
+            else:
+                V1_is_min = (V1 < Vx) & (V1 < V2)
+                Vx[in_layer & V1_is_min] = V1[in_layer & V1_is_min]
+                ux[in_layer & V1_is_min] = u1[in_layer & V1_is_min]
+                vx[in_layer & V1_is_min] = v1[in_layer & V1_is_min]
+                px[in_layer & V1_is_min] = p1[in_layer & V1_is_min]
+                V2_is_min = (V2 < Vx) & (V2 < V1)
+                Vx[in_layer & V2_is_min] = V2[in_layer & V2_is_min]
+                ux[in_layer & V2_is_min] = u2[in_layer & V2_is_min]
+                vx[in_layer & V2_is_min] = v2[in_layer & V2_is_min]
+                px[in_layer & V2_is_min] = p2[in_layer & V2_is_min]
+
+    # Deal with unset values
+    is_unset = (Vx == dummy)
+    if np.any(is_unset):
+        ux[is_unset] = np.nan
+        vx[is_unset] = np.nan
+        px[is_unset] = np.nan
+
+    if len(Vx) == 1:
+        return ux.item(), vx.item(), px.item()
+    else:
+        return ux, vx, px

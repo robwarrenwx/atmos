@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
-from atmos.utils import interpolate_vector_to_height_level, layer_mean_vector
+from atmos.utils import (interpolate_vector_to_height_level,
+                         height_layer_mean_vector)
 
 
 def wind_speed(u, v):
@@ -276,7 +277,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
     # Compute advective component of storm motion
     z_bot = mean_layer_base
     z_top = mean_layer_top
-    u_adv, v_adv = layer_mean_vector(
+    u_adv, v_adv = height_layer_mean_vector(
         z, u, v, z_bot, z_top, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
         level_weights=level_weights, surface_weight=surface_weight,
         vertical_axis=vertical_axis
@@ -291,7 +292,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
         )
     else:
         dz = shear_layer_base_average
-        u1, v1 = layer_mean_vector(
+        u1, v1 = height_layer_mean_vector(
             z, u, v, z1, z1+dz, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
             level_weights=level_weights, surface_weight=surface_weight,
             vertical_axis=vertical_axis
@@ -306,7 +307,7 @@ def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
         )
     else:
         dz = shear_layer_top_average
-        u2, v2 = layer_mean_vector(
+        u2, v2 = height_layer_mean_vector(
             z, u, v, z2-dz, z2, z_sfc=z_sfc, u_sfc=u_sfc, v_sfc=v_sfc,
             level_weights=level_weights, surface_weight=surface_weight,
             vertical_axis=vertical_axis
