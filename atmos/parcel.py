@@ -273,45 +273,37 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         if np.all(p1 <= 10000.0) and np.all(B1 < 0.0):
             break
 
-        # Find points above and below the LPL
-        above_lpl = (p1 <= p_lpl)
-        below_lpl = np.logical_not(above_lpl)
-
-        # Find points above and below the LCL
-        above_lcl = (p1 <= p_lcl)
-        below_lcl = np.logical_not(above_lcl)
+        # Find level 1 points above and below the LCL
+        p1_above_lcl = (p1 <= p_lcl)
+        p1_below_lcl = np.logical_not(p1_above_lcl)
 
         # Set level 2 environmental fields
-        if np.any(below_lcl):
+        if np.any(p1_below_lcl):
             # use level k below LCL
-            p2[below_lcl] = p[k][below_lcl]
-            T2[below_lcl] = T[k][below_lcl]
-            q2[below_lcl] = q[k][below_lcl]
-        if np.any(above_lcl):
+            p2[p1_below_lcl] = p[k][p1_below_lcl]
+            T2[p1_below_lcl] = T[k][p1_below_lcl]
+            q2[p1_below_lcl] = q[k][p1_below_lcl]
+        if np.any(p1_above_lcl):
             # use level k-1 above LCL to account for additional level
-            p2[above_lcl] = p[k-1][above_lcl]
-            T2[above_lcl] = T[k-1][above_lcl]
-            q2[above_lcl] = q[k-1][above_lcl]
+            p2[p1_above_lcl] = p[k-1][p1_above_lcl]
+            T2[p1_above_lcl] = T[k-1][p1_above_lcl]
+            q2[p1_above_lcl] = q[k-1][p1_above_lcl]
 
         # Set level 2 environmental fields
         # (use level k-1 above LCL to account for additional level)
-        #p2 = np.where(above_lcl, p[k-1], p[k])
-        #T2 = np.where(above_lcl, T[k-1], T[k])
-        #q2 = np.where(above_lcl, q[k-1], q[k])
+        #p2 = np.where(p1_above_lcl, p[k-1], p[k])
+        #T2 = np.where(p1_above_lcl, T[k-1], T[k])
+        #q2 = np.where(p1_above_lcl, q[k-1], q[k])
 
         # Reset level 2 environmental fields to surface values where
         # level 2 is below the surface
-        below_sfc = (p2 > p_sfc)
-        p2 = np.where(below_sfc, p_sfc, p2)
-        T2 = np.where(below_sfc, T_sfc, T2)
-        q2 = np.where(below_sfc, q_sfc, q2)
+        p2_below_sfc = (p2 > p_sfc)
+        p2 = np.where(p2_below_sfc, p_sfc, p2)
+        T2 = np.where(p2_below_sfc, T_sfc, T2)
+        q2 = np.where(p2_below_sfc, q_sfc, q2)
 
-        # If all points are below the surface, skip this level
-        if np.all(below_sfc):
-            continue
-
-        # If all points are below the LPL, skip this level
-        if np.all(below_lpl):
+        # If all level 2 points are below the surface, skip this level
+        if np.all(p2_below_sfc):
             continue
 
         # If crossing the LPL, reset level 1 as the LPL
@@ -333,14 +325,37 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             p1[cross_lpl] = p_lpl[cross_lpl]
 
             # Update masks for points above and below the LPL
-            above_lpl[cross_lpl] = True
-            below_lpl[cross_lpl] = False
+            #p1_above_lpl[cross_lpl] = True
+            #p1_below_lpl[cross_lpl] = False
 
-        # Update parcel buoyancy where level 1 is the LPL
-        is_lpl = (p1 == p_lpl)
-        if np.any(is_lpl):
-            B1[is_lpl] = virtual_temperature(Tp1[is_lpl], qp1[is_lpl]) - \
-                virtual_temperature(T1[is_lpl], q1[is_lpl])
+        # Find level 1 points above and below the LPL
+        p1_above_lpl = (p1 <= p_lpl)
+        p1_below_lpl = np.logical_not(p1_above_lpl)
+
+        # If all level 1 points are below the LPL, skip this level
+        if np.all(p1_below_lpl):
+            continue
+
+        # Find level 1 points that are at the LPL
+        p1_is_lpl = (p1 == p_lpl)
+        if np.any(p1_is_lpl):
+
+            # Recompute parcel buoyancy at level 1
+            B1[p1_is_lpl] = virtual_temperature(
+                Tp1[p1_is_lpl], qp1[p1_is_lpl]
+                ) - virtual_temperature(
+                T1[p1_is_lpl], q1[p1_is_lpl]
+                )
+
+            # Update the maximum buoyancy and corresponding pressure
+            B1_is_max = (B1 > Bmax)
+            if np.any(B1_is_max):
+                if count_cape_below_lcl:
+                    Bmax[B1_is_max & p1_is_lpl] = B1[B1_is_max & p1_is_lpl]
+                    pmax[B1_is_max & p1_is_lpl] = p1[B1_is_max & p1_is_lpl]
+                else:
+                    Bmax[B1_is_max & p1_is_lcl] = B1[B1_is_max & p1_is_lcl]
+                    pmax[B1_is_max & p1_is_lcl] = p1[B1_is_max & p1_is_lcl]
 
         # If crossing the LCL, reset level 2 as the LCL
         cross_lcl = (p1 > p_lcl) & (p2 < p_lcl)
@@ -350,8 +365,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Interpolate to get environmental temperature and specific 
             # humidity at the LCL
-            weight = np.log(p_lcl[cross_lcl] / p1[cross_lcl]) / \
-                np.log(p2[cross_lcl] / p1[cross_lcl])
+            weight = np.log(p1[cross_lcl] / p_lcl[cross_lcl]) / \
+                np.log(p1[cross_lcl] / p2[cross_lcl])
             T2[cross_lcl] = (1 - weight) * T1[cross_lcl] + \
                 weight * T2[cross_lcl]
             q2[cross_lcl] = (1 - weight) * q1[cross_lcl] + \
@@ -360,65 +375,68 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Use LCL pressure
             p2[cross_lcl] = p_lcl[cross_lcl]
 
+        # Find points undergoing dry (unsaturated) and wet (saturated) ascent
+        dry_ascent = p1_above_lpl & p1_below_lcl
+        wet_ascent = p1_above_lcl  # since LCL is always at or above the LPL
+
         # Set parcel temperature and specific humidity at level 2
-        if np.any(above_lpl & below_lcl):
+        if np.any(dry_ascent):
 
             # Follow a dry adiabat to get parcel temperature
-            Tp2[above_lpl & below_lcl] = follow_dry_adiabat(
-                p1[above_lpl & below_lcl], p2[above_lpl & below_lcl],
-                Tp1[above_lpl & below_lcl], qp1[above_lpl & below_lcl]
-                )
+            Tp2[dry_ascent] = follow_dry_adiabat(
+                p1[dry_ascent], p2[dry_ascent], Tp1[dry_ascent],
+                qp1[dry_ascent]
+            )
  
             # Specific humidity is conserved
-            qp2[above_lpl & below_lcl] = qp1[above_lpl & below_lcl]
+            qp2[dry_ascent] = qp1[dry_ascent]
 
-        if np.any(above_lcl):  # LCL is always at or above the LPL
+        if np.any(wet_ascent):
 
-            # Parcel temperature follows moist adiabat above the LCL
             if pseudo:
 
                 # Follow a pseudoadiabat to get parcel temperature
-                Tp2[above_lcl] = follow_moist_adiabat(
-                    p1[above_lcl], p2[above_lcl], Tp1[above_lcl],
-                    phase=phase, pseudo=True,
-                    polynomial=polynomial, explicit=explicit, dp=dp
-                    )
+                Tp2[wet_ascent] = follow_moist_adiabat(
+                    p1[wet_ascent], p2[wet_ascent], Tp1[wet_ascent],
+                    phase=phase, pseudo=True, polynomial=polynomial,
+                    explicit=explicit, dp=dp
+                )
 
                 # Specific humidity is equal to its value at saturation
-                omega = ice_fraction(Tp2[above_lcl])
-                qp2[above_lcl] = saturation_specific_humidity(
-                    p2[above_lcl], Tp2[above_lcl],
+                omega = ice_fraction(Tp2[wet_ascent])
+                qp2[wet_ascent] = saturation_specific_humidity(
+                    p2[wet_ascent], Tp2[wet_ascent],
                     phase=phase, omega=omega
-                    )
+                )
 
             else:
 
                 # Follow a saturated adiabat to get parcel temperature
-                Tp2[above_lcl] = follow_moist_adiabat(
-                    p1[above_lcl], p2[above_lcl], Tp1[above_lcl],
-                    qt=qt[above_lcl], phase=phase, pseudo=False,
+                Tp2[wet_ascent] = follow_moist_adiabat(
+                    p1[wet_ascent], p2[wet_ascent], Tp1[wet_ascent],
+                    qt=qt[wet_ascent], phase=phase, pseudo=False,
                     polynomial=polynomial, explicit=explicit, dp=dp
-                    )
+                )
 
                 # Specific humidity is equal to its value at saturation
-                omega = ice_fraction(Tp2[above_lcl])
-                qp2[above_lcl] = saturation_specific_humidity(
-                    p2[above_lcl], Tp2[above_lcl], qt=qt[above_lcl],
+                omega = ice_fraction(Tp2[wet_ascent])
+                qp2[wet_ascent] = saturation_specific_humidity(
+                    p2[wet_ascent], Tp2[wet_ascent], qt=qt[wet_ascent],
                     phase=phase, omega=omega
-                    )
+                )
 
         # Compute parcel buoyancy at level 2
         B2 = virtual_temperature(Tp2, qp2, qt=qt) - virtual_temperature(T2, q2)
 
         # Update the maximum buoyancy and corresponding pressure
-        is_max = (B2 > Bmax)
-        if np.any(is_max):
+        B2_is_max = (B2 > Bmax)
+        if np.any(B2_is_max):
             if count_cape_below_lcl:
-                Bmax[is_max & above_lpl] = B2[is_max & above_lpl]
-                pmax[is_max & above_lpl] = p2[is_max & above_lpl]
+                Bmax[B2_is_max & p1_above_lpl] = B2[B2_is_max & p1_above_lpl]
+                pmax[B2_is_max & p1_above_lpl] = p2[B2_is_max & p1_above_lpl]
             else:
-                Bmax[is_max & above_lcl] = B2[is_max & above_lcl]
-                pmax[is_max & above_lcl] = p2[is_max & above_lcl]
+                Bmax[B2_is_max & p1_above_lcl] = B2[B2_is_max & p1_above_lcl]
+                pmax[B2_is_max & p1_above_lcl] = p2[B2_is_max & p1_above_lcl]
 
         # Initialise mask indicating where positive area is complete
         done = np.zeros_like(p2).astype(bool)
@@ -432,17 +450,18 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update the negative area
             neg_area[neg_to_neg] -= Rd * 0.5 * \
                 (B1[neg_to_neg] + B2[neg_to_neg]) * \
-                    np.log(p1[neg_to_neg] / p2[neg_to_neg])
+                np.log(p1[neg_to_neg] / p2[neg_to_neg])
 
         # Find points where parcel is crossing from negative to positive area
         neg_to_pos = (B1 <= 0.0) & (B2 > 0.0)
         if np.any(neg_to_pos):
 
-            #print('Crossing LFC', p1, p2, B1, B2)
+            #print('Crossing from negative to positive area', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
             px = np.zeros_like(p2)
-            weight = B2[neg_to_pos] / (B2[neg_to_pos] - B1[neg_to_pos])
+            #weight = B2[neg_to_pos] / (B2[neg_to_pos] - B1[neg_to_pos])  # BUG
+            weight = B1[neg_to_pos] / (B1[neg_to_pos] - B2[neg_to_pos])
             px[neg_to_pos] = p1[neg_to_pos] ** (1 - weight) * \
                 p2[neg_to_pos] ** weight
 
@@ -455,13 +474,15 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update total CIN
             if count_cin_below_lcl:
                 # update if above LPL
-                cin_total[neg_to_pos & above_lpl] += neg_area[neg_to_pos & above_lpl]
+                cin_total[neg_to_pos & p1_above_lpl] += \
+                    neg_area[neg_to_pos & p1_above_lpl]
             else:
                 # update if above LCL
-                cin_total[neg_to_pos & above_lcl] += neg_area[neg_to_pos & above_lcl]
+                cin_total[neg_to_pos & p1_above_lcl] += \
+                    neg_area[neg_to_pos & p1_above_lcl]
 
             # Set LFC if above LCL
-            lfc[neg_to_pos & above_lcl] = px[neg_to_pos & above_lcl]
+            lfc[neg_to_pos & p1_above_lcl] = px[neg_to_pos & p1_above_lcl]
 
             # Reset the negative area to zero
             neg_area[neg_to_pos] = 0.0
@@ -475,17 +496,18 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Update the positive area
             pos_area[pos_to_pos] += Rd * 0.5 * \
                 (B1[pos_to_pos] + B2[pos_to_pos]) * \
-                    np.log(p1[pos_to_pos] / p2[pos_to_pos])
+                np.log(p1[pos_to_pos] / p2[pos_to_pos])
 
         # Find points where parcel is crossing from positive to negative area
         pos_to_neg = (B1 > 0.0) & (B2 <= 0.0)
         if np.any(pos_to_neg):
 
-            #print('Crossing EL', p1, p2, B1, B2)
+            #print('Crossing from positive to negative area', p1, p2, B1, B2)
 
             # Interpolate to get pressure at crossing level
             px = np.zeros_like(p2)
-            weight = B2[pos_to_neg] / (B2[pos_to_neg] - B1[pos_to_neg])
+            #weight = B2[pos_to_neg] / (B2[pos_to_neg] - B1[pos_to_neg])  # BUG
+            weight = B1[pos_to_neg] / (B1[pos_to_neg] - B2[pos_to_neg])
             px[pos_to_neg] = p1[pos_to_neg] ** (1 - weight) * \
                 p2[pos_to_neg] ** weight
 
@@ -499,33 +521,41 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # area as complete
             if count_cape_below_lcl:
                 # update if above LPL
-                cape_layer[pos_to_neg & above_lpl] = pos_area[pos_to_neg & above_lpl]
-                cape_total[pos_to_neg & above_lpl] += pos_area[pos_to_neg & above_lpl]
-                lmb[pos_to_neg & above_lpl] = pmax[pos_to_neg & above_lpl]
-                el[pos_to_neg & above_lpl] = px[pos_to_neg & above_lpl]
-                done[pos_to_neg & above_lpl] = True
+                cape_layer[pos_to_neg & p1_above_lpl] = \
+                    pos_area[pos_to_neg & p1_above_lpl]
+                cape_total[pos_to_neg & p1_above_lpl] += \
+                    pos_area[pos_to_neg & p1_above_lpl]
+                lmb[pos_to_neg & p1_above_lpl] = \
+                    pmax[pos_to_neg & p1_above_lpl]
+                el[pos_to_neg & p1_above_lpl] = \
+                    px[pos_to_neg & p1_above_lpl]
+                done[pos_to_neg & p1_above_lpl] = True
             else:
                 # update if above LCL
-                cape_layer[pos_to_neg & above_lcl] = pos_area[pos_to_neg & above_lcl]
-                cape_total[pos_to_neg & above_lcl] += pos_area[pos_to_neg & above_lcl]
-                lmb[pos_to_neg & above_lcl] = pmax[pos_to_neg & above_lcl]
-                el[pos_to_neg & above_lcl] = px[pos_to_neg & above_lcl]
-                done[pos_to_neg & above_lcl] = True
+                cape_layer[pos_to_neg & p1_above_lcl] = \
+                    pos_area[pos_to_neg & p1_above_lcl]
+                cape_total[pos_to_neg & p1_above_lcl] += \
+                    pos_area[pos_to_neg & p1_above_lcl]
+                lmb[pos_to_neg & p1_above_lcl] = \
+                    pmax[pos_to_neg & p1_above_lcl]
+                el[pos_to_neg & p1_above_lcl] = \
+                    px[pos_to_neg & p1_above_lcl]
+                done[pos_to_neg & p1_above_lcl] = True
 
             # Reset the positive area to zero
             pos_area[pos_to_neg] = 0.0
 
         # Reset negative areas that shouldn't be counted
         if count_cin_below_lcl:
-            neg_area[below_lpl] = 0.0
+            neg_area[p1_below_lpl] = 0.0
         else:
-            neg_area[below_lcl] = 0.0
+            neg_area[p1_below_lcl] = 0.0
 
         # Reset positive areas that shouldn't be counted
         if count_cape_below_lcl:
-            pos_area[below_lpl] = 0.0
+            pos_area[p1_below_lpl] = 0.0
         else:
-            pos_area[below_lcl] = 0.0
+            pos_area[p1_below_lcl] = 0.0
 
         # If positively buoyant at LCL then set LFC = LCL
         # (use level 1 so that this also works where LCL = LPL)
@@ -546,7 +576,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             done[pos_at_top] = True
 
         #print(k, p2, T2, q2, Tp2, qp2, qt)
-        #print(k, p1, p2, B1, B2)
+        #print(k, p1, p2, B1, B2, pos_area, neg_area)
         #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total)
         #print(k, lfc, lmb, el)
 
