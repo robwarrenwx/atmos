@@ -35,10 +35,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     equilibrium level (EL). In the case of multiple layers of positive
     buoyancy, the final LFC and EL are selected according to 'which_lfc' and
     'which_el', where
-        * 'first' corresponds to the first layer of positive buoyancy
+        * 'first' corresponds to the first (lowest) layer of positive buoyancy
         * 'maxcape' corresponds to the layer of positive buoyancy with the
           largest CAPE
-        * 'last' corresponds to the last layer of positive buoyancy
+        * 'last' corresponds to the last (highest) layer of positive buoyancy
     Options also exist to count layers of positive buoyancy below the LCL
     towards CAPE and to count layers of negative buoyancy below the LCL or
     above the LFC towards CIN.
@@ -858,7 +858,6 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     # Compute corresponding temperature at the surface
     T_avg = follow_dry_adiabat(100000., p_bot, th_avg, q_avg)
-    print(p_bot, th_avg, q_avg, T_avg)
 
     # Set initial parcel temperature and specific humidity
     Tpi, qpi = T_avg, q_avg
@@ -1270,7 +1269,10 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     """
     Performs a parcel descent from a specified downdraft parcel level (DPL) 
     and returns the resulting downdraft convective available potential energy
-    (DCAPE) and downdraft convective inhibition (DCIN).
+    (DCAPE) and downdraft convective inhibition (DCIN), along with the
+    downdraft equilibrium level (DEL) and final downdraft parcel temperature.
+    It is assumed that there will only be one (if any) DEL present in the
+    profile. If multiple DELs exist, the last (lowest) one will be returned.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -1299,6 +1301,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         DCAPE (float or ndarray): downdraft convective available potential
             energy (J/kg)
         DCIN (float or ndarray): downdraft convective inhibition (J/kg)
+        DEL (float or ndarray): downdraft equilibrium level (Pa)
         Tpf (float or ndarray): final downdraft parcel temperature (K)
 
     """
@@ -1384,6 +1387,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     # Create arrays for DCAPE, DCIN, and the DEL
     DCAPE = np.zeros_like(p_dpl)
     DCIN = np.zeros_like(p_dpl)
+    DEL = np.full_like(p_dpl, np.nan)  # undefined where DCIN = 0
 
     # Initialise level 2 environmental fields
     if k_dpl is None:
@@ -1511,6 +1515,9 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             px[neg_to_pos] = p1[neg_to_pos] ** (1 - weight) * \
                 p2[neg_to_pos] ** weight
 
+            # Set the DEL
+            DEL[neg_to_pos] = px[neg_to_pos]
+
             # Update DCAPE and DCIN
             DCAPE[neg_to_pos] -= Rd * 0.5 * B1[neg_to_pos] * \
                 np.log(px[neg_to_pos] / p1[neg_to_pos])
@@ -1546,9 +1553,10 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             DCAPE[pos_to_neg] -= Rd * 0.5 * B2[pos_to_neg] * \
                 np.log(p2[pos_to_neg] / px[pos_to_neg])
 
-        # Reset DCAPE and DCIN where p2 is above the DPL
+        # Reset DCAPE, DCIN, and the DEL where p2 is above the DPL
         DCAPE[p2_above_dpl] = 0.0
         DCIN[p2_above_dpl] = 0.0
+        DEL[p2_above_dpl] = np.nan
 
         #print(k, p2, T2, q2, Tp2, qp2)
         #print(k, p1, p2, B1, B2, DCAPE, DCIN)
@@ -1560,9 +1568,10 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         # convert outputs to scalars
         DCAPE = DCAPE.item()
         DCIN = DCIN.item()
+        DEL = DEL.item()
         Tpf = Tpf.item()
 
-    return DCAPE, DCIN, Tpf
+    return DCAPE, DCIN, DEL, Tpf
 
 
 def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
@@ -1571,10 +1580,12 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     """
     Performs a downdraft parcel descent and returns the resulting downdraft
     convective available potential energy (DCAPE) and downdraft convective
-    inhibition (DCIN), along with the downdraft parcel level (DPL). The
-    downdraft parcel is defined as the level with the lowest wet-bulb potential
-    temperature either between two specified levels (p_bot and p_top) or in the
-    lowest 400 hPa above the surface (if p_bot and p_top are not specified).
+    inhibition (DCIN), along with the downdraft parcel level (DPL) and
+    downdraft equilibrium level (DEL). The DPL is defined as the level with the
+    lowest wet-bulb potential temperature either between two specified levels
+    (p_bot and p_top) or in the lowest 400 hPa above the surface. the DEL is
+    defined as the last (lowest) level at which the downdraft parcel becomes
+    positively buoyant.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -1597,6 +1608,7 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             energy (J/kg)
         DCIN (float or ndarray): downdraft convective inhibition (J/kg)
         DPL (float or ndarray): downdraft parcel level (Pa)
+        DEL (float or ndarray): downdraft equilibrium level (Pa)
         Tpi (float or ndarray): initial downdraft parcel temperature (K)
         Tpf (float or ndarray): final downdraft parcel temperature (K)
 
@@ -1657,16 +1669,16 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     DPL, Tpi = p_dpl, Tp_dpl
 
     # Call code to perform parcel descent
-    DCAPE, DCIN, Tpf = parcel_descent(
+    DCAPE, DCIN, DEL, Tpf = parcel_descent(
         p, T, q, p_dpl, Tp_dpl,
         p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
         **kwargs
     )
 
     if return_parcel_properties:
-        return DCAPE, DCIN, DPL, Tpi, Tpf
+        return DCAPE, DCIN, DPL, DEL, Tpi, Tpf
     else:
-        return DCAPE, DCIN, DPL
+        return DCAPE, DCIN, DPL, DEL
 
 
 def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
