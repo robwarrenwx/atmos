@@ -2,18 +2,23 @@ import numpy as np
 import warnings
 from atmos import pseudoadiabat
 from atmos.constant import Rd
-from atmos.utils import (pressure_layer_mean_scalar,
-                         pressure_layer_maxmin_scalar)
-from atmos.thermo import (saturation_specific_humidity,
-                          virtual_temperature,
-                          potential_temperature,
-                          lifting_condensation_level,
-                          lifting_deposition_level,
-                          lifting_saturation_level,
-                          ice_fraction,
-                          follow_dry_adiabat,
-                          follow_moist_adiabat,
-                          wet_bulb_potential_temperature)
+from atmos.utils import (
+    interpolate_scalar_to_pressure_level,
+    pressure_layer_mean_scalar,
+    pressure_layer_maxmin_scalar
+)
+from atmos.thermo import (
+    saturation_specific_humidity,
+    virtual_temperature,
+    potential_temperature,
+    lifting_condensation_level,
+    lifting_deposition_level,
+    lifting_saturation_level,
+    ice_fraction,
+    follow_dry_adiabat,
+    follow_moist_adiabat,
+    wet_bulb_potential_temperature
+)
 
 
 def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
@@ -26,9 +31,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
     convective inhibition (CIN), together with the lifting condensation level
-    (LCL), level of free convection (LFC), and equilibrium level (EL). In the
-    case of multiple layers of positive buoyancy, the final LFC and EL are
-    selected according to 'which_lfc' and 'which_el', where
+    (LCL), level of free convection (LFC), level of maximum buoyancy (LMB) and
+    equilibrium level (EL). In the case of multiple layers of positive
+    buoyancy, the final LFC and EL are selected according to 'which_lfc' and
+    'which_el', where
         * 'first' corresponds to the first layer of positive buoyancy
         * 'maxcape' corresponds to the layer of positive buoyancy with the
           largest CAPE
@@ -723,13 +729,15 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     return CAPE, CIN, LCL, LFC, LMB, EL
 
 
-def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None, 
-                                vertical_axis=0, **kwargs):
+def surface_based_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                         vertical_axis=0, **kwargs):
     """
     Performs a surface-based (SB) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
     (CIN), along with the lifting condensation level (LCL), level of free
-    convection (LFC), and equilibrium level (EL).
+    convection (LFC), level of maximum buoyancy (LMB), and equilibrium level
+    (EL). The SB parcel is defined using the lowest level in the profile or
+    the surface pressure, temperature, and specific humidity, if supplied.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -757,6 +765,12 @@ def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p = np.moveaxis(p, vertical_axis, 0)
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
 
     # Set LPL and associated parcel properties
     if p_sfc is None:
@@ -780,168 +794,15 @@ def surface_based_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                        mixed_layer_depth=5000.0, vertical_axis=0,
-                       output_scalars=False):
-    """
-    Computes the mixed-layer (ML) parcel temperature and specific humidity.
-    ML parcel temperature is computed by averaging potential temperature and
-    converting to temperature using the surface or lowest level pressure. Note
-    mass weighting is implicit in the averaging due to the use of pressure as
-    the vertical coordinate.
-
-    Args:
-        p (ndarray): pressure profile(s) (Pa)
-        T (ndarray): temperature profile(s) (K)
-        q (ndarray): specific humidity profile(s) (kg/kg)
-        p_sfc (float or ndarray, optional): surface pressure (Pa)
-        T_sfc (float or ndarray, optional): surface temperature (K)
-        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
-        mixed_layer_depth (float, optional): mixed-layer depth (Pa) (default is
-            5000 Pa = 50 hPa)
-        vertical_axis (int, optional): profile array axis corresponding to 
-            vertical dimension (default is 0)
-        output_scalars (bool, optional): flag indicating whether to convert
-            single-element output arrays to scalars (default is False)
-
-    Returns:
-        Tp_ml (float or ndarray): mixed-layer parcel temperature (K)
-        qp_ml (float or ndarray): mixed-layer parcel specific humidity (kg/kg)
-
-    """
-
-    # Reorder profile array dimensions if needed
-    if vertical_axis != 0:
-        p = np.moveaxis(p, vertical_axis, 0)
-        T = np.moveaxis(T, vertical_axis, 0)
-        q = np.moveaxis(q, vertical_axis, 0)
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
-
-    # If surface-level fields not provided, use lowest level values
-    if p_sfc is None:
-        k_start = 1  # start loop from second level
-        p_sfc = p[0]
-        T_sfc = T[0]
-        q_sfc = q[0]
-    else:
-        k_start = 0  # start loop from first level
-
-    # Make sure that surface fields are at least 1D
-    p_sfc = np.atleast_1d(p_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-    q_sfc = np.atleast_1d(q_sfc)
-
-    # Note the number of levels
-    n_lev = p.shape[0]
-
-    # Determine the pressure at the ML top
-    p_mlt = p_sfc - mixed_layer_depth
-
-    # Check that the ML top is not above the top level
-    mlt_above_top = (p_mlt < p[-1])
-    if np.any(mlt_above_top):
-        n_pts = np.count_nonzero(mlt_above_top)
-        raise ValueError(f'Mixed-layer top above top level at {n_pts} points')
-
-    # Create arrays to store potential temperature and specific humidity
-    # of ML parcel
-    thp_ml = np.zeros_like(p_sfc)
-    qp_ml = np.zeros_like(p_sfc)
-
-    # Initialise level 2 fields at surface
-    p2 = p_sfc.copy()
-    T2 = T_sfc.copy()
-    q2 = q_sfc.copy()
-
-    # Compute potential temperature at level 2
-    th2 = potential_temperature(p2, T2, q2)
-
-    # Loop over levels
-    for k in range(k_start, n_lev):
-
-        # Update level 1 fields
-        p1 = p2
-        T1 = T2
-        q1 = q2
-        th1 = th2
-
-        # Find level 2 points above the surface
-        above_sfc = (p[k] < p_sfc)
-        below_sfc = np.logical_not(above_sfc)
-        if np.all(below_sfc):
-            # if all points are below the surface, skip this level
-            continue
-
-        # Find level 1 points at or above the ML top
-        above_mlt = (p1 <= p_mlt)
-        below_mlt = np.logical_not(above_mlt)
-        if np.all(above_mlt):
-            # if all points are above the ML top, break out of loop
-            break
-
-        # Update level 2 fields
-        p2 = np.where(above_sfc, p[k], p_sfc)
-        T2 = np.where(above_sfc, T[k], T_sfc)
-        q2 = np.where(above_sfc, q[k], q_sfc)
-
-        # If crossing the ML top, reset level 2 as the ML top
-        cross_mlt = (p1 > p_mlt) & (p2 < p_mlt)
-        if np.any(cross_mlt):
-
-            # Interpolate to get environmental temperature and specific 
-            # humidity at the ML top
-            weight = np.log(p_mlt[cross_mlt] / p1[cross_mlt]) / \
-                np.log(p2[cross_mlt] / p1[cross_mlt])
-            T2[cross_mlt] = (1 - weight) * T1[cross_mlt] + \
-                weight * T2[cross_mlt]
-            q2[cross_mlt] = (1 - weight) * q1[cross_mlt] + \
-                weight * q2[cross_mlt]
-            
-            # Use ML top pressure
-            p2[cross_mlt] = p_mlt[cross_mlt]
-
-        # Compute the potential temperature at level 2
-        th2 = potential_temperature(p2, T2, q2)
-
-        # Update the ML averages
-        thp_ml[above_sfc & below_mlt] += 0.5 * \
-            (th1[above_sfc & below_mlt] + th2[above_sfc & below_mlt]) * \
-            (p1[above_sfc & below_mlt] - p2[above_sfc & below_mlt])
-        qp_ml[above_sfc & below_mlt] += 0.5 * \
-            (q1[above_sfc & below_mlt] + q2[above_sfc & below_mlt]) * \
-            (p1[above_sfc & below_mlt] - p2[above_sfc & below_mlt])
-        
-        #print(p1, T1, q1, th1, p2, T2, q2, th2, th_avg, q_avg)
-
-    # Divide averages by ML depth to get final values
-    thp_ml = thp_ml / mixed_layer_depth
-    qp_ml = qp_ml / mixed_layer_depth
-
-    # Compute corresponding temperature at the surface
-    Tp_ml = follow_dry_adiabat(100000., p_sfc, thp_ml, qp_ml)
-
-    #print(p_sfc, thp_ml, Tp_ml, qp_ml)
-
-    if len(p_sfc) == 1 and output_scalars:
-        Tp_ml = Tp_ml.item()
-        qp_ml = qp_ml.item()
-
-    return Tp_ml, qp_ml
-
-
-def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                              mixed_layer_depth=5000.0, vertical_axis=0,
-                              return_parcel_properties=False, **kwargs):
+                       return_parcel_properties=False, **kwargs):
     """
     Performs a mixed-layer (ML) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
     (CIN), along with the lifting condensation level (LCL), level of free
-    convection (LFC), and equilibrium level (EL). The ML parcel is defined by
-    the mass-weighted average potential temperature and specific humidity,
-    computed over a specified layer depth, together with the surface pressure.
+    convection (LFC), level of maximum buoyancy (LMB), and equilibrium level
+    (EL). The ML parcel is defined using the mass-weighted average potential
+    temperature and specific humidity, computed over a specified mixed-layer
+    depth, together with the surface pressure.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -974,178 +835,67 @@ def mixed_layer_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
 
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
-
-    # Get the LPL parcel temperature and specific humidity
-    Tp_lpl, qp_lpl = mixed_layer_parcel(
-        p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-        mixed_layer_depth=mixed_layer_depth,
-    )
-
-    # Set the LPL pressure
+    # Compute potential temperature
+    th = potential_temperature(p, T, q)
     if p_sfc is None:
-        p_lpl = p[0]
+        th_sfc = None
     else:
-        p_lpl = p_sfc
+        th_sfc = potential_temperature(p_sfc, T_sfc, q_sfc)
+
+    # Set pressure at bottom and top of mixed layer
+    if p_sfc is None:
+        p_bot = p[0]
+        p_top = p[0] - mixed_layer_depth
+    else:
+        p_bot = p_sfc
+        p_top = p_sfc - mixed_layer_depth
+
+    # Average potential temperature and specific humidity across mixed layer
+    th_avg = pressure_layer_mean_scalar(p, th, p_bot, p_top,
+                                        p_sfc=p_sfc, s_sfc=th_sfc)
+    q_avg = pressure_layer_mean_scalar(p, q, p_bot, p_top,
+                                       p_sfc=p_sfc, s_sfc=q_sfc)
+
+    # Compute corresponding temperature at the surface
+    T_avg = follow_dry_adiabat(100000., p_bot, th_avg, q_avg)
+    print(p_bot, th_avg, q_avg, T_avg)
+
+    # Set initial parcel temperature and specific humidity
+    Tpi, qpi = T_avg, q_avg
 
     # Call code to perform parcel ascent
     CAPE, CIN, LCL, LFC, LMB, EL = parcel_ascent(
-        p, T, q, p_lpl, Tp_lpl, qp_lpl,
+        p, T, q, p_bot, Tpi, qpi,
         p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
         **kwargs
     )
 
     if return_parcel_properties:
-        return CAPE, CIN, LCL, LFC, LMB, EL, Tp_lpl, qp_lpl
+        return CAPE, CIN, LCL, LFC, LMB, EL, Tpi, qpi
     else:
         return CAPE, CIN, LCL, LFC, LMB, EL
 
 
 def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                         min_pressure=50000.0, vertical_axis=0,
-                         phase='liquid', polynomial=True,
-                         output_scalars=False):
-    """
-    Finds the most-unstable (MU) parcel, defined as the parcel with maximum
-    wet-bulb potential temperature up to some minimum pressure, and returns
-    the corresponding pressure, temperature, and specific humidity.
-
-    Args:
-        p (ndarray): pressure profile(s) (Pa)
-        T (ndarray): temperature profile(s) (K)
-        q (ndarray): specific humidity profile(s) (kg/kg)
-        p_sfc (float or ndarray, optional): surface pressure (Pa)
-        T_sfc (float or ndarray, optional): surface temperature (K)
-        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
-        min_pressure (float, optional): minimum pressure from which to launch
-            parcel (Pa) (default is 50000 Pa = 500 hPa)
-        vertical_axis (int, optional): profile array axis corresponding to 
-            vertical dimension (default is 0)
-        phase (str, optional): condensed water phase (valid options are
-            'liquid', 'ice', or 'mixed'; default is 'liquid')
-        polynomial (bool, optional): flag indicating whether to use polynomial
-            fits to pseudoadiabats (default is True)
-        output_scalars (bool, optional): flag indicating whether to convert
-            single-element output arrays to scalars (default is False)
-
-    Returns:
-        p_mu (ndarray or float): MU parcel pressure (Pa)
-        Tp_mu (ndarray or float): MU parcel temperature (K)
-        qp_mu (ndarray or float): MU parcel specific humidity (K)
-
-    """
-
-    # Reorder profile array dimensions if needed
-    if vertical_axis != 0:
-        p = np.moveaxis(p, vertical_axis, 0)
-        T = np.moveaxis(T, vertical_axis, 0)
-        q = np.moveaxis(q, vertical_axis, 0)
-
-    # If surface-level fields not provided, use lowest level values
-    if p_sfc is None:
-        k_start = 1  # start loop from second level
-        p_sfc = p[0]
-        T_sfc = T[0]
-        q_sfc = q[0]
-    else:
-        k_start = 0  # start loop from first level
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
-
-    # Make sure that surface fields are at least 1D
-    p_sfc = np.atleast_1d(p_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-    q_sfc = np.atleast_1d(q_sfc)
-
-    # Note the number of levels
-    n_lev = p.shape[0]
-
-    # Compute WBPT at the surface
-    thw_sfc = wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc,
-                                             phase=phase,
-                                             polynomial=polynomial)
-    thw_sfc = np.atleast_1d(thw_sfc)
-
-    # Initialise the maximum WBPT
-    thw_max = thw_sfc
-
-    # Initialise the MU parcel fields using surface values
-    p_mu = p_sfc.copy()
-    Tp_mu = T_sfc.copy()
-    qp_mu = q_sfc.copy()
-
-    #print('sfc', p_mu, Tp_mu, qp_mu, thw_max)
-
-    # Loop over levels
-    for k in range(k_start, n_lev):
-
-        # Find points below the surface
-        below_sfc = (p[k] > p_sfc)
-        if np.all(below_sfc):
-            # if all points are below the surface, skip this level
-            continue
-
-        # Find points above the minimum pressure level
-        above_min = (p[k] < min_pressure)
-        if np.all(above_min):
-            # if all points are above the minimum pressure level, break
-            # out of loop
-            break
-
-        # Compute WBPT
-        thw = wet_bulb_potential_temperature(p[k], T[k], q[k],
-                                             phase=phase,
-                                             polynomial=polynomial)
-        thw = np.atleast_1d(thw)
-
-        # For points below the surface or above the minimum pressure level,
-        # replace WBPT with the value at the surface
-        thw[above_min | below_sfc] = thw_sfc[above_min | below_sfc]
-
-        # Update MU parcel properties and maximum WBPT
-        is_max = (thw > thw_max)
-        p_mu[is_max] = p[k][is_max]
-        Tp_mu[is_max] = T[k][is_max]
-        qp_mu[is_max] = q[k][is_max]
-        thw_max[is_max] = thw[is_max]
-
-        #print(k, p_mu, Tp_mu, qp_mu, thw, thw_max)
-
-    #print(p_lpl, Tp_lpl, qp_lpl)
-
-    if len(p_mu) == 1 and output_scalars:
-        p_mu = p_mu.item()
-        Tp_mu = Tp_mu.item()
-        qp_mu = qp_mu.item()
-
-    return p_mu, Tp_mu, qp_mu
-
-
-def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                                mu_parcel='max_wbpt', min_pressure=50000.0,
-                                eil_min_cape=100.0, eil_max_cin=250.0,
-                                vertical_axis=0,
-                                return_parcel_properties=False, **kwargs):
+                         most_unstable_method='max_wbpt', min_pressure=50000.0,
+                         eil_min_cape=100.0, eil_max_cin=250.0,
+                         vertical_axis=0, return_parcel_properties=False,
+                         **kwargs):
     """
     Performs a most-unstable (MU) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
     (CIN), along with the lifted parcel level (LPL), lifting condensation level
-    (LCL), level of free convection (LFC), and equilibrium level (EL). By
-    default, the MU parcel is defined using the maximum wet-bulb potential
-    temperature (WBPT; thw) up to some minimum pressure. Alternatively, it can
-    be defined by launching parcels from every level and identifying the one
-    with maximum CAPE. In this case, the function also returns the effective
-    inflow layer (EIL) base and top. The EIL is defined as the first layer
-    comprising at least two levels where CAPE >= 100 J/kg and CIN <= 250 J/kg.
-    Note, however, that this calculation tends to be much slower.
+    (LCL), level of free convection (LFC), level of maximum buoyancy (LMB) and
+    equilibrium level (EL). By default, the MU parcel is defined using the
+    maximum wet-bulb potential temperature (most_unstable_method='max_wbpt').
+    Alternatively, it can be defined by launching parcels from every level and
+    identifying the one with maximum CAPE (most_unstable_method='max_cape'). In
+    this case, the function also returns the effective inflow layer (EIL) base
+    and top. Following Thompson et al. (2007), the EIL is defined as the first
+    contiguous layer comprising at least two levels where CAPE >= 100 J/kg and
+    CIN <= 250 J/kg. Note that the 'max_cape' calculation is significantly
+    slower than the 'max_wbpt' calculation, particularly when the input data
+    has high vertical resolution.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -1154,8 +904,9 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         T_sfc (float or ndarray, optional): surface temperature (K)
         q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
-        mu_parcel (str, optional): method for defining the most unstable parcel
-            (valid options are 'max_wbpt' or 'max_cape'; default is 'max_wbpt')
+        most_unstable_method (str, optional): method for defining the most
+            unstable parcel (valid options are 'max_wbpt' or 'max_cape';
+            default is 'max_wbpt')
         min_pressure (float, optional): minimum pressure from which to launch
             parcel (Pa) (default is 50000 Pa = 500 hPa)
         eil_min_cape (float, optional): minimum CAPE threshold used to define
@@ -1178,12 +929,16 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         EL (float or ndarray): equilibrium level (Pa)
         EILbase (float or ndarray): effective inflow layer base (Pa)
         EILtop (float or ndarray): effective inflow layer top (Pa)
+        Tpi (float or ndarray): initial parcel temperature (K)
+        qpi (float or ndarray): initial parcel specific humidity (g/kg)
 
     """
 
     # Check that MU parcel option is valid
-    if mu_parcel not in ['max_wbpt', 'max_cape']:
-        raise ValueError("mu_parcel must be either 'max_wbpt' or 'max_cape'")
+    if most_unstable_method not in ['max_wbpt', 'max_cape']:
+        raise ValueError("""
+        most_unstable_method must be either 'max_wbpt' or 'max_cape'
+        """)
 
     # Reorder profile array dimensions if needed
     if vertical_axis != 0:
@@ -1200,7 +955,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     # Note the number of levels
     n_lev = p.shape[0]
 
-    if mu_parcel == 'max_cape':
+    if most_unstable_method == 'max_cape':
 
         # Set initial LPL and associated parcel properties
         if p_sfc is None:
@@ -1226,11 +981,11 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             output_scalars=False, **kwargs
         )
     
-        # Reset values where the LPL is above the minimum pressure level
+        # Reset CAPE to zero and set CIN and the LFC, LMB, and EL as NaNs where
+        # the LPL (surface) is above the minimum pressure level
         lpl_above_min = (p_lpl < min_pressure)
         cape[lpl_above_min] = 0.0
         cin[lpl_above_min] = np.nan
-        lcl[lpl_above_min] = np.nan
         lfc[lpl_above_min] = np.nan
         lmb[lpl_above_min] = np.nan
         el[lpl_above_min] = np.nan
@@ -1251,7 +1006,7 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
         #print('sfc', p_sfc, T_sfc, q_sfc, cape, cin, lcl, lfc, el)
 
-        # Initialise final CAPE, CIN, LPL, LCL, LFC, and EL arrays
+        # Initialise the output arrays
         CAPE = cape
         CIN = cin
         LPL = p_lpl
@@ -1259,6 +1014,8 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         LFC = lfc
         LMB = lmb
         EL = el
+        Tpi = Tp_lpl
+        qpi = qp_lpl
 
         # Initialise arrays for EIL base and top
         EILbase = np.full_like(p_sfc, np.nan)
@@ -1300,25 +1057,23 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                 output_scalars=False, **kwargs
             )
 
-            # Reset values where the LPL is above the minimum pressure level
-            # (this should only happen where p_sfc < min_pressure)
+            # Reset CAPE to zero and where the LPL is above the minimum
+            # pressure level
             lpl_above_min = (p_lpl < min_pressure)
             cape[lpl_above_min] = 0.0
-            cin[lpl_above_min] = np.nan
-            lcl[lpl_above_min] = np.nan
-            lfc[lpl_above_min] = np.nan
-            lmb[lpl_above_min] = np.nan
-            el[lpl_above_min] = np.nan
 
-            # Update the final CAPE, CIN, LFC, and EL
+            # Update output arrays
             is_max = (cape > CAPE)
-            CAPE[is_max] = cape[is_max]
-            CIN[is_max] = cin[is_max]
-            LPL[is_max] = p_lpl[is_max]
-            LCL[is_max] = lcl[is_max]
-            LFC[is_max] = lfc[is_max]
-            LMB[is_max] = lmb[is_max]
-            EL[is_max] = el[is_max]
+            if np.any(is_max):
+                CAPE[is_max] = cape[is_max]
+                CIN[is_max] = cin[is_max]
+                LPL[is_max] = p_lpl[is_max]
+                LCL[is_max] = lcl[is_max]
+                LFC[is_max] = lfc[is_max]
+                LMB[is_max] = lmb[is_max]
+                EL[is_max] = el[is_max]
+                Tpi[is_max] = Tp_lpl[is_max]
+                qpi[is_max] = qp_lpl[is_max]
 
             #print(k, p_lpl, Tp_lpl, qp_lpl, cape, cin, lfc, el, CAPE, CIN, LCL, LFC, EL)
 
@@ -1345,271 +1100,77 @@ def most_unstable_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             EL = EL.item()
             EILbase = EILbase.item()
             EILtop = EILtop.item()
+            Tpi = Tpi.item()
+            qpi = qpi.item()
 
         if return_parcel_properties:
-            return (CAPE, CIN, LPL, LCL, LFC, LMB, EL, EILbase, EILtop,
-                    Tp_lpl, qp_lpl)
+            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EILbase, EILtop, Tpi, qpi
         else:
             return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EILbase, EILtop
 
-    else:
+    else:  # most_unstable_method = 'max_wbpt'
 
         # Get phase and polynomial flag from kwargs
         phase = kwargs.get('phase', 'liquid')
         polynomial = kwargs.get('polynomial', True)
+        explicit = kwargs.get('explicit', False)
+        dp = kwargs.get('dp', 500.0)
 
-        # Find the pressure, parcel temperature, and parcel specific humidity
-        # corresponding to the MU LPL
-        p_lpl, Tp_lpl, qp_lpl = most_unstable_parcel(
-            p, T, q, p_sfc=p_sfc,
-            T_sfc=T_sfc, q_sfc=q_sfc,
-            min_pressure=min_pressure,
-            phase=phase, polynomial=polynomial
+        # Compute wet-bulb potential temperature (WBPT)
+        thw = wet_bulb_potential_temperature(
+            p, T, q, phase=phase, polynomial=polynomial,
+            explicit=explicit, dp=dp
+        )
+        if p_sfc is None:
+            thw_sfc = None
+        else:
+            thw_sfc = wet_bulb_potential_temperature(
+                p_sfc, T_sfc, q_sfc, phase=phase, polynomial=polynomial,
+                explicit=explicit, dp=dp
+            )
+
+        # Set the bottom and top of the layer in which to search for the MU
+        # parcel
+        if p_sfc is None:
+            p_bot = p[0]
+        else:
+            p_sfc = p_sfc
+        p_top = min_pressure
+
+        # Find the level corresponding to the maximum WBPT between p_bot and
+        # p_top and set this as the LPL
+        _, p_lpl = pressure_layer_maxmin_scalar(
+            p, thw, p_bot, p_top, p_sfc=p_sfc, s_sfc=thw_sfc, statistic='max'
         )
 
-        # Note the LPL
-        LPL = p_lpl
+        # Interpolate to get the parcel temperature and specific humidity at
+        # the LPL
+        Tp_lpl = interpolate_scalar_to_pressure_level(
+            p, T, p_lpl, p_sfc=p_sfc, s_sfc=T_sfc,
+        )
+        qp_lpl = interpolate_scalar_to_pressure_level(
+            p, q, p_lpl, p_sfc=p_sfc, s_sfc=q_sfc,
+        )
+
+        # Note the LPL and initial parcel temperature and specific humidity
+        LPL, Tpi, qpi = p_lpl, Tp_lpl, qp_lpl
 
         # Perform parcel ascent from the LPL
         CAPE, CIN, LCL, LFC, LMB, EL = parcel_ascent(
             p, T, q, p_lpl, Tp_lpl, qp_lpl,
             p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-            output_scalars=False, **kwargs
+            **kwargs
         )
 
-        # Reset values where the LPL is above the minimum pressure level
-        # (this should only happen if p_sfc < min_pressure)
-        above_min = (p_lpl < min_pressure)
-        CAPE[above_min] = 0.0
-        CIN[above_min] = np.nan
-        LPL[above_min] = np.nan
-        LCL[above_min] = np.nan
-        LFC[above_min] = np.nan
-        LMB[above_min] = np.nan
-        EL[above_min] = np.nan
-
-        if len(CAPE) == 1:
-            # convert outputs to scalars
-            CAPE = CAPE.item()
-            CIN = CIN.item()
-            LPL = LPL.item()
-            LCL = LCL.item()
-            LFC = LFC.item()
-            LMB = LMB.item()
-            EL = EL.item()
-            Tp_lpl = Tp_lpl.item()
-            qp_lpl = qp_lpl.item()
-
         if return_parcel_properties:
-            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, Tp_lpl, qp_lpl
+            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, Tpi, qpi
         else:
             return CAPE, CIN, LPL, LCL, LFC, LMB, EL
 
 
 def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                      p_eib=None, p_eit=None, vertical_axis=0,
-                     output_scalars=False):
-    """
-    Computes the effective (EFF) parcel temperature and specific humidity.
-    EFF parcel temperature is computed by averaging potential temperature
-    over the effective inflow layer (EIL) and converting to temperature using
-    the pressure at the mid-point of EIL. Note mass weighting is implicit in
-    the averaging due to the use of pressure as the vertical coordinate. If
-    the EIL is not supplied, they are derived by calling the most-unstable
-    parcel function.
-
-    Args:
-        p (ndarray): pressure profile(s) (Pa)
-        T (ndarray): temperature profile(s) (K)
-        q (ndarray): specific humidity profile(s) (kg/kg)
-        p_sfc (float or ndarray, optional): surface pressure (Pa)
-        T_sfc (float or ndarray, optional): surface temperature (K)
-        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
-        p_eib (float or ndarray, optional): effective inflow base pressure (Pa)
-        p_eit (float or ndarray, optional): effective inflow top pressure (Pa)
-        vertical_axis (int, optional): profile array axis corresponding to 
-            vertical dimension (default is 0)
-        output_scalars (bool, optional): flag indicating whether to convert
-            single-element output arrays to scalars (default is False)
-
-    Returns:
-        p_mid (float or ndarray): pressure at mid-point of EIL (Pa)
-        Tp_eff (float or ndarray): effective parcel temperature (K)
-        qp_eff (float or ndarray): effective parcel specific humidity (kg/kg)
-
-    """
-
-    # Reorder profile array dimensions if needed
-    if vertical_axis != 0:
-        p = np.moveaxis(p, vertical_axis, 0)
-        T = np.moveaxis(T, vertical_axis, 0)
-        q = np.moveaxis(q, vertical_axis, 0)
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
-
-    if p_eib is None or p_eit is None:
-
-        # Get pressure at the base and top of the EIL
-        _, _, _, _, _, _, _, p_eib, p_eit = most_unstable_parcel_ascent(
-            p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc, 
-            mu_parcel='max_cape'
-        )
-
-    # If surface-level fields not provided, use lowest level values
-    if p_sfc is None:
-        bottom = 'lowest level'
-        k_start = 1  # start loop from second level
-        p_sfc = p[0]
-        T_sfc = T[0]
-        q_sfc = q[0]
-    else:
-        bottom = 'surface'
-        k_start = 0  # start loop from first level
-
-    # Make sure that surface fields are at least 1D
-    p_sfc = np.atleast_1d(p_sfc)
-    T_sfc = np.atleast_1d(T_sfc)
-    q_sfc = np.atleast_1d(q_sfc)
-
-    # Make sure that EIL base and top are at least 1D
-    p_eib = np.atleast_1d(p_eib)
-    p_eit = np.atleast_1d(p_eit)
-
-    # Note the number of levels
-    n_lev = p.shape[0]
-
-    # Check that the EIL base is not below the surface
-    eib_below_sfc = (p_eib > p_sfc)
-    if np.any(eib_below_sfc):
-        n_pts = np.count_nonzero(eib_below_sfc)
-        raise ValueError(f'Effective inflow base below {bottom} at {n_pts} points')
-
-    # Check that the EIL top is not above the top level
-    eit_above_top = (p_eit < p[-1])
-    if np.any(eit_above_top):
-        n_pts = np.count_nonzero(eit_above_top)
-        raise ValueError(f'Effective inflow top above top level at {n_pts} points')
-
-    # Note the pressure at the mid-point of the EIL
-    p_mid = 0.5 * (p_eib + p_eit)
-
-    # Create arrays to store potential temperature and specific humidity
-    # of EFF parcel
-    thp_eff = np.zeros_like(p_sfc)
-    qp_eff = np.zeros_like(p_sfc)
-
-    # Initialise level 2 fields at surface
-    p2 = p_sfc.copy()
-    T2 = T_sfc.copy()
-    q2 = q_sfc.copy()
-
-    # Compute potential temperature at level 2
-    th2 = potential_temperature(p2, T2, q2)
-
-    # Loop over levels
-    for k in range(k_start, n_lev):
-
-        # Update level 1 fields
-        p1 = p2
-        T1 = T2
-        q1 = q2
-        th1 = th2
-
-        # Find level 2 points above the surface
-        above_sfc = (p[k] < p_sfc)
-        below_sfc = np.logical_not(above_sfc)
-        if np.all(below_sfc):
-            # if all points are below the surface, skip this level
-            continue
-
-        # Find level 2 points above the EIL base
-        above_eib = (p[k] < p_eib)
-        below_eib = np.logical_not(above_eib)
-        if np.all(below_eib):
-            # if all points are below the EIL base, skip this level
-            continue
-
-        # Find level 1 points at or above the EIL top
-        above_eit = (p1 <= p_eit)
-        below_eit = np.logical_not(above_eit)
-        if np.all(above_eit):
-            # if all points are above the EIL top, break out of loop
-            break
-
-        # Update level 2 fields
-        p2 = np.where(above_sfc, p[k], p_sfc)
-        T2 = np.where(above_sfc, T[k], T_sfc)
-        q2 = np.where(above_sfc, q[k], q_sfc)
-
-        # If crossing the EIL base, reset level 2 as the EIL base
-        cross_eib = (p1 > p_eib) & (p2 < p_eib)
-        if np.any(cross_eib):
-
-            # Interpolate to get environmental temperature and specific 
-            # humidity at the EIL base
-            weight = np.log(p_eib[cross_eib] / p1[cross_eib]) / \
-                np.log(p2[cross_eib] / p1[cross_eib])
-            T2[cross_eib] = (1 - weight) * T1[cross_eib] + \
-                weight * T2[cross_eib]
-            q2[cross_eib] = (1 - weight) * q1[cross_eib] + \
-                weight * q2[cross_eib]
-
-            # Use EIL base pressure
-            p2[cross_eib] = p_eib[cross_eib]
-
-        # If crossing the EIL top, reset level 2 as the EIL top
-        cross_eit = (p1 > p_eit) & (p2 < p_eit)
-        if np.any(cross_eit):
-
-            # Interpolate to get environmental temperature and specific 
-            # humidity at the EIL top
-            weight = np.log(p_eit[cross_eit] / p1[cross_eit]) / \
-                np.log(p2[cross_eit] / p1[cross_eit])
-            T2[cross_eit] = (1 - weight) * T1[cross_eit] + \
-                weight * T2[cross_eit]
-            q2[cross_eit] = (1 - weight) * q1[cross_eit] + \
-                weight * q2[cross_eit]
-
-            # Use EIL top pressure
-            p2[cross_eit] = p_eit[cross_eit]
-
-        # Compute the potential temperature at level 2
-        th2 = potential_temperature(p2, T2, q2)
-
-        # Update the EFF parcel averages
-        thp_eff[above_eib & below_eit] += 0.5 * \
-            (th1[above_eib & below_eit] + th2[above_eib & below_eit]) * \
-            (p1[above_eib & below_eit] - p2[above_eib & below_eit])
-        qp_eff[above_eib & below_eit] += 0.5 * \
-            (q1[above_eib & below_eit] + q2[above_eib & below_eit]) * \
-            (p1[above_eib & below_eit] - p2[above_eib & below_eit])
-
-        #print(p1, T1, q1, th1, p2, T2, q2, th2, thp_eff, qp_eff)
-
-    # Divide averages by EIL depth to get final values
-    thp_eff = thp_eff / (p_eib - p_eit)
-    qp_eff = qp_eff / (p_eib - p_eit)
-
-    # Compute corresponding temperature at the surface
-    Tp_eff = follow_dry_adiabat(100000., p_mid, thp_eff, qp_eff)
-
-    #print(p_mid, thp_eff, Tp_eff, qp_eff)
-
-    if len(p_sfc) == 1 and output_scalars:
-        p_mid = p_mid.item()
-        Tp_eff = Tp_eff.item()
-        qp_eff = qp_eff.item()
-
-    return p_mid, Tp_eff, qp_eff
-
-
-def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                            p_eib=None, p_eit=None, vertical_axis=0,
-                            return_parcel_properties=False, **kwargs):
+                     return_parcel_properties=False, **kwargs):
     """
     Performs an effective (EFF) parcel ascent and returns the resulting
     convective available potential energy (CAPE) and convective inhibition
@@ -1666,37 +1227,39 @@ def effective_parcel_ascent(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             mu_parcel='max_cape'
         )
 
-    # Get the LPL pressure, temperature, and specific humidity
-    p_lpl, Tp_lpl, qp_lpl = effective_parcel(
-        p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-        p_eib=p_eib, p_eit=p_eit
-    )
+    # Note the pressure at the mid-point of the EIL
+    p_mid = 0.5 * (p_eib + p_eit)
 
-    # Note the LPL
-    LPL = p_lpl
+    # Compute potential temperature
+    th = potential_temperature(p, T, q)
+    if p_sfc is None:
+        th_sfc = None
+    else:
+        th_sfc = potential_temperature(p_sfc, T_sfc, q_sfc)
+
+    # Average potential temperature and specific humidity across EIL
+    th_avg = pressure_layer_mean_scalar(p, th, p_eib, p_eit,
+                                        p_sfc=p_sfc, s_sfc=th_sfc)
+    q_avg = pressure_layer_mean_scalar(p, q, p_eib, p_eit,
+                                       p_sfc=p_sfc, s_sfc=q_sfc)
+
+    # Compute corresponding temperature at the mid-point of the EIL
+    T_avg = follow_dry_adiabat(100000., p_mid, th_avg, q_avg)
+
+    # Set LPL pressure and initial parcel temperature and specific humidity
+    LPL, Tpi, qpi = p_mid, T_avg, q_avg
 
     # Call code to perform parcel ascent
     CAPE, CIN, LCL, LFC, LMB, EL = parcel_ascent(
-        p, T, q, p_lpl, Tp_lpl, qp_lpl,
+        p, T, q, LPL, Tpi, qpi,
         p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
-        output_scalars=False, **kwargs
+        **kwargs
     )
 
-    if len(CAPE) == 1:
-        # convert outputs to scalars
-        CAPE = CAPE.item()
-        CIN = CIN.item()
-        LPL = LPL.item()
-        LCL = LCL.item()
-        LFC = LFC.item()
-        LMB = LMB.item()
-        EL = EL.item()
-
     if return_parcel_properties:
-        return CAPE, CIN, LPL, LCL, LFC, LMB, EL, Tp_lpl, qp_lpl
+        return CAPE, CIN, LPL, LCL, LFC, LMB, EL, Tpi, qpi
     else:
         return CAPE, CIN, LPL, LCL, LFC, LMB, EL
-
 
 
 def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
@@ -1736,8 +1299,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         DCAPE (float or ndarray): downdraft convective available potential
             energy (J/kg)
         DCIN (float or ndarray): downdraft convective inhibition (J/kg)
-        Tp_sfc (float or ndarray): downdraft parcel temperature at the surface,
-            (also known as the "downrush" temperature) (K)
+        Tpf (float or ndarray): final downdraft parcel temperature (K)
 
     """
 
@@ -1819,7 +1381,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     qp_dpl = saturation_specific_humidity(p_dpl, Tp_dpl, phase=phase,
                                           omega=omega)
 
-    # Create arrays for DCAPE and DCIN
+    # Create arrays for DCAPE, DCIN, and the DEL
     DCAPE = np.zeros_like(p_dpl)
     DCIN = np.zeros_like(p_dpl)
 
@@ -1992,15 +1554,15 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         #print(k, p1, p2, B1, B2, DCAPE, DCIN)
 
     # Note the final downdraft parcel temperature
-    Tp_sfc = Tp2
+    Tpf = Tp2
 
     if len(DCAPE) == 1 and output_scalars:
         # convert outputs to scalars
         DCAPE = DCAPE.item()
         DCIN = DCIN.item()
-        Tp_sfc = Tp_sfc.item()
+        Tpf = Tpf.item()
 
-    return DCAPE, DCIN, Tp_sfc
+    return DCAPE, DCIN, Tpf
 
 
 def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
@@ -2034,11 +1596,9 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         DCAPE (float or ndarray): downdraft convective available potential
             energy (J/kg)
         DCIN (float or ndarray): downdraft convective inhibition (J/kg)
-        p_dpl (float or ndarray): downdraft parcel level (Pa)
-        Tp_dpl (float or ndarray, optional): downdraft parcel temperature at
-            the DPL (K)
-        Tp_sfc (float or ndarray, optional): downdraft parcel temperature at
-            the surface (also known as the "downrush" temperature) (K)
+        DPL (float or ndarray): downdraft parcel level (Pa)
+        Tpi (float or ndarray): initial downdraft parcel temperature (K)
+        Tpf (float or ndarray): final downdraft parcel temperature (K)
 
     """
 
@@ -2047,12 +1607,6 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p = np.moveaxis(p, vertical_axis, 0)
         T = np.moveaxis(T, vertical_axis, 0)
         q = np.moveaxis(q, vertical_axis, 0)
-
-    # Make sure that profile arrays are at least 2D
-    if p.ndim == 1:
-        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
-        T = np.atleast_2d(T).T
-        q = np.atleast_2d(q).T
 
     if p_bot is None:
         if p_sfc is None:
@@ -2099,17 +1653,20 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     if len(Tp_dpl) == 1:
         Tp_dpl = Tp_dpl.item()
 
+    # Note the DPL and initial downdraft parcel temperature
+    DPL, Tpi = p_dpl, Tp_dpl
+
     # Call code to perform parcel descent
-    DCAPE, DCIN, Tp_sfc = parcel_descent(
+    DCAPE, DCIN, Tpf = parcel_descent(
         p, T, q, p_dpl, Tp_dpl,
         p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
         **kwargs
     )
 
     if return_parcel_properties:
-        return DCAPE, DCIN, p_dpl, Tp_dpl, Tp_sfc
+        return DCAPE, DCIN, DPL, Tpi, Tpf
     else:
-        return DCAPE, DCIN, p_dpl
+        return DCAPE, DCIN, DPL
 
 
 def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
