@@ -1,6 +1,9 @@
 import numpy as np
 import warnings
+from atmos import pseudoadiabat
 from atmos.constant import Rd
+from atmos.utils import (pressure_layer_mean_scalar,
+                         pressure_layer_maxmin_scalar)
 from atmos.thermo import (saturation_specific_humidity,
                           virtual_temperature,
                           potential_temperature,
@@ -351,11 +354,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             B1_is_max = (B1 > Bmax)
             if np.any(B1_is_max):
                 if count_cape_below_lcl:
-                    Bmax[B1_is_max & p1_is_lpl] = B1[B1_is_max & p1_is_lpl]
-                    pmax[B1_is_max & p1_is_lpl] = p1[B1_is_max & p1_is_lpl]
+                    update = B1_is_max & p1_is_lpl
                 else:
-                    Bmax[B1_is_max & p1_is_lcl] = B1[B1_is_max & p1_is_lcl]
-                    pmax[B1_is_max & p1_is_lcl] = p1[B1_is_max & p1_is_lcl]
+                    update = B1_is_max & p1_is_lpl & p1_above_lcl  # LPL = LCL
+                Bmax[update] = B1[update]
+                pmax[update] = p1[update]
 
         # If crossing the LCL, reset level 2 as the LCL
         cross_lcl = (p1 > p_lcl) & (p2 < p_lcl)
@@ -1722,8 +1725,6 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             output arrays to scalars if input profiles are 1D (default is True)
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo (bool, optional): flag indicating whether to perform
-            pseudoadiabatic parcel ascent (default is True)
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
         explicit (bool, optional): flag indicating whether to use explicit
@@ -1735,6 +1736,8 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         DCAPE (float or ndarray): downdraft convective available potential
             energy (J/kg)
         DCIN (float or ndarray): downdraft convective inhibition (J/kg)
+        Tp_sfc (float or ndarray): downdraft parcel temperature at the surface,
+            (also known as the "downrush" temperature) (K)
 
     """
 
@@ -1988,12 +1991,125 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         #print(k, p2, T2, q2, Tp2, qp2)
         #print(k, p1, p2, B1, B2, DCAPE, DCIN)
 
+    # Note the final downdraft parcel temperature
+    Tp_sfc = Tp2
+
     if len(DCAPE) == 1 and output_scalars:
         # convert outputs to scalars
         DCAPE = DCAPE.item()
         DCIN = DCIN.item()
+        Tp_sfc = Tp_sfc.item()
 
-    return DCAPE, DCIN
+    return DCAPE, DCIN, Tp_sfc
+
+
+def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                     p_bot=None, p_top=None, vertical_axis=0,
+                     return_parcel_properties=False, **kwargs):
+    """
+    Performs a downdraft parcel descent and returns the resulting downdraft
+    convective available potential energy (DCAPE) and downdraft convective
+    inhibition (DCIN), along with the downdraft parcel level (DPL). The
+    downdraft parcel is defined as the level with the lowest wet-bulb potential
+    temperature either between two specified levels (p_bot and p_top) or in the
+    lowest 400 hPa above the surface (if p_bot and p_top are not specified).
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        p_bot (float or ndarray, optional): pressure of bottom of layer (Pa)
+        p_top (float or ndarray, optional): pressure of top of layer (Pa)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+        return_parcel_properties (bool, optional): flag indicating whether to
+            return parcel temperature and specific humidity (default is False)
+        **kwargs: additional keyword arguments passed to parcel_descent (valid
+            arguments are 'phase', 'polynomial', 'explicit', and 'dp')
+
+    Returns:
+        DCAPE (float or ndarray): downdraft convective available potential
+            energy (J/kg)
+        DCIN (float or ndarray): downdraft convective inhibition (J/kg)
+        p_dpl (float or ndarray): downdraft parcel level (Pa)
+        Tp_dpl (float or ndarray, optional): downdraft parcel temperature at
+            the DPL (K)
+        Tp_sfc (float or ndarray, optional): downdraft parcel temperature at
+            the surface (also known as the "downrush" temperature) (K)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        T = np.moveaxis(T, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        T = np.atleast_2d(T).T
+        q = np.atleast_2d(q).T
+
+    if p_bot is None:
+        if p_sfc is None:
+            p_bot = p[0]
+        else:
+            p_bot = p_sfc
+
+    if p_top is None:
+        if p_sfc is None:
+            p_top = p[0] - 40000.0  # 400 hPa above lowest level
+        else:
+            p_top = p_sfc - 40000.0  # 400 hPa above surface
+
+    # Compute wet-bulb potential temperature (WBPT)
+    thw = wet_bulb_potential_temperature(p, T, q, **kwargs)
+    if p_sfc is None:
+        thw_sfc = None
+    else:
+        thw_sfc= wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc, **kwargs)
+
+    # Find the level corresponding to the minimum WBPT between p_bot and p_top
+    # and set this as the DPL
+    thw_dpl, p_dpl = pressure_layer_maxmin_scalar(
+        p, thw, p_bot, p_top, p_sfc=p_sfc, s_sfc=thw_sfc, statistic='min'
+    )
+
+    # Get phase and polynomial flag from kwargs
+    phase = kwargs.get('phase', 'liquid')
+    polynomial = kwargs.get('polynomial', True)
+
+    # Get the DPL parcel temperature
+    if polynomial:
+        if phase != 'liquid':
+            raise ValueError(
+                """Polynomial fits are not available for ice and mixed-phase
+                pseudoadiabats. Calculations must be performed using direct
+                integration by setting polynomial=False."""
+                )
+        Tp_dpl = pseudoadiabat.temp(p_dpl, thw_dpl)
+    else:
+        Tp_dpl = follow_moist_adiabat(
+            100000.0, p_dpl, thw_dpl, qt=None, **kwargs
+        )
+    if len(Tp_dpl) == 1:
+        Tp_dpl = Tp_dpl.item()
+
+    # Call code to perform parcel descent
+    DCAPE, DCIN, Tp_sfc = parcel_descent(
+        p, T, q, p_dpl, Tp_dpl,
+        p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
+        **kwargs
+    )
+
+    if return_parcel_properties:
+        return DCAPE, DCIN, p_dpl, Tp_dpl, Tp_sfc
+    else:
+        return DCAPE, DCIN, p_dpl
 
 
 def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
