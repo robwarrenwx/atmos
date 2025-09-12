@@ -1227,7 +1227,7 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
 
 
 def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
-                                explicit=False):
+                                explicit=False, dp=500.0):
     """
     Computes pseudo wet-bulb temperature.
 
@@ -1248,6 +1248,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
             fits to pseudoadiabats (default is True)
         explicit (bool, optional): flag indicating whether to use explicit
             integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         Tw (float or ndarray): pseudo wet-bulb temperature (K)
@@ -1261,7 +1263,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
         # Follow a pseudoadiabat from the LCL to the original pressure
         Tw = follow_moist_adiabat(p_lcl, p, T_lcl, phase='liquid', pseudo=True,
-                                  polynomial=polynomial, explicit=explicit)
+                                  polynomial=polynomial, explicit=explicit,
+                                  dp=dp)
 
     elif phase == 'ice':
 
@@ -1270,7 +1273,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
         # Follow a pseudoadiabat from the LDL to the original pressure
         Tw = follow_moist_adiabat(p_ldl, p, T_ldl, phase='ice', pseudo=True,
-                                  polynomial=polynomial, explicit=explicit)
+                                  polynomial=polynomial, explicit=explicit,
+                                  dp=dp)
 
     elif phase == 'mixed':
 
@@ -1279,7 +1283,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
         # Follow a pseudoadiabat from the LSL to the original pressure
         Tw = follow_moist_adiabat(p_lsl, p, T_lsl, phase='mixed', pseudo=True,
-                                  polynomial=polynomial, explicit=explicit)
+                                  polynomial=polynomial, explicit=explicit,
+                                  dp=dp)
 
     else:
 
@@ -1539,7 +1544,7 @@ def isobaric_wet_bulb_temperature_romps(p, T, q, phase='liquid'):
 
 
 def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
-                         polynomial=True):
+                         polynomial=True, explicit=False, dp=500.0):
     """
     Computes wet-bulb temperature for specified saturation process.
 
@@ -1553,6 +1558,10 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         Tw: wet-bulb temperature (K)
@@ -1561,7 +1570,8 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
 
     if saturation == 'pseudo':
         Tw = pseudo_wet_bulb_temperature(p, T, q, phase=phase,
-                                         polynomial=polynomial)
+                                         polynomial=polynomial,
+                                         explicit=explicit, dp=dp)
     elif saturation == 'isobaric':
         Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
     else:
@@ -1830,7 +1840,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
     return thil
 
 
-def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
+def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True,
+                                   explicit=False, dp=500.0):
     """
     Computes wet-bulb potential temperature.
 
@@ -1842,6 +1853,10 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         thw (float or ndarray): wet-bulb potential temperature (K)
@@ -1855,7 +1870,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LCL to 1000 hPa
         thw = follow_moist_adiabat(p_lcl, p_ref, T_lcl, phase='liquid',
-                                   pseudo=True, polynomial=polynomial)
+                                   pseudo=True, polynomial=polynomial,
+                                   explicit=explicit, dp=dp)
 
     elif phase == 'ice':
 
@@ -1864,7 +1880,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LDL to 1000 hPa
         thw = follow_moist_adiabat(p_ldl, p_ref, T_ldl, phase='ice',
-                                   pseudo=True, polynomial=polynomial)
+                                   pseudo=True, polynomial=polynomial,
+                                   explicit=explicit, dp=dp)
 
     elif phase == 'mixed':
 
@@ -1873,7 +1890,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True):
 
         # Follow a pseudoadiabat from the LSL to 1000 hPa
         thw = follow_moist_adiabat(p_lsl, p_ref, T_lsl, phase='mixed',
-                                   pseudo=True, polynomial=polynomial)
+                                   pseudo=True, polynomial=polynomial,
+                                   explicit=explicit, dp=dp)
 
     else:
 
@@ -1897,6 +1915,10 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         polynomial (bool, optional): flag indicating whether to use polynomial
             fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         thws (float or ndarray): saturation wet-bulb potential temperature (K)
@@ -1905,7 +1927,7 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
 
     # Follow a pseudoadiabat to 1000 hPa
     thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
-                                polynomial=polynomial)
+                                polynomial=polynomial, explict=explicit, dp=dp)
 
     if not np.isscalar(thws) and len(thws) == 1:
         thws = thws.item()
