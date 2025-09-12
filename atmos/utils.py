@@ -2008,7 +2008,7 @@ def pressure_layer_maxmin_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
                 s1_is_max = (s1 > sx) & (s1 > s2)
                 sx[in_layer & s1_is_max] = s1[in_layer & s1_is_max]
                 px[in_layer & s1_is_max] = p1[in_layer & s1_is_max]
-                s2_is_max = (s2 > s_max) & (s2 > s1)
+                s2_is_max = (s2 > sx) & (s2 > s1)
                 sx[in_layer & s2_is_max] = s2[in_layer & s2_is_max]
                 px[in_layer & s2_is_max] = p2[in_layer & s2_is_max]
             else:
