@@ -23,11 +23,10 @@ from atmos.thermo import (
 
 def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                   T_sfc=None, q_sfc=None, vertical_axis=0, output_scalars=True,
-                  which_lfc='first', which_el='last',
-                  count_cape_below_lcl=False, count_cin_below_lcl=True,
-                  count_cape_below_lfc=False, count_cin_above_lfc=True,
                   phase='liquid', pseudo=True, polynomial=True, explicit=False,
-                  dp=500.0):
+                  dp=500.0, which_lfc='first', which_el='last',
+                  count_cape_below_lcl=False, count_cin_below_lcl=True,
+                  count_cape_below_lfc=False, count_cin_above_lfc=True):
     """
     Performs a parcel ascent from a specified lifted parcel level (LPL) and 
     returns the resulting convective available potential energy (CAPE) and
@@ -59,6 +58,16 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             vertical dimension (default is 0)
         output_scalars (bool, optional): flag indicating whether to convert
             output arrays to scalars if input profiles are 1D (default is True)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        pseudo (bool, optional): flag indicating whether to perform
+            pseudoadiabatic parcel ascent (default is True)
+        polynomial (bool, optional): flag indicating whether to use polynomial
+            fits to pseudoadiabats (default is True)
+        explicit (bool, optional): flag indicating whether to use explicit
+            integration of lapse rate equation (default is False)
+        dp (float, optional): pressure increment for integration of lapse rate
+            equation (default is 500 Pa = 5 hPa)
         which_lfc (str, optional): choice for LFC (valid options are 'first', 
             'last', or 'maxcape'; default is 'first')
         which_el (str, optional): choice for EL (valid options are 'first', 
@@ -71,16 +80,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             include positive areas below the LFC in CAPE (default is False)
         count_cin_above_lfc (bool, optional): flag indicating whether to 
             include negative areas above the LFC in CIN (default is True)
-        phase (str, optional): condensed water phase (valid options are
-            'liquid', 'ice', or 'mixed'; default is 'liquid')
-        pseudo (bool, optional): flag indicating whether to perform
-            pseudoadiabatic parcel ascent (default is True)
-        polynomial (bool, optional): flag indicating whether to use polynomial
-            fits to pseudoadiabats (default is True)
-        explicit (bool, optional): flag indicating whether to use explicit
-            integration of lapse rate equation (default is False)
-        dp (float, optional): pressure increment for integration of lapse rate
-            equation (default is 500 Pa = 5 hPa)
 
     Returns:
         CAPE (float or ndarray): convective available potential energy (J/kg)
