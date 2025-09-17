@@ -1041,7 +1041,7 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         if p_sfc is None:
             p_bot = p[0]
         else:
-            p_sfc = p_sfc
+            p_bot = p_sfc
         p_top = min_pressure
 
         # Find the level corresponding to the maximum WBPT between p_bot and
