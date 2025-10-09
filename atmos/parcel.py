@@ -625,7 +625,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             LMB[update_el] = p_lmb[update_el]
             EL[update_el] = p_el[update_el]
 
-    if len(CAPE) == 1 and output_scalars:
+    if CAPE.size == 1 and output_scalars:
         # convert outputs to scalars
         CAPE = CAPE.item()
         CIN = CIN.item()
@@ -996,7 +996,7 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             EILbase[base_eq_top] = np.nan
             EILtop[base_eq_top] = np.nan
             
-        if len(CAPE) == 1:
+        if CAPE.size == 1:
             # convert outputs to scalars
             CAPE = CAPE.item()
             CIN = CIN.item()
@@ -1468,7 +1468,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     # Note the final downdraft parcel temperature
     Tpf = Tp2
 
-    if len(DCAPE) == 1 and output_scalars:
+    if DCAPE.size == 1 and output_scalars:
         # convert outputs to scalars
         DCAPE = DCAPE.item()
         DCIN = DCIN.item()
@@ -1566,7 +1566,7 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         Tp_dpl = follow_moist_adiabat(
             100000.0, p_dpl, thw_dpl, qt=None, **kwargs
         )
-    if len(Tp_dpl) == 1:
+    if Tp_dpl.size == 1:
         Tp_dpl = Tp_dpl.item()
 
     # Note the DPL and initial downdraft parcel temperature
@@ -1627,12 +1627,12 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
     qi = np.atleast_1d(qi)
     if qf is not None:
         qf = np.atleast_1d(qf)
-    if len(Ti) > 1:
+    if Ti.size > 1:
         # multiple initial temperature values
-        if len(pi) == 1:
+        if pi.size == 1:
             # single initial pressure value
             pi = np.full_like(Ti, pi)
-        if len(pf) == 1:
+        if pf.size == 1:
             # single final pressure value
             pf = np.full_like(Ti, pf)
 
@@ -1716,7 +1716,7 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
     # Mask points where final pressure exceeds initial pressure
     LI[pf > pi] = np.nan
 
-    if len(LI) == 1:
+    if LI.size == 1:
         return LI.item()
     else:
         return LI

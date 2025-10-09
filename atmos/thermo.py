@@ -783,7 +783,7 @@ def ice_fraction(Tstar, phase='mixed'):
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if len(Tstar) == 1:
+    if Tstar.size == 1:
         omega = omega[0]
 
     return omega
@@ -815,7 +815,7 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if len(Tstar) == 1:
+    if Tstar.size == 1:
         domega_dTstar = domega_dTstar[0]
 
     return domega_dTstar
@@ -1114,12 +1114,12 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
         pf = np.atleast_1d(pf)
         Ti = np.atleast_1d(Ti)
 
-        if len(Ti) > 1:
+        if Ti.size > 1:
             # multiple initial temperature values
-            if len(pi) == 1:
+            if pi.size == 1:
                 # single initial pressure value
                 pi = np.full_like(Ti, pi)
-            if len(pf) == 1:
+            if pf.size == 1:
                 # single final pressure value
                 pf = np.full_like(Ti, pf)
 
@@ -1290,7 +1290,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if not np.isscalar(Tw) and len(Tw) == 1:
+    if not np.isscalar(Tw) and Tw.size == 1:
         Tw = Tw.item()
 
     return Tw
@@ -1897,7 +1897,7 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True,
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if not np.isscalar(thw) and len(thw) == 1:
+    if not np.isscalar(thw) and thw.size == 1:
         thw = thw.item()
 
     return thw
@@ -1929,7 +1929,7 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
     thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
                                 polynomial=polynomial, explict=explicit, dp=dp)
 
-    if not np.isscalar(thws) and len(thws) == 1:
+    if not np.isscalar(thws) and thws.size == 1:
         thws = thws.item()
 
     return thws

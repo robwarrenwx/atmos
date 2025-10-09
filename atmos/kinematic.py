@@ -50,7 +50,7 @@ def wind_direction(u, v):
     if np.any(calm_mask):
         wdir[calm_mask] = 0.
         
-    if len(wdir) == 1:
+    if wdir.size == 1:
         wdir = wdir.item()
 
     return wdir
@@ -212,7 +212,7 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     BWDu = u_top - u_bot
     BWDv = v_top - v_bot
 
-    if len(BWDu) == 1:
+    if BWDu.size == 1:
         return BWDu.item(), BWDv.item()
     else:
         return BWDu, BWDv
@@ -459,7 +459,7 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
                 (u1[in_layer] - u_storm[in_layer]) * \
                 (v2[in_layer] - v_storm[in_layer])
 
-    if len(SRH) == 1:
+    if SRH.size == 1:
         return SRH.item()
     else:
         return SRH
