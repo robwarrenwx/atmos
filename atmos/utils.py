@@ -220,7 +220,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
     Args:
         z (ndarray): height profile(s) (m)
         T (ndarray): temperature profile(s) (K)
-        Ti (float): temperature level (K)
+        Ti (float or ndarray): temperature level (K)
         z_sfc (float or ndarray, optional): surface height (m)
         T_sfc (float or ndarray, optional): surface temperature (K)
         vertical_axis (int, optional): profile array axis corresponding to
@@ -256,6 +256,10 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
     # Make sure that surface fields are at least 1D
     z_sfc = np.atleast_1d(z_sfc)
     T_sfc = np.atleast_1d(T_sfc)
+
+    # Make sure that Ti matches shape of surface fields
+    if np.isscalar(Ti):
+        Ti = np.full_like(z_sfc, Ti)
 
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
@@ -294,7 +298,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
         # Interpolate to get height at Ti
         crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T1[crossed] - Ti) / (T1[crossed] - T2[crossed])
+            weight = (T1[crossed] - Ti[crossed]) / (T1[crossed] - T2[crossed])
             zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
             found[crossed] = True
             if np.all(found):
@@ -320,7 +324,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
     Args:
         p (ndarray): pressure profile(s) (Pa)
         T (ndarray): temperature profile(s) (K)
-        Ti (float): temperature level (K)
+        Ti (float or ndarray): temperature level (K)
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         T_sfc (float or ndarray, optional): surface temperature (K)
         vertical_axis (int, optional): profile array axis corresponding to
@@ -354,6 +358,10 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
     # Make sure that surface fields are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
     T_sfc = np.atleast_1d(T_sfc)
+
+    # Make sure that Ti matches shape of surface fields
+    if np.isscalar(Ti):
+        Ti = np.full_like(p_sfc, Ti)
 
     # Check if Ti is above the surface temperature
     if np.any(Ti > T_sfc):
@@ -392,7 +400,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
         # Interpolate to get pressure at Ti
         crossed = (T1 > Ti) & (T2 <= Ti) & np.logical_not(found)
         if np.any(crossed):
-            weight = (T1[crossed] - Ti) / (T1[crossed] - T2[crossed])
+            weight = (T1[crossed] - Ti[crossed]) / (T1[crossed] - T2[crossed])
             pi[crossed] = p1[crossed] ** (1 - weight) * p2[crossed] ** weight
             found[crossed] = True
             if np.all(found):
