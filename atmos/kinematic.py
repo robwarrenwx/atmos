@@ -212,6 +212,12 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     BWDu = u_top - u_bot
     BWDv = v_top - v_bot
 
+    # Deal with points where z_bot or z_top are undefined
+    is_nan = np.isnan(z_bot) | np.isnan(z_top)
+    if np.any(is_nan):
+        BWDu[is_nan] = np.nan
+        BWDv[is_nan] = np.nan
+
     if BWDu.size == 1:
         return BWDu.item(), BWDv.item()
     else:
@@ -341,6 +347,31 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
                             z_sfc=None, u_sfc=None, v_sfc=None,
                             vertical_axis=0):
     
+    """
+    Computes storm-relative helicity across a specified layer for a given
+    storm motion.
+
+    Args:
+        z (ndarray): height (m)
+        u (ndarray): eastward component of wind (m/s)
+        v (ndarray): northward component of wind (m/s)
+        u_storm (ndarray): eastward component of storm motion (m/s)
+        v_storm (ndarray): northward component of storm motion (m/s)
+        z_bot (float or ndarray): height of bottom of layer (m)
+        z_top (float or ndarray): height of top of layer (m)
+        z_sfc (float or ndarray, optional): surface height (m)
+        u_sfc (float or ndarray, optional): eastward component of wind at
+            surface (m/s)
+        v_sfc (float or ndarray, optional): northward component of wind at
+            surface (m/s)
+        vertical_axis (int, optional): profile array axis corresponding to 
+            vertical dimension (default is 0)
+
+    Returns:
+        SRH (float or ndarray): storm-relative helicity (m2/s2)
+
+    """
+
     # Reorder profile array dimensions if needed
     if vertical_axis != 0:
         z = np.moveaxis(z, vertical_axis, 0)
@@ -458,6 +489,11 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
                 (v1[in_layer] - v_storm[in_layer]) - \
                 (u1[in_layer] - u_storm[in_layer]) * \
                 (v2[in_layer] - v_storm[in_layer])
+
+    # Deal with points where z_bot or z_top are undefined
+    is_nan = np.isnan(z_bot) | np.isnan(z_top)
+    if np.any(is_nan):
+        SRH[is_nan] = np.nan
 
     if SRH.size == 1:
         return SRH.item()
