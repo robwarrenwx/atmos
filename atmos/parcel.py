@@ -1684,8 +1684,8 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
 
     # Create arrays to store the final parcel temperature and specific
     # humidity
-    Tpf = np.zeros_like(pi)
-    qpf = np.zeros_like(pi)
+    Tpf = np.full_like(pi, np.nan)
+    qpf = np.full_like(pi, np.nan)
 
     # Find points where the final level is above the LCL
     above_lcl = (p_lcl > pf)
