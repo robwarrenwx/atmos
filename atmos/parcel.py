@@ -784,6 +784,7 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 
 def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                         thw=None, thw_sfc=None,
                          most_unstable_method='max_wbpt', min_pressure=50000.0,
                          eil_min_cape=100.0, eil_max_cin=250.0,
                          vertical_axis=0, return_parcel_properties=False,
@@ -811,6 +812,9 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         T_sfc (float or ndarray, optional): surface temperature (K)
         q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        thw (float or ndarray, optional): wet-bulb potential temperature (K)
+        thw_sfc (float or ndarray, optional): surface wet-bulb potential
+            temperature (K)
         most_unstable_method (str, optional): method for defining the most
             unstable parcel (valid options are 'max_wbpt' or 'max_cape';
             default is 'max_wbpt')
@@ -1017,24 +1021,26 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     else:  # most_unstable_method = 'max_wbpt'
 
-        # Get phase and polynomial flag from kwargs
-        phase = kwargs.get('phase', 'liquid')
-        polynomial = kwargs.get('polynomial', True)
-        explicit = kwargs.get('explicit', False)
-        dp = kwargs.get('dp', 500.0)
+        if thw is None:
 
-        # Compute wet-bulb potential temperature (WBPT)
-        thw = wet_bulb_potential_temperature(
-            p, T, q, phase=phase, polynomial=polynomial,
-            explicit=explicit, dp=dp
-        )
-        if p_sfc is None:
-            thw_sfc = None
-        else:
-            thw_sfc = wet_bulb_potential_temperature(
-                p_sfc, T_sfc, q_sfc, phase=phase, polynomial=polynomial,
+            # Get phase and polynomial flag from kwargs
+            phase = kwargs.get('phase', 'liquid')
+            polynomial = kwargs.get('polynomial', True)
+            explicit = kwargs.get('explicit', False)
+            dp = kwargs.get('dp', 500.0)
+
+            # Compute wet-bulb potential temperature (WBPT)
+            thw = wet_bulb_potential_temperature(
+                p, T, q, phase=phase, polynomial=polynomial,
                 explicit=explicit, dp=dp
             )
+            if p_sfc is None:
+                thw_sfc = None
+            else:
+                thw_sfc = wet_bulb_potential_temperature(
+                    p_sfc, T_sfc, q_sfc, phase=phase, polynomial=polynomial,
+                    explicit=explicit, dp=dp
+                )
 
         # Set the bottom and top of the layer in which to search for the MU
         # parcel
@@ -1479,15 +1485,16 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
 
 
 def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                     p_bot=None, p_top=None, vertical_axis=0,
-                     return_parcel_properties=False, **kwargs):
+                     thw=None, thw_sfc=None, p_bot=None, p_top=None,
+                     vertical_axis=0, return_parcel_properties=False,
+                     **kwargs):
     """
     Performs a downdraft parcel descent and returns the resulting downdraft
     convective available potential energy (DCAPE) and downdraft convective
     inhibition (DCIN), along with the downdraft parcel level (DPL) and
     downdraft equilibrium level (DEL). The DPL is defined as the level with the
-    lowest wet-bulb potential temperature either between two specified levels
-    (p_bot and p_top) or in the lowest 400 hPa above the surface. the DEL is
+    lowest wet-bulb potential temperature in either the lowest 400 hPa above
+    the surface or between two specified levels (p_bot and p_top). The DEL is
     defined as the last (lowest) level at which the downdraft parcel becomes
     positively buoyant.
 
@@ -1498,6 +1505,9 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_sfc (float or ndarray, optional): surface pressure (Pa)
         T_sfc (float or ndarray, optional): surface temperature (K)
         q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        thw (float or ndarray, optional): wet-bulb potential temperature (K)
+        thw_sfc (float or ndarray, optional): surface wet-bulb potential
+            temperature (K)
         p_bot (float or ndarray, optional): pressure of bottom of layer (Pa)
         p_top (float or ndarray, optional): pressure of top of layer (Pa)
         vertical_axis (int, optional): profile array axis corresponding to 
@@ -1536,12 +1546,14 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         else:
             p_top = p_sfc - 40000.0  # 400 hPa above surface
 
-    # Compute wet-bulb potential temperature (WBPT)
-    thw = wet_bulb_potential_temperature(p, T, q, **kwargs)
-    if p_sfc is None:
-        thw_sfc = None
-    else:
-        thw_sfc= wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc, **kwargs)
+    if thw is None:
+
+        # Compute wet-bulb potential temperature (WBPT)
+        thw = wet_bulb_potential_temperature(p, T, q, **kwargs)
+        if p_sfc is None:
+            thw_sfc = None
+        else:
+            thw_sfc= wet_bulb_potential_temperature(p_sfc, T_sfc, q_sfc, **kwargs)
 
     # Find the level corresponding to the minimum WBPT between p_bot and p_top
     # and set this as the DPL
@@ -1553,7 +1565,8 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     phase = kwargs.get('phase', 'liquid')
     polynomial = kwargs.get('polynomial', True)
 
-    # Get the DPL parcel temperature
+    # Get the DPL parcel temperature (assumed to be the environmental wet-bulb
+    # temperature at this level)
     if polynomial:
         if phase != 'liquid':
             raise ValueError(
