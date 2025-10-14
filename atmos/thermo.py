@@ -1904,7 +1904,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True,
 
 
 def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
-                                              polynomial=True):
+                                              polynomial=True, explicit=False,
+                                              dp=500.0):
     """
     Computes saturation wet-bulb potential temperature.
 
@@ -1927,7 +1928,8 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
 
     # Follow a pseudoadiabat to 1000 hPa
     thws = follow_moist_adiabat(p, p_ref, T, phase=phase, pseudo=True,
-                                polynomial=polynomial, explict=explicit, dp=dp)
+                                polynomial=polynomial, explicit=explicit,
+                                dp=dp)
 
     if not np.isscalar(thws) and thws.size == 1:
         thws = thws.item()
