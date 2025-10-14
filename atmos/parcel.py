@@ -1135,7 +1135,7 @@ def effective_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     if p_eib is None or p_eit is None:
 
         # Get pressure at the base and top of the EIL
-        _, _, _, _, _, _, _, p_eib, p_eit = most_unstable_parcel_ascent(
+        _, _, _, _, _, _, _, p_eib, p_eit = most_unstable_parcel(
             p, T, q, p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc, 
             mu_parcel='max_cape'
         )
