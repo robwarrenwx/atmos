@@ -48,15 +48,22 @@ References:
 * Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
     derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
     2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
+* Vazquez-Leal, H., Sandoval-Hernandez, M.A., Garcia-Gervacio, J.L.,
+    Herrera-May, A.L., and Filobello-Nino, U.A., 2019. PSEM approximations
+    for both branches of Lambert W function with applications. Discrete
+    Dynamics in Nature and Society, 2019, 1-15,
+    https://doi.org/10.1155/2019/8267951.
 
 """
 
 
 import numpy as np
-from scipy.special import lambertw
+#from scipy.special import lambertw
 from atmos.constant import (g, Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
                             T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
 import atmos.pseudoadiabat as pseudoadiabat
+from numba import vectorize
+
 
 # Precision for iterative temperature calculations (K)
 precision = 0.001
@@ -421,6 +428,73 @@ def relative_humidity(p, T, q, qt=None, phase='liquid', omega=0.0):
     return RH
 
 
+@vectorize(['float32(float32)', 'float64(float64)'], nopython=True)
+def _lambertw(x):
+    """
+    Evaluates the lower branch of the Lambert-W function using PSEM
+    approximation from Vazquez-Leal et al. (2019; hereafter VL19).
+
+    Args:
+        x (float): dependent variable
+
+    Returns:
+        y (float): Lambert W function (lower branch)
+
+    """
+
+    y = np.nan
+
+    # W_{-1,1} - VL19, Eq. 15
+    if (x >= -0.3678794411714423) and (x < -0.34):
+        a1 = -7.874564067684664
+        a2 = -63.11879948166995
+        a3 = -168.6110850408981
+        a4 = -150.1089086912451
+        b1 = 15.97679839497612
+        b2 = 98.26612857148953
+        b3 = 293.9558944644677
+        b4 = 430.4471947824411
+        b5 = 247.8576700279611
+        alpha = x * (a1 + x * (a2 + x * (a3 + x * a4)))
+        beta = 1. + x * (b1 + x * (b2 + x * (b3 + x * (b4 + x * b5))))
+        y = (alpha / beta) * (x + np.exp(-1.)) - 1.
+
+    # W_{-1,2} - VL19, Eq. 16
+    if (x >= -0.34) and (x < -0.1):
+        a1 = -1362.78381643109
+        a2 = -1386.04132570149
+        a3 = 11892.1649836015
+        a4 = 16904.0507511421
+        b1 = 251.440197724561
+        b2 = -1264.99554712435
+        b3 = -5687.63429510978
+        b4 = -2639.24130979048
+        y = (x * (a1 + x * (a2 + x * (a3 + x * a4)))) / \
+            (1. + x * (b1 + x * (b2 + x * (b3 + x * b4))))
+
+    # W_{-1,3} - VL19, Eq. 17-18
+    if (x >= -0.1) and (x < 0.):
+        a1 = 1.01999365162218
+        a2 = -12.6917365519443
+        a3 = -45.1506015092455
+        b1 = -22.9809693297808
+        b2 = -104.692066099727
+        b3 = -95.2085341727207
+        k0 = (x * (a1 + x * (a2 + x * a3))) / \
+             (1. + x * (b1 + x * (b2 + x * b3)))
+        k1 = np.log(-x)
+        k2 = k1 - np.log(-k1) + np.log(-k1) / k1
+        y = k0 + k2
+
+    # Iterate once to improve accuracy - VL19, Eq. 30-32
+    z = np.log(x / y) - y
+    t = 2. * (1. + y) * (1. + y + (2./3.) * z)
+    e = (z / (1. + y)) * (t - z) / (t - 2. * z)
+    y = y * (1. + e)
+
+    return y
+
+
 def _dewpoint_temperature_from_relative_humidity(T, RH):
     """
     Computes dewpoint temperature from temperature and relative humidity over
@@ -440,7 +514,8 @@ def _dewpoint_temperature_from_relative_humidity(T, RH):
 
     # Compute dewpoint temperature (Romps 2021, Eq. 5)
     fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
+    #W = lambertw(fn, k=-1).real
+    W = _lambertw(fn)
     Td = c * (1 / W) * T
 
     return Td
@@ -489,7 +564,8 @@ def _frost_point_temperature_from_relative_humidity(T, RH):
 
     # Compute frost-point temperature (Romps 2021, Eq. 7)
     fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
+    #W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
+    W = _lambertw(fn)
     Tf = c * (1 / W) * T
 
     return Tf
@@ -545,7 +621,8 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
 
     # Compute saturation-point temperature (cf. Romps 2021, Eq. 5 and 7)
     fn = np.power(RH, (Rv / (cpx - cpv))) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
+    #W = lambertw(fn, k=-1).real
+    W = _lambertw(fn)
     Ts = c * (1 / W) * T
 
     return Ts
@@ -628,7 +705,8 @@ def lifting_condensation_level(p, T, q):
 
     # Compute temperature at the LCL (Romps 2017, Eq. 22a)
     fn = np.power(RH, (1 / a)) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
+    #W = lambertw(fn, k=-1).real
+    W = _lambertw(fn)
     T_lcl = c * (1 / W) * T
     
     # Compute pressure at the LCL (Romps 2017, Eq. 22b)
@@ -671,7 +749,8 @@ def lifting_deposition_level(p, T, q):
 
     # Compute temperature at the LDL (Romps 2017, Eq. 23a)
     fn = np.power(RH, (1 / a)) * c * np.exp(c)
-    W = lambertw(fn, k=-1).real
+    #W = lambertw(fn, k=-1).real
+    W = _lambertw(fn)
     T_ldl = c * (1 / W) * T
     
     # Compute pressure at the LDL (Romps 2017, Eq. 23b)
@@ -734,7 +813,8 @@ def lifting_saturation_level(p, T, q):
 
         # Compute temperature at the LSL (cf. Romps 2017, Eq. 22a and 23a)
         fn = np.power(RH, (1 / a)) * c * np.exp(c)
-        W = lambertw(fn, k=-1).real  # -1 branch because cpx > cpv
+        #W = lambertw(fn, k=-1).real  # -1 branch because cpx > cpv
+        W = _lambertw(fn)
         T_lsl = c * (1 / W) * T
     
         # Check if solution has converged
