@@ -17,6 +17,7 @@ from atmos.thermo import (
     ice_fraction,
     follow_dry_adiabat,
     follow_moist_adiabat,
+    pseudo_wet_bulb_temperature,
     wet_bulb_potential_temperature
 )
 
@@ -1336,10 +1337,10 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         qp1 = qp2.copy()
         B1 = B2.copy()
 
-        # If all points are below the surface, skip this level
+        # If all points are below the surface, break out of loop
         p1_below_sfc = (p1 >= p_sfc)
         if np.all(p1_below_sfc):
-            continue
+            break
 
         # Set level 2 environmental fields
         if k > k_stop:
@@ -1356,7 +1357,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
         p2_below_dpl = (p2 > p_dpl)
         p2_above_dpl = np.logical_not(p2_below_dpl)
 
-        # If all points are above the DPL, skip this level
+        # If all level 2 points are at/above the DPL, skip this level
         if np.all(p2_above_dpl):
             continue
 
@@ -1369,7 +1370,7 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             # Interpolate to get environmental temperature and specific
             # humidity at the DPL
             weight = np.log(p_dpl[cross_dpl] / p1[cross_dpl]) / \
-                np.log(p1[cross_dpl] / p2[cross_dpl])
+                np.log(p2[cross_dpl] / p1[cross_dpl])
             T1[cross_dpl] = (1 - weight) * T1[cross_dpl] + \
                 weight * T2[cross_dpl]
             q1[cross_dpl] = (1 - weight) * q1[cross_dpl] + \
@@ -1390,14 +1391,16 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             )
 
         # Follow a pseudoadiabat to get parcel temperature
-        Tp2 = follow_moist_adiabat(
-            p1, p2, Tp1, phase=phase, pseudo=True, polynomial=polynomial,
-            explicit=explicit, dp=dp
+        Tp2[p2_below_dpl] = follow_moist_adiabat(
+            p1[p2_below_dpl], p2[p2_below_dpl], Tp1[p2_below_dpl], phase=phase,
+            pseudo=True, polynomial=polynomial, explicit=explicit, dp=dp
         )
 
         # Set parcel specific humidity equal to its value at saturation
-        omega = ice_fraction(Tp2)
-        qp2 = saturation_specific_humidity(p2, Tp2, phase=phase, omega=omega)
+        omega = ice_fraction(Tp2[p2_below_dpl])
+        qp2[p2_below_dpl] = saturation_specific_humidity(
+            p2[p2_below_dpl], Tp2[p2_below_dpl], phase=phase, omega=omega
+        )
 
         # Compute parcel buoyancy at level 2
         B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
@@ -1463,6 +1466,12 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
             DCAPE[pos_to_neg] -= Rd * 0.5 * B2[pos_to_neg] * \
                 np.log(p2[pos_to_neg] / px[pos_to_neg])
 
+        # If positively buoyant at DPL then set DEL = DPL
+        # (this can happen due to small errors in Tw calculation)
+        pos_at_dpl = (p1 == p_dpl) & (B1 > 0.0)
+        if np.any(pos_at_dpl):
+            DEL[pos_at_dpl] = p_dpl[pos_at_dpl]
+
         # Reset DCAPE, DCIN, and the DEL where p2 is above the DPL
         DCAPE[p2_above_dpl] = 0.0
         DCIN[p2_above_dpl] = 0.0
@@ -1494,9 +1503,10 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     inhibition (DCIN), along with the downdraft parcel level (DPL) and
     downdraft equilibrium level (DEL). The DPL is defined as the level with the
     lowest wet-bulb potential temperature in either the lowest 400 hPa above
-    the surface or between two specified levels (p_bot and p_top). The DEL is
-    defined as the last (lowest) level at which the downdraft parcel becomes
-    positively buoyant.
+    the surface (by default) or between two specified levels (p_bot and p_top).
+    The parcel temperature at the DPL is set as the environmental wet-bulb
+    temperature at this level. The DEL is defined as the last (lowest) level at
+    which the downdraft parcel becomes positively buoyant.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -1561,26 +1571,18 @@ def downdraft_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p, thw, p_bot, p_top, p_sfc=p_sfc, s_sfc=thw_sfc, statistic='min'
     )
 
-    # Get phase and polynomial flag from kwargs
-    phase = kwargs.get('phase', 'liquid')
-    polynomial = kwargs.get('polynomial', True)
+    # Interpolate to get the environmental temperature and specific humidity at
+    # the DPL
+    T_dpl = interpolate_scalar_to_pressure_level(
+        p, T, p_dpl, p_sfc=p_sfc, s_sfc=T_sfc,
+    )
+    q_dpl = interpolate_scalar_to_pressure_level(
+        p, q, p_dpl, p_sfc=p_sfc, s_sfc=q_sfc,
+    )
 
-    # Get the DPL parcel temperature (assumed to be the environmental wet-bulb
-    # temperature at this level)
-    if polynomial:
-        if phase != 'liquid':
-            raise ValueError(
-                """Polynomial fits are not available for ice and mixed-phase
-                pseudoadiabats. Calculations must be performed using direct
-                integration by setting polynomial=False."""
-                )
-        Tp_dpl = pseudoadiabat.temp(p_dpl, thw_dpl)
-    else:
-        Tp_dpl = follow_moist_adiabat(
-            100000.0, p_dpl, thw_dpl, qt=None, **kwargs
-        )
-    if Tp_dpl.size == 1:
-        Tp_dpl = Tp_dpl.item()
+    # Set the parcel temperature at the DPL as the environmental wet-bulb
+    # temperature at this level
+    Tp_dpl = pseudo_wet_bulb_temperature(p_dpl, T_dpl, q_dpl, **kwargs)
 
     # Note the DPL and initial downdraft parcel temperature
     DPL, Tpi = p_dpl, Tp_dpl
