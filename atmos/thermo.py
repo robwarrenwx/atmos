@@ -1185,6 +1185,11 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
         # Compute the temperature on this pseudoadiabat at pf
         Tf = pseudoadiabat.temp(pf, thw)
 
+        # Ensure that final temperature is equal to initial temperature where
+        # initial and final pressures are equal (this is not guaraneteed due to
+        # small errors introduced in polynomial fits)
+        Tf = np.where(pf == pi, Ti, Tf)
+
     else:
 
         if not pseudo and qt is None:
@@ -1369,6 +1374,10 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
     else:
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
+
+    # Ensure that Tw does not exceed T (this can happen due to small errors
+    # introduced by polynomial fits or numerical integration)
+    Tw = np.minimum(Tw, T)
 
     if not np.isscalar(Tw) and Tw.size == 1:
         Tw = Tw.item()
