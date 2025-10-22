@@ -922,6 +922,8 @@ def height_layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
             z_sfc = np.zeros_like(s_sfc)  # assumes height AGL
         if surface_weight is None:
             w_sfc = np.ones_like(s_sfc)
+        else:
+            w_sfc = surface_weight
 
     # Make sure that surface fields are at least 1D
     z_sfc = np.atleast_1d(z_sfc)
@@ -1086,6 +1088,8 @@ def height_layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
             z_sfc = np.zeros_like(u_sfc)  # assumes height AGL
         if surface_weight is None:
             w_sfc = np.ones_like(u_sfc)
+        else:
+            w_sfc = surface_weight
 
     # Make sure that surface fields are at least 1D
     z_sfc = np.atleast_1d(z_sfc)
@@ -1260,6 +1264,8 @@ def pressure_layer_mean_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
             raise ValueError('Pressure at surface must be specified')
         if surface_weight is None:
             w_sfc = np.ones_like(s_sfc)
+        else:
+            w_sfc = surface_weight
 
     # Make sure that surface fields are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
@@ -1430,6 +1436,8 @@ def pressure_layer_mean_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
             raise ValueError('Pressure at surface must be specified')
         if surface_weight is None:
             w_sfc = np.ones_like(u_sfc)
+        else:
+            w_sfc = surface_weight
 
     # Make sure that surface fields are at least 1D
     p_sfc = np.atleast_1d(p_sfc)
