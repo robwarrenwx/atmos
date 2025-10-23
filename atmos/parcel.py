@@ -568,7 +568,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         pos_at_top = (p2 == p[-1]) & (B2 > 0.0)
         if np.any(pos_at_top):
             n_pts = np.count_nonzero(pos_at_top)
-            warnings.warn('Positive buoyancy at top level for {n_pts} points')
+            warnings.warn(f'Positive buoyancy at top level for {n_pts} points')
             p_lmb[pos_at_top] = p_max[pos_at_top]
             p_el[pos_at_top] = p2[pos_at_top]
             cape_layer[pos_at_top] = pos_area[pos_at_top]
