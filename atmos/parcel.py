@@ -785,8 +785,8 @@ def mixed_layer_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
 
 def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
-                         thw=None, thw_sfc=None,
-                         most_unstable_method='max_wbpt', min_pressure=50000.0,
+                         thw=None, thw_sfc=None, p_bot=None, p_top=None,
+                         most_unstable_method='max_wbpt',
                          eil_min_cape=100.0, eil_max_cin=250.0,
                          vertical_axis=0, return_parcel_properties=False,
                          **kwargs):
@@ -796,15 +796,16 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
     (CIN), along with the lifted parcel level (LPL), lifting condensation level
     (LCL), level of free convection (LFC), level of maximum buoyancy (LMB) and
     equilibrium level (EL). By default, the MU parcel is defined using the
-    maximum wet-bulb potential temperature (most_unstable_method='max_wbpt').
-    Alternatively, it can be defined by launching parcels from every level and
-    identifying the one with maximum CAPE (most_unstable_method='max_cape'). In
-    this case, the function also returns the effective inflow layer (EIL) base
-    and top. Following Thompson et al. (2007), the EIL is defined as the first
-    contiguous layer comprising at least two levels where CAPE >= 100 J/kg and
-    CIN <= 250 J/kg. Note that the 'max_cape' calculation is significantly
-    slower than the 'max_wbpt' calculation, particularly when the input data
-    has high vertical resolution.
+    maximum wet-bulb potential temperature (most_unstable_method='max_wbpt')
+    within a specified layer (by default the lowest 300 hPa above the surface).
+    Alternatively, it can be defined by launching parcels from every level in
+    this layer and identifying the one that results in the maximum CAPE
+    (most_unstable_method='max_cape'). In this case, the function also returns
+    the base and top of the effective inflow layer (EIL). Following Thompson
+    et al. (2007), the EIL is defined as the first contiguous layer (comprising
+    at least two levels) where CAPE >= 100 J/kg and CIN <= 250 J/kg. Note that
+    the 'max_cape' calculation is significantly slower than the 'max_wbpt'
+    calculation, particularly when the input data has high vertical resolution.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -816,11 +817,13 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         thw (float or ndarray, optional): wet-bulb potential temperature (K)
         thw_sfc (float or ndarray, optional): surface wet-bulb potential
             temperature (K)
+        p_bot (float, optional): pressure at bottom of layer (Pa) (default is
+            None, in which case the surface is used)
+        p_top (float, optional): pressure at top of layer (Pa) (default is
+            None, in which case the level 300 hPa above the surface is used)
         most_unstable_method (str, optional): method for defining the most
             unstable parcel (valid options are 'max_wbpt' or 'max_cape';
             default is 'max_wbpt')
-        min_pressure (float, optional): minimum pressure from which to launch
-            parcel (Pa) (default is 50000 Pa = 500 hPa)
         eil_min_cape (float, optional): minimum CAPE threshold used to define
             the EIL (J/kg) (default is 100 J/kg)
         eil_max_cin (float, optional): maximum CIN threshold used to define
@@ -864,6 +867,20 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         T = np.atleast_2d(T).T
         q = np.atleast_2d(q).T
 
+    # Set the bottom of the layer, if not specified
+    if p_bot is None:
+        if p_sfc is None:
+            p_bot = p[0]  # lowest level
+        else:
+            p_bot = p_sfc  # surface
+
+    # Set the top of the layer, if not specified
+    if p_top is None:
+        if p_sfc is None:
+            p_top = p[0] - 30000.0  # 300 hPa above lowest level
+        else:
+            p_top = p_sfc - 30000.0  # 300 hPa above surface
+
     # Note the number of levels
     n_lev = p.shape[0]
 
@@ -893,14 +910,13 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             output_scalars=False, **kwargs
         )
     
-        # Reset CAPE to zero and set CIN and the LFC, LMB, and EL as NaNs where
-        # the LPL (surface) is above the minimum pressure level
-        lpl_above_min = (p_lpl < min_pressure)
-        cape[lpl_above_min] = 0.0
-        cin[lpl_above_min] = np.nan
-        p_lfc[lpl_above_min] = np.nan
-        p_lmb[lpl_above_min] = np.nan
-        p_el[lpl_above_min] = np.nan
+        # Reset parcel parameters where the LPL (surface) is outside the layer
+        outside_layer = (p_lpl > p_bot) | (p_lpl < p_top)
+        cape[outside_layer] = 0.0
+        cin[outside_layer] = np.nan
+        p_lfc[outside_layer] = np.nan
+        p_lmb[outside_layer] = np.nan
+        p_el[outside_layer] = np.nan
 
         # If surface-level fields not provided, use lowest level values
         if p_sfc is None:
@@ -951,11 +967,16 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                 # if all points are below the surface, skip this level
                 continue
 
-            # Find points above the minimum pressure level
-            above_min = (p[k] < min_pressure)
-            if np.all(above_min):
-                # if all points are above the minimum pressure level, break
-                # out of loop
+            # Find points below the layer bottom
+            below_bot = (p[k] > p_bot)
+            if np.all(below_bot):
+                # skip this level
+                continue
+
+            # Find points above the layer top
+            above_top = (p[k] < p_top)
+            if np.all(above_top):
+                # break out of loop
                 break
 
             # Set lifted parcel level (LPL) fields
@@ -969,10 +990,9 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                 output_scalars=False, **kwargs
             )
 
-            # Reset CAPE to zero and where the LPL is above the minimum
-            # pressure level
-            lpl_above_min = (p_lpl < min_pressure)
-            cape[lpl_above_min] = 0.0
+            # Reset CAPE to zero where the LPL is outside of the layer
+            outside_layer = below_bot | above_top
+            cape[outside_layer] = 0.0
 
             # Update output arrays
             is_max = (cape > CAPE)
@@ -1042,14 +1062,6 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                     p_sfc, T_sfc, q_sfc, phase=phase, polynomial=polynomial,
                     explicit=explicit, dp=dp
                 )
-
-        # Set the bottom and top of the layer in which to search for the MU
-        # parcel
-        if p_sfc is None:
-            p_bot = p[0]
-        else:
-            p_bot = p_sfc
-        p_top = min_pressure
 
         # Find the level corresponding to the maximum WBPT between p_bot and
         # p_top and set this as the LPL
