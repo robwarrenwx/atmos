@@ -418,7 +418,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
 
 
 def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
-                                       vertical_axis=0):
+                                       vertical_axis=0, extrapolate=False):
     """
     Interpolates a scalar variable to a specified height level, assuming
     linear variation with height.
@@ -431,6 +431,8 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
         s_sfc (float or ndarray, optional): scalar variable at surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
+        extrapolate (bool, optional): flag indicating whether to extrapolate
+            values below the surface or above the top level (default is False)
 
     Returns:
         si (float or ndarray): scalar variable at level
@@ -467,21 +469,27 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     if np.isscalar(zi):
         zi = np.full_like(z_sfc, zi)
 
-    # Check if zi is below the surface
-    if np.any(zi < z_sfc):
-        n_pts = np.count_nonzero(zi < z_sfc)
+    # Initialise scalar at zi
+    si = np.full_like(zi, np.nan)
+
+    # Check if zi is below surface
+    below_sfc = (zi < z_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'zi is below {bottom} for {n_pts} points')
+        if extrapolate:
+            si[below_sfc] = s_sfc[below_sfc]
 
     # Check if zi is above highest level
-    if np.any(zi > z[-1]):
-        n_pts = np.count_nonzero(zi > z[-1])
+    above_top = (zi > z[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'zi is above highest level for {n_pts} points')
+        if extrapolate:
+            si[above_top] = s[-1][above_top]
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
-
-    # Initialise scalar at zi
-    si = np.full_like(s_sfc, np.nan)
 
     # Initialise level 2 fields
     z2 = z_sfc.copy()
@@ -523,7 +531,8 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
 
 
 def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
-                                       v_sfc=None, vertical_axis=0):
+                                       v_sfc=None, vertical_axis=0,
+                                       extrapolate=False):
     """
     Interpolates vector components to a specified height level, assuming
     linear variation with height.
@@ -540,6 +549,8 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
             surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
+        extrapolate (bool, optional): flag indicating whether to extrapolate
+            values below the surface or above the top level (default is False)
 
     Returns:
         ui (float or ndarray): eastward component of vector at level (m/s)
@@ -581,22 +592,30 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
     if np.isscalar(zi):
         zi = np.full_like(z_sfc, zi)
 
+    # Initialise vector components at zi
+    ui = np.full_like(zi, np.nan)
+    vi = np.full_like(zi, np.nan)
+
     # Check if zi is below surface
-    if np.any(zi < z_sfc):
-        n_pts = np.count_nonzero(zi < z_sfc)
+    below_sfc = (zi < z_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'zi is below {bottom} for {n_pts} points')
+        if extrapolate:
+            ui[below_sfc] = u_sfc[below_sfc]
+            vi[below_sfc] = v_sfc[below_sfc]
 
     # Check if zi is above highest level
-    if np.any(zi > z[-1]):
-        n_pts = np.count_nonzero(zi > z[-1])
+    above_top = (zi > z[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'zi is above highest level for {n_pts} points')
+        if extrapolate:
+            ui[above_top] = u[-1][above_top]
+            vi[above_top] = v[-1][above_top]
 
     # Note the number of vertical levels
     n_lev = z.shape[0]
-
-    # Initialise vector components at zi
-    ui = np.full_like(u_sfc, np.nan)
-    vi = np.full_like(v_sfc, np.nan)
 
     # Initialise level 2 fields
     z2 = z_sfc.copy()
@@ -643,7 +662,7 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
 
 
 def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
-                                         vertical_axis=0):
+                                         vertical_axis=0, extrapolate=False):
     """
     Interpolates a scalar variable to a specified pressure level, assuming
     linear variation with log(pressure).
@@ -656,6 +675,8 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
         s_sfc (float or ndarray, optional): scalar variable at surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
+        extrapolate (bool, optional): flag indicating whether to extrapolate
+            values below the surface or above the top level (default is False)
 
     Returns:
         si (float or ndarray): scalar variable at level
@@ -690,21 +711,27 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     if np.isscalar(pi):
         pi = np.full_like(p_sfc, pi)
 
+    # Initialise scalar at pi
+    si = np.full_like(pi, np.nan)
+
     # Check if pi is below surface
-    if np.any(pi > p[0]):
-        n_pts = np.count_nonzero(pi > p_sfc)
+    below_sfc = (pi > p_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'pi is below {bottom} for {n_pts} points')
+        if extrapolate:
+            si[below_sfc] = s_sfc[below_sfc]
 
     # Check if pi is above highest level
-    if np.any(pi < p[-1]):
-        n_pts = np.count_nonzero(pi < p[-1])
+    above_top = (pi < p[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'pi is above highest level for {n_pts} points')
+        if extrapolate:
+            si[above_top] = s[-1][above_top]
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
-
-    # Initialise scalar at zi
-    si = np.full_like(s_sfc, np.nan)
 
     # Initialise level 2 fields
     p2 = p_sfc.copy()
@@ -747,7 +774,8 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
 
 
 def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
-                                         v_sfc=None, vertical_axis=0):
+                                         v_sfc=None, vertical_axis=0,
+                                         extrapolate=False):
     """
     Interpolates vector components to a specified pressure level, assuming
     linear variation with log(pressure).
@@ -764,6 +792,8 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
             surface
         vertical_axis (int, optional): profile array axis corresponding to
             vertical dimension (default is 0)
+        extrapolate (bool, optional): flag indicating whether to extrapolate
+            values below the surface or above the top level (default is False)
 
     Returns:
         ui (float or ndarray): eastward component of vector at level (m/s)
@@ -803,22 +833,30 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
     if np.isscalar(pi):
         pi = np.full_like(p_sfc, pi)
 
+    # Initialise vector components at pi
+    ui = np.full_like(pi, np.nan)
+    vi = np.full_like(pi, np.nan)
+
     # Check if pi is below surface
-    if np.any(pi > p_sfc):
-        n_pts = np.count_nonzero(pi > p_sfc)
+    below_sfc = (pi > p_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'pi is below {bottom} for {n_pts} points')
+        if extrapolate:
+            ui[below_sfc] = u_sfc[below_sfc]
+            vi[below_sfc] = v_sfc[below_sfc]
 
     # Check if pi is above highest level
-    if np.any(pi < p[-1]):
-        n_pts = np.count_nonzero(pi < p[-1])
+    above_top = (pi < p[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'pi is above highest level for {n_pts} points')
+        if extrapolate:
+            ui[above_top] = u[-1][above_top]
+            vi[above_top] = v[-1][above_top]
 
     # Note the number of vertical levels
     n_lev = p.shape[0]
-
-    # Initialise vector components at zi
-    ui = np.full_like(u_sfc, np.nan)
-    vi = np.full_like(v_sfc, np.nan)
 
     # Initialise level 2 fields
     p2 = p_sfc.copy()
