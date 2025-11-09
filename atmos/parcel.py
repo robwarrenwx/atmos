@@ -40,9 +40,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         * 'maxcape' corresponds to the layer of positive buoyancy with the
           largest CAPE
         * 'last' corresponds to the last (highest) layer of positive buoyancy
-    Options also exist to count layers of positive buoyancy below the LCL
-    towards CAPE and to count layers of negative buoyancy below the LCL or
-    above the LFC towards CIN.
+    Options also exist to count layers of positive buoyancy below the LCL or
+    below the LFC towards CAPE and to count layers of negative buoyancy below
+    the LCL or above the LFC towards CIN.
 
     Args:
         p (ndarray): pressure profile(s) (Pa)
@@ -74,13 +74,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         which_el (str, optional): choice for EL (valid options are 'first', 
             'last', or 'maxcape'; default is 'last')
         count_cape_below_lcl (bool, optional): flag indicating whether to
-            include positive areas below the LCL in CAPE (default is False)
-        count_cin_below_lcl (bool, optional): flag indicating whether to 
-            include negative areas below the LCL in CIN (default is True)
+            count positive areas below the LCL towards CAPE (default is False)
+        count_cin_below_lcl (bool, optional): flag indicating whether to
+            count negative areas below the LCL towards CIN (default is True)
         count_cape_below_lfc (bool, optional): float indicating whether to
-            include positive areas below the LFC in CAPE (default is False)
+            count positive areas below the LFC towards CAPE (default is False)
         count_cin_above_lfc (bool, optional): flag indicating whether to 
-            include negative areas above the LFC in CIN (default is True)
+            count negative areas above the LFC towards CIN (default is True)
 
     Returns:
         CAPE (float or ndarray): convective available potential energy (J/kg)
@@ -105,13 +105,18 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     # Check that LFC and EL options are compatable
     if (which_lfc == 'maxcape' and which_el == 'first'):
         raise ValueError(
-            """Incompatible selection for which_lfc and which_el. For 
-            which_lfc='maxcape', which_el must be set as either 'maxcape'."""
+            """
+            Incompatible selection for which_lfc and which_el. For
+            which_lfc='maxcape', which_el must be set as 'maxcape'
+            or 'last'.
+            """
         )
     if (which_lfc == 'last' and which_el != 'last'):
         raise ValueError(
-            """Incompatible selection for which_lfc and which_el. For 
-            which_lfc='last', which_el must also be set as 'last'."""
+            """
+            Incompatible selection for which_lfc and which_el. For 
+            which_lfc='last', which_el must be set as 'last'.
+            """
         )
 
     # Reorder profile array dimensions if needed
@@ -178,13 +183,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     lpl_below_sfc = (p_lpl > p_sfc)
     if np.any(lpl_below_sfc):
         n_pts = np.count_nonzero(lpl_below_sfc)
-        raise ValueError(f'LPL below {bottom} at {n_pts} points')
+        warnings.warn(f'LPL is below {bottom} at {n_pts} points')
     
     # Check that LPL is not above top level
     lpl_above_top = (p_lpl < p[-1])
     if np.any(lpl_above_top):
         n_pts = np.count_nonzero(lpl_above_top)
-        raise ValueError(f'LPL above top level at {n_pts} points')
+        warnings.warn(f'LPL is above top level at {n_pts} points')
 
     # Note the number of levels
     n_lev = p.shape[0]
@@ -229,8 +234,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     pos_area = np.zeros_like(p_lpl)
 
     # Create arrays for temporary CAPE, CIN, LFC, and EL values
-    cape_layer = np.zeros_like(p_lpl)  # CAPE for most recent positive area
-    cape_total = np.zeros_like(p_lpl)  # total CAPE across all positive areas
+    cape = np.zeros_like(p_lpl)        # CAPE for most recent positive area
     cape_max = np.zeros_like(p_lpl)    # CAPE for largest positive area
     cin_total = np.zeros_like(p_lpl)   # total CIN across all negative areas
     p_lfc = np.zeros_like(p_lpl)       # LFC for most recent positive area
@@ -251,9 +255,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         q2 = q_sfc.copy()
     else:
         k_start = k_lpl + 1
-        p2 = p[k_lpl].copy()
-        T2 = T[k_lpl].copy()
-        q2 = q[k_lpl].copy()
+        p2 = p[k_lpl]
+        T2 = T[k_lpl]
+        q2 = q[k_lpl]
 
     # Initialise level 2 parcel properties using LPL values
     Tp2 = Tp_lpl.copy()
@@ -267,7 +271,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     p_max = p2.copy()
 
     #print(p_lpl, Tp_lpl, qp_lpl)
-    #print(p_lcl, Tp_lcl, qp_lcl)
+    #print(p_lcl, Tp_lcl)
     #print(Tp2, qp2, B2)
 
     # Loop over levels, accounting for addition of extra level for LCL
@@ -282,12 +286,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         B1 = B2.copy()
 
         # If at or above 100 hPa with negative buoyancy, break out of loop
-        if np.all(p1 <= 10000.0) and np.all(B1 < 0.0):
+        if np.all((p1 <= 10000.0) & (B1 < 0.0)):
             break
 
-        # Find level 1 points above and below the LCL
-        p1_above_lcl = (p1 <= p_lcl)
-        p1_below_lcl = np.logical_not(p1_above_lcl)
+        # Find level 1 points below and above the LCL
+        p1_below_lcl = (p1 > p_lcl)
+        p1_above_lcl = np.logical_not(p1_below_lcl)
 
         # Set level 2 environmental fields
         if np.any(p1_below_lcl):
@@ -300,12 +304,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             p2[p1_above_lcl] = p[k-1][p1_above_lcl]
             T2[p1_above_lcl] = T[k-1][p1_above_lcl]
             q2[p1_above_lcl] = q[k-1][p1_above_lcl]
-
-        # Set level 2 environmental fields
-        # (use level k-1 above LCL to account for additional level)
-        #p2 = np.where(p1_above_lcl, p[k-1], p[k])
-        #T2 = np.where(p1_above_lcl, T[k-1], T[k])
-        #q2 = np.where(p1_above_lcl, q[k-1], q[k])
 
         # Reset level 2 environmental fields to surface values where
         # level 2 is below the surface
@@ -326,8 +324,8 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Interpolate to get environmental temperature and specific
             # humidity at the LPL
-            weight = np.log(p_lpl[cross_lpl] / p1[cross_lpl]) / \
-                np.log(p2[cross_lpl] / p1[cross_lpl])
+            weight = np.log(p1[cross_lpl] / p_lpl[cross_lpl]) / \
+                np.log(p1[cross_lpl] / p2[cross_lpl])
             T1[cross_lpl] = (1 - weight) * T1[cross_lpl] + \
                 weight * T2[cross_lpl]
             q1[cross_lpl] = (1 - weight) * q1[cross_lpl] + \
@@ -336,13 +334,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             # Use LPL pressure
             p1[cross_lpl] = p_lpl[cross_lpl]
 
-            # Update masks for points above and below the LPL
-            #p1_above_lpl[cross_lpl] = True
-            #p1_below_lpl[cross_lpl] = False
-
-        # Find level 1 points above and below the LPL
-        p1_above_lpl = (p1 <= p_lpl)
-        p1_below_lpl = np.logical_not(p1_above_lpl)
+        # Find level 1 points below and above the LPL
+        p1_below_lpl = (p1 > p_lpl)
+        p1_above_lpl = np.logical_not(p1_below_lpl)
 
         # If all level 1 points are below the LPL, skip this level
         if np.all(p1_below_lpl):
@@ -459,7 +453,7 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             #print('In negative area', p1, p2, B1, B2)
 
-            # Update the negative area
+            # Update negative area
             neg_area[neg_to_neg] -= Rd * 0.5 * \
                 (B1[neg_to_neg] + B2[neg_to_neg]) * \
                 np.log(p1[neg_to_neg] / p2[neg_to_neg])
@@ -472,7 +466,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Interpolate to get pressure at crossing level
             px = np.zeros_like(p2)
-            #weight = B2[neg_to_pos] / (B2[neg_to_pos] - B1[neg_to_pos])  # BUG
             weight = B1[neg_to_pos] / (B1[neg_to_pos] - B2[neg_to_pos])
             px[neg_to_pos] = p1[neg_to_pos] ** (1 - weight) * \
                 p2[neg_to_pos] ** weight
@@ -492,19 +485,25 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 update = neg_to_pos & p1_above_lcl
             cin_total[update] += neg_area[update]
 
-            # Set LFC if above LCL
-            p_lfc[neg_to_pos & p1_above_lcl] = px[neg_to_pos & p1_above_lcl]
+            # Update LFC
+            if count_cape_below_lcl:
+                # update if above LPL
+                update = neg_to_pos & p1_above_lpl
+            else:
+                # update if above LCL
+                update = neg_to_pos & p1_above_lcl
+            p_lfc[update] = px[update]
 
             # Reset the negative area to zero
             neg_area[neg_to_pos] = 0.0
 
-        # Find where parcel is within positive area
+        # Find points where parcel is within positive area
         pos_to_pos = (B1 > 0.0) & (B2 > 0.0)
         if np.any(pos_to_pos):
 
             #print('In positive area', p1, p2, B1, B2)
 
-            # Update the positive area
+            # Update positive area
             pos_area[pos_to_pos] += Rd * 0.5 * \
                 (B1[pos_to_pos] + B2[pos_to_pos]) * \
                 np.log(p1[pos_to_pos] / p2[pos_to_pos])
@@ -517,7 +516,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Interpolate to get pressure at crossing level
             px = np.zeros_like(p2)
-            #weight = B2[pos_to_neg] / (B2[pos_to_neg] - B1[pos_to_neg])  # BUG
             weight = B1[pos_to_neg] / (B1[pos_to_neg] - B2[pos_to_neg])
             px[pos_to_neg] = p1[pos_to_neg] ** (1 - weight) * \
                 p2[pos_to_neg] ** weight
@@ -528,16 +526,14 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             neg_area[pos_to_neg] -= Rd * 0.5 * B2[pos_to_neg] * \
                 np.log(px[pos_to_neg] / p2[pos_to_neg])
             
-            # Update layer and total CAPE, set the LMB and EL, and mark the
-            # current positive area as complete
+            # Update CAPE, LMB, and EL, and mark positive area as complete
             if count_cape_below_lcl:
                 # update if above LPL
                 update = pos_to_neg & p1_above_lpl
             else:
                 # update if above LCL
                 update = pos_to_neg & p1_above_lcl
-            cape_layer[update] = pos_area[update]
-            cape_total[update] += pos_area[update]
+            cape[update] = pos_area[update]
             p_lmb[update] = p_max[update]
             p_el[update] = px[update]
             done[update] = True
@@ -557,27 +553,34 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         else:
             pos_area[p1_below_lcl] = 0.0
 
-        # If positively buoyant at LCL then set LFC = LCL
-        # (use level 1 so that this also works where LCL = LPL)
-        pos_at_lcl = (p1 == p_lcl) & (B1 > 0.0)
-        if np.any(pos_at_lcl):
-            p_lfc[pos_at_lcl] = p_lcl[pos_at_lcl]
+        if count_cape_below_lcl:
 
-        # If positively buoyant at top level then set as EL, update layer and
-        # total CAPE, and set positive area as complete
+            # If positively buoyant at the LPL then set LFC = LPL
+            pos_at_lpl = (p1 == p_lpl) & (B1 > 0.0)
+            if np.any(pos_at_lpl):
+                p_lfc[pos_at_lpl] = p_lpl[pos_at_lpl]
+
+        else:
+
+            # If positively buoyant at the LCL then set LFC = LCL
+            pos_at_lcl = (p1 == p_lcl) & (B1 > 0.0)
+            if np.any(pos_at_lcl):
+                p_lfc[pos_at_lcl] = p_lcl[pos_at_lcl]
+
+        # If positively buoyant at the top level then update CAPE, LMB, and EL,
+        # and mark positive area as complete
         pos_at_top = (p2 == p[-1]) & (B2 > 0.0)
         if np.any(pos_at_top):
             n_pts = np.count_nonzero(pos_at_top)
             warnings.warn(f'Positive buoyancy at top level for {n_pts} points')
+            cape[pos_at_top] = pos_area[pos_at_top]
             p_lmb[pos_at_top] = p_max[pos_at_top]
             p_el[pos_at_top] = p2[pos_at_top]
-            cape_layer[pos_at_top] = pos_area[pos_at_top]
-            cape_total[pos_at_top] += pos_area[pos_at_top]
             done[pos_at_top] = True
 
         #print(k, p2, T2, q2, Tp2, qp2, qt)
         #print(k, p1, p2, B1, B2, pos_area, neg_area)
-        #print(k, pos_area, neg_area, cape_layer, cape_total, cape_max, cin_total)
+        #print(k, pos_area, neg_area, cape, cape_max, cin_total)
         #print(k, p_lfc, p_lmb, p_el)
 
         if np.any(done):
@@ -586,10 +589,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             is_first = (CAPE == 0.0)
 
             # Note if this is the "maxcape" positive area
-            is_max = (cape_layer > cape_max)
+            is_max = (cape > cape_max)
             if np.any(is_max):
                 # update the maximum CAPE
-                cape_max[done & is_max] = cape_layer[done & is_max]
+                cape_max[done & is_max] = cape[done & is_max]
 
             # Create masks for updating output arrays based on which_lfc and which_el
             if which_lfc == 'first':
@@ -606,14 +609,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
                 update_el = done
 
             # Update CAPE
-            if count_cape_below_lfc:
-                CAPE[update_el] = cape_total[update_el]
-            else:
-                if which_lfc == 'maxcape':
-                    # deal with the case where CAPE may have been accumulated from
-                    # lower layers that turned out not to be the "maxcape" layer
-                    CAPE[update_lfc] = 0.0  # update_lfc = done & is_max
-                CAPE[update_el] += cape_layer[update_el]
+            if not count_cape_below_lfc:
+                # reset CAPE where the LFC has been updated
+                CAPE[update_lfc] = 0.0
+            CAPE[update_el] += cape[update_el]
 
             # Update CIN
             if count_cin_above_lfc:
@@ -842,8 +841,8 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         LFC (float or ndarray): level of free convection (Pa)
         LMB (float or ndarray): level of maximum buoyancy (Pa)
         EL (float or ndarray): equilibrium level (Pa)
-        EILbase (float or ndarray): effective inflow layer base (Pa)
-        EILtop (float or ndarray): effective inflow layer top (Pa)
+        EIB (float or ndarray): effective inflow base (Pa)
+        EIT (float or ndarray): effective inflow top (Pa)
         Tpi (float or ndarray): initial parcel temperature (K)
         qpi (float or ndarray): initial parcel specific humidity (g/kg)
 
@@ -886,7 +885,7 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
 
     if most_unstable_method == 'max_cape':
 
-        # Set initial LPL and associated parcel properties
+        # Set initial LPL as the surface
         if p_sfc is None:
             k_start = 1  # start loop from second level
             p_lpl = p[0].copy()
@@ -903,14 +902,14 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         Tp_lpl = np.atleast_1d(Tp_lpl)
         qp_lpl = np.atleast_1d(qp_lpl)
 
-        # Perform parcel ascent from surface
+        # Perform parcel ascent
         cape, cin, p_lcl, p_lfc, p_lmb, p_el = parcel_ascent(
             p, T, q, p_lpl, Tp_lpl, qp_lpl,
             p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
             output_scalars=False, **kwargs
         )
     
-        # Reset parcel parameters where the LPL (surface) is outside the layer
+        # Reset parcel parameters where the LPL is outside the layer
         outside_layer = (p_lpl > p_bot) | (p_lpl < p_top)
         cape[outside_layer] = 0.0
         cin[outside_layer] = np.nan
@@ -918,21 +917,7 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         p_lmb[outside_layer] = np.nan
         p_el[outside_layer] = np.nan
 
-        # If surface-level fields not provided, use lowest level values
-        if p_sfc is None:
-            k_start = 1  # start loop from second level
-            p_sfc = p[0]
-            T_sfc = T[0]
-            q_sfc = q[0]
-        else:
-            k_start = 0  # start loop from first level
-
-        # Make sure that surface fields are at least 1D
-        p_sfc = np.atleast_1d(p_sfc)
-        T_sfc = np.atleast_1d(T_sfc)
-        q_sfc = np.atleast_1d(q_sfc)
-
-        #print('sfc', p_sfc, T_sfc, q_sfc, cape, cin, lcl, lfc, el)
+        #print('sfc', p_lpl, p_lcl, p_lfc, p_el, cape, cin)
 
         # Initialise the output arrays
         CAPE = cape
@@ -945,27 +930,19 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         Tpi = Tp_lpl
         qpi = qp_lpl
 
-        # Initialise arrays for EIL base and top
-        EILbase = np.full_like(p_sfc, np.nan)
-        EILtop = np.full_like(p_sfc, np.nan)
+        # Initialise arrays for the effective inflow base (EIB) and top (EIT)
+        EIB = np.full_like(cape, np.nan)
+        EIT = np.full_like(cape, np.nan)
 
-        # Check if surface is part of EIL
+        # Check if CAPE and CIN meet the criteria for the EIL
         in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
-        EILbase[in_eil] = p_sfc[in_eil]
 
         # Loop over levels
         for k in range(k_start, n_lev):
 
-            # Note the pressure and EIL mask from previous level
+            # Note LPL and EIL mask from the previous level
             in_eil_prev = in_eil.copy()
             p_lpl_prev = p_lpl.copy()
-
-            # Find points above and below the surface
-            above_sfc = (p[k] <= p_sfc)
-            below_sfc = np.logical_not(above_sfc)
-            if np.all(below_sfc):
-                # if all points are below the surface, skip this level
-                continue
 
             # Find points below the layer bottom
             below_bot = (p[k] > p_bot)
@@ -979,23 +956,24 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                 # break out of loop
                 break
 
-            # Set lifted parcel level (LPL) fields
-            p_lpl = np.where(above_sfc, p[k], p_sfc)
-            Tp_lpl = np.where(above_sfc, T[k], T_sfc)
-            qp_lpl = np.where(above_sfc, q[k], q_sfc)
+            # Set the LPL and parcel temperature and specific humidity
+            p_lpl = p[k]
+            Tp_lpl = T[k]
+            qp_lpl = q[k]
 
-            # Perform parcel ascent from the LPL
+            # Perform parcel ascent
             cape, cin, p_lcl, p_lfc, p_lmb, p_el = parcel_ascent(
                 p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=k,
+                p_sfc=p_sfc, T_sfc=T_sfc, q_sfc=q_sfc,
                 output_scalars=False, **kwargs
             )
 
-            # Reset CAPE to zero where the LPL is outside of the layer
-            outside_layer = below_bot | above_top
-            cape[outside_layer] = 0.0
+            #print(k, p_lpl, p_lcl, p_lfc, p_lmb, p_el, cape, cin)
 
-            # Update output arrays
-            is_max = (cape > CAPE)
+            # Update output arrays where CAPE is maximised and this level is
+            # within the layer
+            is_max = (cape > CAPE) & np.logical_not(below_bot) & \
+                np.logical_not(above_top)
             if np.any(is_max):
                 CAPE[is_max] = cape[is_max]
                 CIN[is_max] = cin[is_max]
@@ -1007,19 +985,19 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
                 Tpi[is_max] = Tp_lpl[is_max]
                 qpi[is_max] = qp_lpl[is_max]
 
-            #print(k, p_lpl, Tp_lpl, qp_lpl, cape, cin, p_lcl, p_lfc, p_lmb, p_el)
-
-            # Update the EIL base and top pressures
+            # Check if CAPE and CIN meet the criteria for the EIL
             in_eil = (cape >= eil_min_cape) & (cin <= eil_max_cin)
-            is_base = in_eil & np.isnan(EILbase)
-            EILbase[is_base] = p_lpl[is_base]
-            is_top = in_eil_prev & np.logical_not(in_eil) & np.isnan(EILtop)
-            EILtop[is_top] = p_lpl_prev[is_top]
 
-            # Reset EIL base and top where layer comprises only a single level
-            base_eq_top = (EILbase == EILtop)
-            EILbase[base_eq_top] = np.nan
-            EILtop[base_eq_top] = np.nan
+            # Update the EIB and EIT
+            is_eib = in_eil & in_eil_prev & np.isnan(EIB)
+            EIB[is_eib] = p_lpl_prev[is_eib]
+            is_eit = np.logical_not(in_eil) & in_eil_prev & \
+                np.isfinite(EIB) & np.isnan(EIT)
+            EIT[is_eit] = p_lpl_prev[is_eit]
+
+        # Set the EIT for any incomplete EILs
+        is_eit = in_eil & in_eil_prev & np.isfinite(EIB) & np.isnan(EIT)
+        EIT[is_eit] = p_lpl[is_eit]
             
         if CAPE.size == 1:
             # convert outputs to scalars
@@ -1030,15 +1008,15 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
             LFC = LFC.item()
             LMB = LMB.item()
             EL = EL.item()
-            EILbase = EILbase.item()
-            EILtop = EILtop.item()
+            EIB = EIB.item()
+            EIT = EIT.item()
             Tpi = Tpi.item()
             qpi = qpi.item()
 
         if return_parcel_properties:
-            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EILbase, EILtop, Tpi, qpi
+            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EIB, EIT, Tpi, qpi
         else:
-            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EILbase, EILtop
+            return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EIB, EIT
 
     else:  # most_unstable_method = 'max_wbpt'
 
@@ -1319,14 +1297,14 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     # Initialise level 2 environmental fields
     if k_dpl is None:
         k_start = n_lev - 2
-        p2 = p[-1].copy()
-        T2 = T[-1].copy()
-        q2 = q[-1].copy()
+        p2 = p[-1]
+        T2 = T[-1]
+        q2 = q[-1]
     else:
         k_start = k_dpl - 1
-        p2 = p[k_dpl].copy()
-        T2 = T[k_dpl].copy()
-        q2 = q[k_dpl].copy()
+        p2 = p[k_dpl]
+        T2 = T[k_dpl]
+        q2 = q[k_dpl]
 
     # Initialise level 2 parcel properties using DPL values
     Tp2 = Tp_dpl.copy()
