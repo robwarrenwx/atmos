@@ -255,9 +255,10 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         q2 = q_sfc.copy()
     else:
         k_start = k_lpl + 1
-        p2 = p[k_lpl]
-        T2 = T[k_lpl]
-        q2 = q[k_lpl]
+        lpl_above_sfc = (p[k_lpl] <= p_sfc)
+        p2 = np.where(lpl_above_sfc, p[k_lpl], p_sfc)
+        T2 = np.where(lpl_above_sfc, T[k_lpl], T_sfc)
+        q2 = np.where(lpl_above_sfc, q[k_lpl], q_sfc)
 
     # Initialise level 2 parcel properties using LPL values
     Tp2 = Tp_lpl.copy()
@@ -267,8 +268,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     B2 = virtual_temperature(Tp2, qp2) - virtual_temperature(T2, q2)
 
     # Initialise the maximum buoyancy and corresponding pressure
-    B_max = B2.copy()
-    p_max = p2.copy()
+    p2_above_sfc = (p2 <= p_sfc)
+    B_max = np.where(p2_above_sfc, B2, 0.0)
+    p_max = np.where(p2_above_sfc, p2, np.nan)
 
     #print(p_lpl, Tp_lpl, qp_lpl)
     #print(p_lcl, Tp_lcl)
