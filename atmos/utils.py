@@ -55,13 +55,15 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
     n_lev = p.shape[0]
 
     # Check if pi is below the surface
-    if np.any(pi > p_sfc):
-        n_pts = np.count_nonzero(pi > p_sfc)
+    below_sfc = (pi > p_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'pi is below {bottom} for {n_pts} points')
 
     # Check if pi is above highest level
-    if np.any(pi < p[-1]):
-        n_pts = np.count_nonzero(pi < p[-1])
+    above_top = (pi < p[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'pi is above highest level for {n_pts} points')
 
     # Initialise height of pi
@@ -160,13 +162,15 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
     n_lev = p.shape[0]
 
     # Check if zi is below surface
-    if np.any(zi < 0):
-        n_pts = np.count_nonzero(zi < 0)
+    below_sfc = (zi < z_sfc)
+    if np.any(below_sfc):
+        n_pts = np.count_nonzero(below_sfc)
         warnings.warn(f'zi is below {bottom} for {n_pts} points')
 
     # Check if zi is above highest level
-    if np.any(zi > z[-1]):
-        n_pts = np.count_nonzero(zi > z[-1])
+    above_top = (zi > z[-1])
+    if np.any(above_top):
+        n_pts = np.count_nonzero(above_top)
         warnings.warn(f'zi is above highest level for {n_pts} points')
 
     # Initialise pressure of zi
@@ -262,8 +266,9 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
         Ti = np.full_like(z_sfc, Ti)
 
     # Check if Ti is above the surface temperature
-    if np.any(Ti > T_sfc):
-        n_pts = np.count_nonzero(Ti > T_sfc)
+    gt_sfc_temp = (Ti > T_sfc)
+    if np.any(gt_sfc_temp):
+        n_pts = np.count_nonzero(gt_sfc_temp)
         warnings.warn(f'Ti exceeds {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
@@ -274,6 +279,13 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
 
     # Create boolean array to indicate whether level has been found
     found = np.zeros_like(zi).astype(bool)
+    found[gt_sfc_temp] = True  # no need to check points where Ti > T_sfc
+
+    # Deal with points where Ti is equal to the surface temperature
+    eq_sfc_temp = (Ti == T_sfc)
+    if np.any(eq_sfc_temp):
+        zi[eq_sfc_temp] = z_sfc[eq_sfc_temp]
+        found[eq_sfc_temp] = True
 
     # Initialise level 2 fields
     z2 = z_sfc.copy()
@@ -281,6 +293,9 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
 
     # Loop over levels
     for k in range(k_start, n_lev):
+
+        if np.all(found):
+            break
 
         # Update level 1 fields
         z1 = z2.copy()
@@ -301,13 +316,6 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
             weight = (T1[crossed] - Ti[crossed]) / (T1[crossed] - T2[crossed])
             zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
             found[crossed] = True
-            if np.all(found):
-                break
-
-    # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
-    if np.any(Ti_at_sfc):
-        zi[Ti_at_sfc] = z_sfc[Ti_at_sfc]
 
     if zi.size == 1:
         return zi.item()
@@ -364,8 +372,9 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
         Ti = np.full_like(p_sfc, Ti)
 
     # Check if Ti is above the surface temperature
-    if np.any(Ti > T_sfc):
-        n_pts = np.count_nonzero(Ti > T_sfc)
+    gt_sfc_temp = (Ti > T_sfc):
+    if np.any(gt_sfc_temp):
+        n_pts = np.count_nonzero(gt_sfc_temp)
         warnings.warn(f'Ti exceeds {bottom} temperature for {n_pts} points')
 
     # Note the number of vertical levels
@@ -376,6 +385,13 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
 
     # Create boolean array to indicate whether level has been found
     found = np.zeros_like(pi).astype(bool)
+    found[gt_sfc_temp] = True  # no need to check points where Ti > T_sfc
+
+    # Deal with points where Ti is equal to the surface temperature
+    eq_sfc_temp = (Ti == T_sfc)
+    if np.any(eq_sfc_temp):
+        pi[eq_sfc_temp] = p_sfc[eq_sfc_temp]
+        found[eq_sfc_temp] = True
 
     # Initialise level 2 fields
     p2 = p_sfc.copy()
@@ -383,6 +399,9 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
 
     # Loop over levels
     for k in range(k_start, n_lev):
+
+        if np.all(found):
+            break
 
         # Update level 1 fields
         p1 = p2.copy()
@@ -403,13 +422,6 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
             weight = (T1[crossed] - Ti[crossed]) / (T1[crossed] - T2[crossed])
             pi[crossed] = p1[crossed] ** (1 - weight) * p2[crossed] ** weight
             found[crossed] = True
-            if np.all(found):
-                break
-
-    # Deal with points where Ti is at the surface
-    Ti_at_sfc = (Ti == T_sfc) & np.logical_not(found)
-    if np.any(Ti_at_sfc):
-        pi[Ti_at_sfc] = p_sfc[Ti_at_sfc]
 
     if pi.size == 1:
         return pi.item()
