@@ -372,7 +372,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
         Ti = np.full_like(p_sfc, Ti)
 
     # Check if Ti is above the surface temperature
-    gt_sfc_temp = (Ti > T_sfc):
+    gt_sfc_temp = (Ti > T_sfc)
     if np.any(gt_sfc_temp):
         n_pts = np.count_nonzero(gt_sfc_temp)
         warnings.warn(f'Ti exceeds {bottom} temperature for {n_pts} points')
