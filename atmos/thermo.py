@@ -18,7 +18,7 @@ Functions for calculating the following thermodynamic variables:
 * dewpoint temperature, Td
 * frost-point temperature, Tf
 * saturation-point temperature, Ts
-* lifting condensation level temperature, T_lsl, and pressure, p_lsl
+* lifting condensation level temperature, T_lcl, and pressure, p_lcl
 * lifting deposition level temperature, T_ldl, and pressure, p_ldl
 * lifting saturation level temperature, T_lsl, and pressure, T_lsl
 * dry, pseudo, and saturated adiabatic pressure lapse rates
@@ -34,27 +34,33 @@ Functions for calculating the following thermodynamic variables:
 
 References:
 * Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
-    pressure over water and ice. Quart. J. Roy. Met. Soc., 146, 4252-4258,
-    https://doi.org/10.1002/qj.3899.
+    pressure over water and ice. Quarterly Journal of the Royal Meteorological
+    Society, 146, 4252-4258, https://doi.org/10.1002/qj.3899.
 * Bryan, G. H., and J. M. Fristch, 2004: A reevaluation of ice-liquid water
-    potential temperature. Mon. Wea. Rev., 132, 2421-2431,
+    potential temperature. Monthly Weather Review, 132, 2421-2431,
     https://doi.org/10.1175/1520-0493(2004)132<2421:AROIWP>2.0.CO;2.
 * Knox, J. A., D. S. Nevius, and P. N. Knox, 2017: Two simple and accurate
     approximations for wet-bulb temperature in moist conditions, with
-    forecasting applications. Bull. Amer. Meteor. Soc., 98, 1897-1906,
-    https://doi.org/10.1175/BAMS-D-16-0246.1.
+    forecasting applications. Bulletin of the American Meteorological Society,
+    98, 1897-1906, https://doi.org/10.1175/BAMS-D-16-0246.1.
 * Romps, D. M., 2017: Exact expression for the lifting condensation level.
-    J. Atmos. Sci., 74, 3033-3057, https://doi.org/10.1175/JAS-D-17-0102.1.
+    Journal of the Atmospheric Sciences, 74, 3033-3057,
+    https://doi.org/10.1175/JAS-D-17-0102.1.
 * Romps, D. M., 2021: Accurate expressions for the dewpoint and frost point
-    derived from the Rankine-Kirchoff approximations. J. Atmos. Sci., 78,
-    2113-2116, https://doi.org/10.1175/JAS-D-20-0301.1.
+    derived from the Rankine-Kirchoff approximations. Journal of the
+    Atmospheric Sciences, 78, 2113-2116,
+    https://doi.org/10.1175/JAS-D-20-0301.1.
+* Romps, D. M., 2026: Wet-bulb temperature from pressure, relative humidity,
+    and air temperature. Journal of Applied Meteorology and Climatology,
+    https://doi.org/10.1175/JAMC-D-25-0130.1.
 * Vazquez-Leal, H., Sandoval-Hernandez, M.A., Garcia-Gervacio, J.L.,
     Herrera-May, A.L., and Filobello-Nino, U.A., 2019. PSEM approximations
     for both branches of Lambert W function with applications. Discrete
     Dynamics in Nature and Society, 2019, 1-15,
     https://doi.org/10.1155/2019/8267951.
 * Warren, R. A., 2025: A consistent treatment of mixed-phase saturation for
-    atmospheric thermodynamics, 151, e4866, https://doi.org/10.1002/qj.4866.
+    atmospheric thermodynamics, Quarterly Journal of the Royal Meteorological
+    Society, 151, e4866, https://doi.org/10.1002/qj.4866.
 
 """
 
@@ -199,7 +205,7 @@ def mixed_phase_latent_heat(T, omega):
 
     # Compute mixed-phase latent heat
     # (Eq. 32 from Warren 2025)
-    Lx = Lx0 - (cpx - cpv) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
+    Lx = Lx0 + (cpv - cpx) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
                                        # = Lv + omega * Lf
 
     return Lx
@@ -370,7 +376,7 @@ def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
 
         # Compute mixed-phase latent heat
         # (Eq. 32 from Warren 2025)
-        Lx = Lx0 - (cpx - cpv) * (T - T0)
+        Lx = Lx0 + (cpv - cpx) * (T - T0)
         
         # Compute mixed-phase SVP
         # (Eq. 29 from Warren 2025)
