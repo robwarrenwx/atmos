@@ -53,6 +53,8 @@ References:
     for both branches of Lambert W function with applications. Discrete
     Dynamics in Nature and Society, 2019, 1-15,
     https://doi.org/10.1155/2019/8267951.
+* Warren, R. A., 2025: A consistent treatment of mixed-phase saturation for
+    atmospheric thermodynamics, 151, e4866, https://doi.org/10.1002/qj.4866.
 
 """
 
@@ -86,9 +88,11 @@ def effective_gas_constant(q, qt=None):
 
     """
     if qt is None:
-        Rm = (1 - q) * Rd + q * Rv
+        # (Eq. 12 from Warren 2025)
+        Rm = (1 - q) * Rd + q * Rv  # = Rd * (1 - q + q / eps)
     else:
-        Rm = (1 - qt) * Rd + q * Rv
+        # (Eq. 10 from Warren 2025)
+        Rm = (1 - qt) * Rd + q * Rv  # = Rd * (1 - qt + q / eps)
 
     return Rm
 
@@ -108,8 +112,11 @@ def effective_specific_heat(q, qt=None, omega=0.0):
 
     """
     if qt is None:
-        cpm = (1 - q) * cpd + q * cpv
+        # (Eq. 17 from Warren 2025)
+        cpm = (1 - q) * cpd + q * cpv  # = cpd * (1 - q + q / lambda),
+                                       # where lambda = cpd / cpv
     else:
+        # (Eq. 16 from Warren 2025)
         ql = (1 - omega) * (qt - q)  # liquid water mass fraction
         qi = omega * (qt - q)        # ice water mass fraction
         cpm = (1 - qt) * cpd + q * cpv + ql * cpl + qi * cpi
@@ -128,25 +135,10 @@ def latent_heat_of_vaporisation(T):
         Lv (float or ndarray): latent heat of vaporisation (J/kg)
 
     """
+    # (Eq. 23 from Warren 2025)
     Lv = Lv0 + (cpv - cpl) * (T - T0)
 
     return Lv
-
-
-def latent_heat_of_freezing(T):
-    """
-    Computes latent heat of freezing for a given temperature.
-
-    Args:
-        T (float or ndarray): temperature (K)
-
-    Returns:
-        Lf (float or ndarray): latent heat of freezing (J/kg)
-
-    """
-    Lf = Lf0 + (cpl - cpi) * (T - T0)
-
-    return Lf
 
 
 def latent_heat_of_sublimation(T):
@@ -160,26 +152,54 @@ def latent_heat_of_sublimation(T):
         Ls (float or ndarray): latent heat of sublimation (J/kg)
 
     """
+    # (Eq. 24 from Warren 2025)
     Ls = Ls0 + (cpv - cpi) * (T - T0)
 
     return Ls
 
 
+def latent_heat_of_freezing(T):
+    """
+    Computes latent heat of freezing for a given temperature.
+
+    Args:
+        T (float or ndarray): temperature (K)
+
+    Returns:
+        Lf (float or ndarray): latent heat of freezing (J/kg)
+
+    """
+    # (Eq. 25 from Warren 2025)
+    Lf = Lf0 + (cpl - cpi) * (T - T0)
+
+    return Lf
+
+
 def mixed_phase_latent_heat(T, omega):
     """
-    Computes mixed-phase latent heat for a given temperature and ice fraction.
+    Computes mixed-phase latent heat for a given temperature and ice fraction
+    using equations from Warren (2025).
 
     Args:
         T (float or ndarray): temperature (K)
         omega (float or ndarray): ice fraction
 
     Returns:
-        Ls (float or ndarray): latent heat of sublimation (J/kg)
+        Lx (float or ndarray): mixed-phase latent heat (J/kg)
 
     """
+
+    # Compute mixed-phase specific heat
+    # (Eq. 30 from Warren 2025)
     cpx = (1 - omega) * cpl + omega * cpi
+
+    # Compute mixed-phase latent heat at the triple point
+    # (Eq. 31 from Warren 2025)
     Lx0 = (1 - omega) * Lv0 + omega * Ls0  # = Lv0 + omega * Lf0
-    Lx = Lx0 + (cpv - cpx) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
+
+    # Compute mixed-phase latent heat
+    # (Eq. 32 from Warren 2025)
+    Lx = Lx0 - (cpx - cpv) * (T - T0)  # = (1 - omega) * Lv + omega * Ls
                                        # = Lv + omega * Lf
 
     return Lx
@@ -200,6 +220,7 @@ def air_density(p, T, q, qt=None):
         rho (float or ndarray): air density (kg/m3)
 
     """
+    # (Eq. 9 from Warren 2025)
     Rm = effective_gas_constant(q, qt=qt)
     rho = p / (Rm * T)
 
@@ -221,6 +242,7 @@ def dry_air_density(p, T, q, qt=None):
         rhod (float or ndarray): dry air density (kg/m3)
 
     """
+    # (Eq. 7 from Warren 2025)
     rho = air_density(p, T, q, qt=qt)
     if qt is None:
         rhod = (1 - q) * rho
@@ -245,8 +267,10 @@ def virtual_temperature(T, q, qt=None):
 
     """
     if qt is None:
+        # (Eq. 13 from Warren 2025)
         Tv = T * (1 - q + q / eps)  # virtual temperature
     else:
+        # (Eq. 11 from Warren 2025)
         Tv = T * (1 - qt + q / eps)  # density temperature
 
     return Tv
@@ -265,6 +289,7 @@ def mixing_ratio(q, qt=None):
         r (float or ndarray): mixing ratio (kg/kg)
 
     """
+    # (Eq. 15 from Warren 2025)
     if qt is None:
         r = q / (1 - q)
     else:
@@ -287,6 +312,7 @@ def vapour_pressure(p, q, qt=None):
         e (float or ndarray): vapour pressure (Pa)
 
     """
+    # (Eq. 15 from Warren 2025)
     if qt is None:
         e = p * q / (eps * (1 - q) + q)
     else:
@@ -298,7 +324,7 @@ def vapour_pressure(p, q, qt=None):
 def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
     """
     Computes saturation vapour pressure (SVP) for a given temperature using
-    equations from Ambaum (2020).
+    equations from Ambaum (2020) and Warren (2025).
 
     Args:
         T (float or ndarray): temperature (K)
@@ -317,7 +343,8 @@ def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
         # Compute latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
 
-        # Compute SVP over liquid water (Ambaum 2020, Eq. 13)
+        # Compute SVP over liquid water
+        # (Eq. 26 from Warren 2025; cf. Eq. 13 from Ambaum 2020)
         es = es0 * np.power((T0 / T), ((cpl - cpv) / Rv)) * \
             np.exp((Lv0 / (Rv * T0)) - (Lv / (Rv * T)))
         
@@ -326,22 +353,27 @@ def saturation_vapour_pressure(T, phase='liquid', omega=0.0):
         # Compute latent heat of sublimation
         Ls = latent_heat_of_sublimation(T)
 
-        # Compute SVP over ice (Ambaum 2020, Eq. 17)
+        # Compute SVP over ice
+        # (Eq. 27 from Warren 2025; cf. Eq. 17 from Ambaum 2020)
         es = es0 * np.power((T0 / T), ((cpi - cpv) / Rv)) * \
             np.exp((Ls0 / (Rv * T0)) - (Ls / (Rv * T)))
         
     elif phase == 'mixed':
         
         # Compute mixed-phase specific heat
+        # (Eq. 30 from Warren 2025)
         cpx = (1 - omega) * cpl + omega * cpi
         
         # Compute mixed-phase latent heat at the triple point
+        # (Eq. 31 from Warren 2025)
         Lx0 = (1 - omega) * Lv0 + omega * Ls0
 
         # Compute mixed-phase latent heat
+        # (Eq. 32 from Warren 2025)
         Lx = Lx0 - (cpx - cpv) * (T - T0)
         
         # Compute mixed-phase SVP
+        # (Eq. 29 from Warren 2025)
         es = es0 * np.power((T0 / T), ((cpx - cpv) / Rv)) * \
             np.exp((Lx0 / (Rv * T0)) - (Lx / (Rv * T)))
         
@@ -372,8 +404,10 @@ def saturation_specific_humidity(p, T, qt=None, phase='liquid', omega=0.0):
     """
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     if qt is None:
+        # (Eq. 14 from Warren 2025, with qv = qt = qs and e = es)
         qs = eps * es / (p - (1 - eps) * es)
     else:
+        # (Eq. 14 from Warren 2025, with qv = qs and e = es)
         qs  = (1 - qt) * eps * es / (p - es)
 
     return qs
@@ -395,6 +429,7 @@ def saturation_mixing_ratio(p, T, phase='liquid', omega=0.0):
         rs (float or ndarray): saturation mixing ratio (kg/kg)
 
     """
+    # (Eq. 15 from Warren 2025, with rv = rs and e = es)
     es = saturation_vapour_pressure(T, phase=phase, omega=omega)
     rs = eps * es / (p - es)
 
@@ -432,7 +467,7 @@ def relative_humidity(p, T, q, qt=None, phase='liquid', omega=0.0):
 def _lambertw(x):
     """
     Evaluates the lower branch of the Lambert-W function using PSEM
-    approximation from Vazquez-Leal et al. (2019; hereafter VL19).
+    approximation from Vazquez-Leal et al. (2019).
 
     Args:
         x (float): dependent variable
@@ -444,7 +479,8 @@ def _lambertw(x):
 
     y = np.nan
 
-    # W_{-1,1} - VL19, Eq. 15
+    # W_{-1,1}
+    # (Eq. 15 from Vazquez-Leal et al. 2019)
     if (x >= -0.3678794411714423) and (x < -0.34):
         a1 = -7.874564067684664
         a2 = -63.11879948166995
@@ -459,7 +495,8 @@ def _lambertw(x):
         beta = 1. + x * (b1 + x * (b2 + x * (b3 + x * (b4 + x * b5))))
         y = (alpha / beta) * (x + np.exp(-1.)) - 1.
 
-    # W_{-1,2} - VL19, Eq. 16
+    # W_{-1,2}
+    # (Eq. 16 from Vazquez-Leal et al. 2019)
     if (x >= -0.34) and (x < -0.1):
         a1 = -1362.78381643109
         a2 = -1386.04132570149
@@ -472,7 +509,8 @@ def _lambertw(x):
         y = (x * (a1 + x * (a2 + x * (a3 + x * a4)))) / \
             (1. + x * (b1 + x * (b2 + x * (b3 + x * b4))))
 
-    # W_{-1,3} - VL19, Eq. 17-18
+    # W_{-1,3}
+    # (Eq. 17-18 from Vazquez-Leal et al. 2019)
     if (x >= -0.1) and (x < 0.):
         a1 = 1.01999365162218
         a2 = -12.6917365519443
@@ -486,7 +524,8 @@ def _lambertw(x):
         k2 = k1 - np.log(-k1) + np.log(-k1) / k1
         y = k0 + k2
 
-    # Iterate once to improve accuracy - VL19, Eq. 30-32
+    # Iterate once to improve accuracy
+    # (Eq. 30-32 from Vazquez-Leal et al. 2019)
     z = np.log(x / y) - y
     t = 2. * (1. + y) * (1. + y + (2./3.) * z)
     e = (z / (1. + y)) * (t - z) / (t - 2. * z)
@@ -498,7 +537,8 @@ def _lambertw(x):
 def _dewpoint_temperature_from_relative_humidity(T, RH):
     """
     Computes dewpoint temperature from temperature and relative humidity over
-    liquid water using equations from Romps (2021).
+    liquid water using equations from Romps (2021), as presented in
+    Warren (2025).
 
     Args:
         T (float or ndarray): temperature (K)
@@ -509,14 +549,13 @@ def _dewpoint_temperature_from_relative_humidity(T, RH):
 
     """
 
-    # Set constant (Romps 2021, Eq. 6)
-    c = (Lv0 - (cpv - cpl) * T0) / ((cpv - cpl) * T)
-
-    # Compute dewpoint temperature (Romps 2021, Eq. 5)
-    fn = np.power(RH, (Rv / (cpl - cpv))) * c * np.exp(c)
+    # Compute dewpoint temperature using Lambert W function
+    # (Eq. 38 and 40 from Warren 2025; cf. Eq. 5-6 from Romps 2021)
+    alpha = (Lv0 - (cpv - cpl) * T0) / (cpv - cpl)
+    fn = np.power(RH, (Rv / (cpl - cpv))) * (alpha / T) * np.exp(alpha / T)
     #W = lambertw(fn, k=-1).real
     W = _lambertw(fn)
-    Td = c * (1 / W) * T
+    Td = alpha / W
 
     return Td
 
@@ -548,7 +587,7 @@ def dewpoint_temperature(p, T, q):
 def _frost_point_temperature_from_relative_humidity(T, RH):
     """
     Computes frost-point temperature from temperature and relative humidity
-    over ice using equations from Romps (2021).
+    over ice using equations from Romps (2021), as presented in Warren (2025).
 
     Args:
         T (float or ndarray): temperature (K)
@@ -559,14 +598,13 @@ def _frost_point_temperature_from_relative_humidity(T, RH):
 
     """
 
-    # Set constant (Romps 2021, Eq. 8)
-    c = (Ls0 - (cpv - cpi) * T0) / ((cpv - cpi) * T)
-
-    # Compute frost-point temperature (Romps 2021, Eq. 7)
-    fn = np.power(RH, (Rv / (cpi - cpv))) * c * np.exp(c)
+    # Compute frost-point temperature using Lambert W function
+    # (Eq. 39 and 41 from Warren 2025; cf. Eq. 7-8 from Romps 2021)
+    alpha = (Ls0 - (cpv - cpi) * T0) / (cpv - cpi)
+    fn = np.power(RH, (Rv / (cpi - cpv))) * (alpha / T) * np.exp(alpha / T)
     #W = lambertw(fn, k=-1).real  # -1 branch because cpi > cpv
     W = _lambertw(fn)
-    Tf = c * (1 / W) * T
+    Tf = alpha / W
 
     return Tf
 
@@ -597,8 +635,8 @@ def frost_point_temperature(p, T, q):
 def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     """
     Computes saturation-point temperature from temperature, mixed-phase
-    relative humidity, and ice fraction at saturation using equations similar
-    to Romps (2021).
+    relative humidity, and ice fraction at saturation using equations from
+    Warren (2025).
 
     Args:
         T (float or ndarray): temperature (K)
@@ -611,19 +649,20 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
     """
 
     # Compute mixed-phase specific heat
+    # (Eq. 30 from Warren 2025)
     cpx = (1 - omega) * cpl + omega * cpi
 
     # Compute mixed-phase latent heat at the triple point
+    # (Eq. 31 from Warren 2025)
     Lx0 = (1 - omega) * Lv0 + omega * Ls0
 
-    # Set constant (cf. Romps 2021, Eq. 6 and 8)
-    c = (Lx0 - (cpv - cpx) * T0) / ((cpv - cpx) * T)
-
-    # Compute saturation-point temperature (cf. Romps 2021, Eq. 5 and 7)
-    fn = np.power(RH, (Rv / (cpx - cpv))) * c * np.exp(c)
+    # Compute saturation-point temperature
+    # (Eq. 42-43 from Warren 2025)
+    alpha = (Lx0 - (cpv - cpx) * T0) / (cpv - cpx)
+    fn = np.power(RH, (Rv / (cpx - cpv))) * (alpha / T) * np.exp(alpha / T)
     #W = lambertw(fn, k=-1).real
     W = _lambertw(fn)
-    Ts = c * (1 / W) * T
+    Ts = alpha / W
 
     return Ts
 
@@ -631,7 +670,7 @@ def _saturation_point_temperature_from_relative_humidity(T, RH, omega):
 def saturation_point_temperature(p, T, q):
     """
     Computes saturation-point temperature from pressure, temperature, and 
-    specific humidity.
+    specific humidity using iterative procedure.
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -678,7 +717,7 @@ def saturation_point_temperature(p, T, q):
 def lifting_condensation_level(p, T, q):
     """
     Computes pressure and temperature at the lifted condensation level (LCL)
-    using equations from Romps (2017).
+    using equations from Romps (2017), as presented in Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -697,32 +736,31 @@ def lifting_condensation_level(p, T, q):
 
     # Compute relative humidity with respect to liquid water
     RH = relative_humidity(p, T, q, phase='liquid')
-    
-    # Set constants (Romps 2017, Eq. 22d-f)
-    a = cpm / Rm + (cpl - cpv) / Rv
-    b = -(Lv0 + (cpl - cpv) * T0) / (Rv * T)
-    c = b / a
 
-    # Compute temperature at the LCL (Romps 2017, Eq. 22a)
-    fn = np.power(RH, (1 / a)) * c * np.exp(c)
+    # Compute temperature at the LCL using Lambert W function
+    # (Eq. 44 and 46-47 from Warren 2025; cf. Eq. 22a,d-f from Romps 2017)
+    beta = cpm / Rm + (cpl - cpv) / Rv
+    alpha = -(1 / beta) * (Lv0 + (cpl - cpv) * T0) / Rv
+    fn = np.power(RH, (1 / beta)) * (alpha / T) * np.exp(alpha / T)
     #W = lambertw(fn, k=-1).real
     W = _lambertw(fn)
-    T_lcl = c * (1 / W) * T
-    
-    # Compute pressure at the LCL (Romps 2017, Eq. 22b)
+    T_lcl = alpha / W
+
+    # Compute pressure at the LCL
+    # (Eq. 45 from Warren 2025; cf. Eq. 22b from Romps 2017)
     p_lcl = p * np.power((T_lcl / T), (cpm / Rm))
-    
+
     # Ensure that LCL temperature and pressure do not exceed initial values
     T_lcl = np.minimum(T_lcl, T)
     p_lcl = np.minimum(p_lcl, p)
-    
+
     return p_lcl, T_lcl
 
 
 def lifting_deposition_level(p, T, q):
     """
     Computes pressure and temperature at the lifting deposition level (LDL)
-    using equations from Romps (2017).
+    using equations from Romps (2017), as presented in Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -741,32 +779,31 @@ def lifting_deposition_level(p, T, q):
 
     # Compute relative humidity with respect to ice
     RH = relative_humidity(p, T, q, phase='ice')
-   
-    # Set constants (Romps 2017, Eq. 23d-f)
-    a = cpm / Rm + (cpi - cpv) / Rv
-    b = -(Ls0 + (cpi - cpv) * T0) / (Rv * T)
-    c = b / a
 
-    # Compute temperature at the LDL (Romps 2017, Eq. 23a)
-    fn = np.power(RH, (1 / a)) * c * np.exp(c)
+    # Compute temperature at the LDL using Labert W function
+    # (Eq. 48 and 50-51 from Warren 2025; cf. Eq. 23a,d-f from Romps 2017)
+    beta = cpm / Rm + (cpi - cpv) / Rv
+    alpha = -(1 / beta) * (Ls0 + (cpi - cpv) * T0) / Rv
+    fn = np.power(RH, (1 / beta)) * (alpha / T) * np.exp(alpha / T)
     #W = lambertw(fn, k=-1).real
     W = _lambertw(fn)
-    T_ldl = c * (1 / W) * T
-    
-    # Compute pressure at the LDL (Romps 2017, Eq. 23b)
+    T_ldl = alpha / W
+
+    # Compute pressure at the LDL
+    # (Eq. 49 from Warren 2025; cf. Eq. 23b from Romps 2017)
     p_ldl = p * np.power((T_ldl / T), (cpm / Rm))
-    
+
     # Ensure that LDL temperature and pressure do not exceed initial values
     T_ldl = np.minimum(T_ldl, T)
     p_ldl = np.minimum(p_ldl, p)
-    
+
     return p_ldl, T_ldl
 
 
 def lifting_saturation_level(p, T, q):
     """
     Computes pressure and temperature at the lifting saturation level (LSL)
-    using equations similar to Romps (2017).
+    using equations from Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -801,22 +838,22 @@ def lifting_saturation_level(p, T, q):
         RH = relative_humidity(p, T, q, phase='mixed', omega=omega)
 
         # Compute mixed-phase specific heat
+        # (Eq. 30 from Warren 2025)
         cpx = (1 - omega) * cpl + omega * cpi
 
         # Compute mixed-phase latent heat at the triple point
+        # (Eq. 31 from Warren 2025)
         Lx0 = (1 - omega) * Lv0 + omega * Ls0
-        
-        # Set constants (cf. Romps 2017, Eq. 22d-f and 23d-f)
-        a = cpm / Rm + (cpx - cpv) / Rv
-        b = -(Lx0 + (cpx - cpv) * T0) / (Rv * T)
-        c = b / a
 
-        # Compute temperature at the LSL (cf. Romps 2017, Eq. 22a and 23a)
-        fn = np.power(RH, (1 / a)) * c * np.exp(c)
+        # Compute temperature at the LSL
+        # (Eq. 52 and 54-55 from Warren 2025)
+        beta = cpm / Rm + (cpx - cpv) / Rv
+        alpha = -(1 / beta) * (Lx0 + (cpx - cpv) * T0) / Rv
+        fn = np.power(RH, (1 / beta)) * (alpha / T) * np.exp(alpha / T)
         #W = lambertw(fn, k=-1).real  # -1 branch because cpx > cpv
         W = _lambertw(fn)
-        T_lsl = c * (1 / W) * T
-    
+        T_lsl = alpha / W
+
         # Check if solution has converged
         if np.max(np.abs(T_lsl - T_lsl_prev)) < precision:
             converged  = True
@@ -826,19 +863,21 @@ def lifting_saturation_level(p, T, q):
                 print(f"T_lsl not converged after {max_n_iter} iterations")
                 break
 
-    # Compute pressure at the LSL (cf. Romps 2017, Eq. 22b and 23b)
+    # Compute pressure at the LSL
+    # (Eq. 53 from Warren 2025)
     p_lsl = p * np.power((T_lsl / T), (cpm / Rm))
-    
+
     # Ensure that LSL temperature and pressure do not exceed initial values
     T_lsl = np.minimum(T_lsl, T)
     p_lsl = np.minimum(p_lsl, p)
-    
+
     return p_lsl, T_lsl
 
 
 def ice_fraction(Tstar, phase='mixed'):
     """
-    Computes ice fraction given temperature at saturation.
+    Computes ice fraction given temperature at saturation using nonlinear
+    parameterisation of Warren (2025).
 
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
@@ -850,8 +889,11 @@ def ice_fraction(Tstar, phase='mixed'):
 
     """
 
+    # Ensure that Tstar is an array
     Tstar = np.atleast_1d(Tstar)
 
+    # Compute the ice fraction
+    # (Eq. 6 from Warren 2025, with T = Tstar)
     if phase == 'liquid':
         omega = np.zeros_like(Tstar)  # ice fraction is zero
     elif phase == 'ice':
@@ -864,7 +906,7 @@ def ice_fraction(Tstar, phase='mixed'):
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     if Tstar.size == 1:
-        omega = omega[0]
+        omega = omega.item()
 
     return omega
 
@@ -872,7 +914,7 @@ def ice_fraction(Tstar, phase='mixed'):
 def ice_fraction_derivative(Tstar, phase='mixed'):
     """
     Computes derivative of ice fraction with respect to temperature at
-    saturation.
+    saturation using nonlinear parameterisation of Warren (2025).
     
     Args:
         Tstar (float or ndarray): temperature at saturation (K)
@@ -884,8 +926,11 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
        
     """
 
+    # Ensure that Tstar is an array
     Tstar = np.atleast_1d(Tstar)
 
+    # Compute the derivative of the ice fraction
+    # (derivative of Eq. 6 from Warren 2025, with T = Tstar)
     if phase == 'liquid' or phase == 'ice':
         domega_dTstar = np.zeros_like(Tstar)  # derivative is zero
     elif phase == 'mixed':
@@ -896,7 +941,7 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
     if Tstar.size == 1:
-        domega_dTstar = domega_dTstar[0]
+        domega_dTstar = domega_dTstar.item()
 
     return domega_dTstar
 
@@ -974,7 +1019,8 @@ def dry_adiabatic_lapse_rate(p, T, q):
 
 def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
     """
-    Computes pseudoadiabatic lapse rate in pressure coordinates.
+    Computes pseudoadiabatic lapse rate in pressure coordinates using equations
+    from Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -994,6 +1040,7 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
     qs = saturation_specific_humidity(p, T, phase=phase, omega=omega)
 
     # Compute Q term
+    # (Eq. 71 from Warren 2025)
     Q = qs * (1 - qs + qs / eps)
 
     # Compute the effective gas constant
@@ -1008,6 +1055,7 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute liquid pseudoadiabatic lapse rate
+        # (Eq. 74 from Warren 2025)
         dT_dp = (1 / p) * (Rm * T + Lv * Q) / \
             (cpm + (Lv**2 * Q) / (Rv * T**2))
 
@@ -1017,6 +1065,8 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         Ls = latent_heat_of_sublimation(T)
 
         # Compute ice pseudoadiabatic lapse rate
+        # (Eq. 72 from Warren 2025, with omega = 1, so that Lx = Ls and
+        # domega_dT = 0)
         dT_dp = (1 / p) * (Rm * T + Ls * Q) / \
             (cpm + (Ls**2 * Q) / (Rv * T**2))
 
@@ -1033,6 +1083,7 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
         esi = saturation_vapour_pressure(T, phase='ice')
 
         # Compute mixed-phase pseudoadiabatic lapse rate
+        # (Eq. 72 from Warren 2025)
         dT_dp = (1 / p) * (Rm * T + Lx * Q) / \
             (cpm + (Lx**2 * Q) / (Rv * T**2) +
              Lx * Q * np.log(esi / esl) * domega_dT)
@@ -1042,7 +1093,8 @@ def pseudoadiabatic_lapse_rate(p, T, phase='liquid'):
 
 def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
     """
-    Computes saturated adiabatic lapse rate in pressure coordinates.
+    Computes saturated adiabatic lapse rate in pressure coordinates using
+    equations from Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1063,6 +1115,7 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
     qs = saturation_specific_humidity(p, T, qt=qt, phase=phase, omega=omega)
 
     # Compute Q term
+    # (Eq. 67 from Warren 2025)
     Q = qs * (1 - qt + qs / eps) / (1 - qt)
 
     # Compute the effective gas constant
@@ -1077,6 +1130,7 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute liquid-only saturated adiabatic lapse rate
+        # (Eq. 73 from Warren 2025)
         dT_dp = (1 / p) * (Rm * T + Lv * Q) / \
             (cpm + (Lv**2 * Q) / (Rv * T**2))
 
@@ -1086,6 +1140,8 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
         Ls = latent_heat_of_sublimation(T)
 
         # Compute ice-only saturated adiabatic lapse rate
+        # (Eq. 69 from Warren 2025, with omega = 1, so that Lx = Ls and
+        # domega_dT = 0)
         dT_dp = (1 / p) * (Rm * T + Ls * Q) / \
             (cpm + (Ls**2 * Q) / (Rv * T**2))
 
@@ -1105,6 +1161,7 @@ def saturated_adiabatic_lapse_rate(p, T, qt, phase='liquid'):
         esi = saturation_vapour_pressure(T, phase='ice')
 
         # Compute mixed-phase saturated adiabatic lapse rate
+        # (Eq. 69 from Warren 2025)
         dT_dp = (1 / p) * (Rm * T + Lx * Q) / \
             (cpm + (Lx**2 * Q) / (Rv * T**2) +
              (Lx * Q * np.log(esi / esl) - Lf * (qt - qs)) * domega_dT)
@@ -1314,7 +1371,8 @@ def follow_moist_adiabat(pi, pf, Ti, qt=None, phase='liquid', pseudo=True,
 def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
                                 explicit=False, dp=500.0):
     """
-    Computes pseudo wet-bulb temperature.
+    Computes pseudo wet-bulb temperature using procedure outlined in section 7
+    of Warren (2025).
 
     Pseudo wet-bulb temperature is the temperature of a parcel of air lifted
     adiabatically to saturation and then brought pseudoadiabatically at
@@ -1387,7 +1445,7 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
 
 def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
     """
-    Computes isobaric wet-bulb temperature.
+    Computes isobaric wet-bulb temperature using equations from Warren (2025).
 
     Isobaric wet-bulb temperature is the temperature of a parcel of air cooled
     isobarically to saturation via the evaporation of water into it, with all
@@ -1455,9 +1513,12 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             Lv_Tw = latent_heat_of_vaporisation(Tw)
 
             # Compute the derivative of qs with respect to Tw
+            # (Eq. 83 from Warren 2025, with omega = 0, so that Lx = Lv and
+            # domega_dT = 0)
             dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * Lv_Tw / (Rv * Tw**2)
 
-            # Compute f and f'
+            # Compute f(Tw) and f'(Tw)
+            # (Eq. 81 and 82 from Warren 2025, with omega = 0, so that Lx = Lv)
             f = cpm_qs_Tw * (T - Tw) - Lv_T * (qs_Tw - q)
             fprime = ((cpv - cpd) * (T - Tw) - Lv_T) * dqs_dTw - cpm_qs_Tw
 
@@ -1467,9 +1528,12 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             Ls_Tw = latent_heat_of_sublimation(Tw)
 
             # Compute the derivative of qs with respect to Tw
+            # (Eq. 83 from Warren 2025, with omega = 1, so that Lx = Ls and
+            # domega_dT = 0)
             dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * Ls_Tw / (Rv * Tw**2)
 
-            # Compute f and f'
+            # Compute f(Tw) and f'(Tw)
+            # (Eq. 81 and 82 from Warren 2025, with omega = 1, so that Lx = Ls)
             f = cpm_qs_Tw * (T - Tw) - Ls_T * (qs_Tw - q)
             fprime = ((cpv - cpd) * (T - Tw) - Ls_T) * dqs_dTw - cpm_qs_Tw
 
@@ -1486,14 +1550,17 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
             esi_Tw = saturation_vapour_pressure(Tw, phase='ice')
 
             # Compute the derivative of qs with respect to Tw
+            # (Eq. 83 from Warren 2025)
             dqs_dTw = qs_Tw * (1 - qs_Tw + qs_Tw / eps) * \
                 (Lx_Tw / (Rv * Tw**2) + np.log(esi_Tw / esl_Tw) * domega_dTw)
 
             # Compute f(Tw) and f'(Tw)
+            # (Eq. 81 and 82 from Warren 2025)
             f = cpm_qs_Tw * (T - Tw) - Lx_T * (qs_Tw - q)
             fprime = ((cpv - cpd) * (T - Tw) - Lx_T) * dqs_dTw - cpm_qs_Tw
        
         # Update Tw using Newton's method
+        # (Eq. 84 from Warren 2025)
         Tw = Tw - f / fprime
 
         # Check for convergence
@@ -1510,11 +1577,11 @@ def isobaric_wet_bulb_temperature(p, T, q, phase='liquid'):
 
 def isobaric_wet_bulb_temperature_romps(p, T, q, phase='liquid'):
     """
-    Computes isobaric wet-bulb temperature using a new method developed by
-    David Romps (paper currently in review), which has been implemented in the
-    heatindex Python library (https://github.com/davidromps/heatindex).
+    Computes isobaric wet-bulb temperature using method from Romps (2026),
+    which has been implemented in the heatindex Python library
+    (https://github.com/davidromps/heatindex).
 
-    A corrigendum to Warren (2024) will be published in the near future
+    A corrigendum to Warren (2025) will be published in the near future
     containing derivations for the equations implemented in this function.
 
     Args:
@@ -1569,7 +1636,7 @@ def isobaric_wet_bulb_temperature_romps(p, T, q, phase='liquid'):
             # Compute the derivative of Lv with respect to Tw
             dLv_dTw = (cpv - cpl)
 
-            # Compute f and f'
+            # Compute f(Tw) and f'(Tw)
             f = cpm * (T - Tw) * (1 - qs_Tw) - (qs_Tw - q) * Lv_Tw
             fprime = -(cpm * (T - Tw) + Lv_Tw) * dqs_dTw - \
                 cpm * (1 - qs_Tw) - (qs_Tw - q) * dLv_dTw
@@ -1585,8 +1652,8 @@ def isobaric_wet_bulb_temperature_romps(p, T, q, phase='liquid'):
             # Compute the derivative of Ls with respect to Tw
             dLs_dTw = (cpv - cpi)
 
-            # Compute f and f'
-            f = cpm * (T - Tw) * (1 - qs_Tw) - (qs_Tw - q) * Ls(Tw)
+            # Compute f(Tw) and f'(Tw)
+            f = cpm * (T - Tw) * (1 - qs_Tw) - (qs_Tw - q) * Ls_Tw
             fprime = -(cpm * (T - Tw) + Ls_Tw) * dqs_dTw - \
                 cpm * (1 - qs_Tw) - (qs_Tw - q) * dLs_dTw
 
@@ -1632,7 +1699,8 @@ def isobaric_wet_bulb_temperature_romps(p, T, q, phase='liquid'):
     return Tw
 
 
-def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
+def wet_bulb_temperature(p, T, q, saturation='pseudo',
+                         isobaric_method='Warren', phase='liquid',
                          polynomial=True, explicit=False, dp=500.0):
     """
     Computes wet-bulb temperature for specified saturation process.
@@ -1643,6 +1711,9 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
         q (float or ndarray): specific humidity (kg/kg)
         saturation (str, optional): saturation process (valid options are
             'pseudo' or 'isobaric'; default is 'pseudo')
+        isobaric_method (str, optional): method used to calculate isobaric
+            wet-bulb temperature (valid options are 'Warren' or 'Romps';
+            default is 'Warren')
         phase (str, optional): condensed water phase (valid options are
             'liquid', 'ice', or 'mixed'; default is 'liquid')
         polynomial (bool, optional): flag indicating whether to use polynomial
@@ -1662,7 +1733,14 @@ def wet_bulb_temperature(p, T, q, saturation='pseudo', phase='liquid',
                                          polynomial=polynomial,
                                          explicit=explicit, dp=dp)
     elif saturation == 'isobaric':
-        Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
+        if isobaric_method == 'Warren':
+            Tw = isobaric_wet_bulb_temperature(p, T, q, phase=phase)
+        elif isobaric_method == 'Romps':
+            Tw = isobaric_wet_bulb_temperature_romps(p, T, q, phase=phase)
+        else:
+           raise ValueError(
+            "isobaric_method must be one of 'Warren' or 'Romps'"
+           )
     else:
         raise ValueError("saturation must be one of 'pseudo' or 'isobaric'")
 
@@ -1767,7 +1845,8 @@ def virtual_potential_temperature(p, T, q, qt=None):
 def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
                                      omega=0.0):
     """
-    Computes equivalent potential temperature.
+    Computes equivalent potential temperature using equations from
+    Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1803,6 +1882,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lv = latent_heat_of_vaporisation(T)
 
         # Compute the equivalent potential temperature
+        # (Eq. 96 from Warren 2025)
         theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             np.exp(Lv * q / (cpml * T))
@@ -1821,6 +1901,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lf = latent_heat_of_freezing(T)
 
         # Compute the equivalent potential temperature
+        # (Eq. 95 from Warren 2025, with omega = 1, so that Ls = Lx)
         theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             (esi / esl) ** (-qt * Rv / cpml) * \
@@ -1840,6 +1921,7 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
         Lf = latent_heat_of_freezing(T)
 
         # Compute the equivalent potential temperature
+        # (Eq. 95 from Warren 2025)
         theq = T * (p_ref / pd) ** ((1 - qt) * Rd / cpml) * \
             RH ** (-q * Rv / cpml) * \
             (esi / esl) ** (-omega * qt * Rv / cpml) * \
@@ -1855,8 +1937,8 @@ def equivalent_potential_temperature(p, T, q, qt=None, phase='liquid',
 def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
                                            omega=0.0):
     """
-    Computes ice-liquid water potential temperature using equations adapted
-    from Bryan and Fritsch (2004).
+    Computes ice-liquid water potential temperature using equations from
+    Bryan and Fristch (2004) and Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1888,8 +1970,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the latent heat of vaporisation
         Lv = latent_heat_of_vaporisation(T)
 
-        # Compute the liquid water potential temperature (c.f. Bryan and 
-        # Fritsch 2004, Eq. 25)
+        # Compute the liquid water potential temperature
+        # (Eq. 101 from Warren 2025)
         thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
@@ -1901,8 +1983,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the latent heat of vaporisation
         Ls = latent_heat_of_sublimation(T)
 
-        # Compute the ice water potential temperature (c.f. Bryan and Fritsch
-        # 2004, Eq. 19, 20, and 25)
+        # Compute the ice water potential temperature
+        # (Eq. 101 from Warren 2025, with omega = 1, so that Lv = Ls)
         thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
@@ -1914,8 +1996,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
         # Compute the mixed-phase latent heat
         Lx = mixed_phase_latent_heat(T, omega)
 
-        # Compute the ice-liquid water potential temperature (c.f. Bryan and
-        # Fritsch 2004, Eq. 19, 20, and 25)
+        # Compute the ice-liquid water potential temperature
+        # (Eq. 100 from Warren 2025; cf. Eq. 25 from Bryan and Fritsch 2004)
         thil = T * (p_ref / p) ** (Rmv / cpmv) * \
             ((1 - qt + q / eps) / (1 - qt + qt / eps)) ** (Rmv / cpmv) * \
             (q / qt) ** (-qt * Rv / cpmv) * \
@@ -1932,7 +2014,8 @@ def ice_liquid_water_potential_temperature(p, T, q, qt=None, phase='liquid',
 def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True,
                                    explicit=False, dp=500.0):
     """
-    Computes wet-bulb potential temperature.
+    Computes wet-bulb potential temperature using procedure outlined in
+    section 7 of Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
@@ -1996,7 +2079,8 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
                                               polynomial=True, explicit=False,
                                               dp=500.0):
     """
-    Computes saturation wet-bulb potential temperature.
+    Computes saturation wet-bulb potential temperature using procedure outlined
+    in section 7 of Warren (2025).
 
     Args:
         p (float or ndarray): pressure (Pa)
