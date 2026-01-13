@@ -47,20 +47,18 @@ omega = atmos.thermo.ice_fraction(T)  # ice fraction assuming saturation at temp
 esx = atmos.thermo.saturation_vapour_pressure(T, phase="mixed", omega=omega)
 ```
 
-Calculating pseudo (aka adiabatic) wet-bulb temperature `Twp` and isobaric (aka thermodynamic) wet-bulb temperature `Twi` from pressure `p`, temperature `T`, and specific humidity `q`:
+Calculating "pseudo" (aka "adiabatic") wet-bulb temperature `Twp` and "isobaric" (aka "thermodynamic") wet-bulb temperature `Twi` from pressure `p`, temperature `T`, and specific humidity `q`:
 ```python
 Twp = atmos.thermo.pseudo_wet_bulb_temperature(p, T, q)
 Twi = atmos.thermo.isobaric_wet_bulb_temperature(p, T, q)
 ```
 
-Calculating air density `rho`, vapour pressure `e`, and virtual (density) temperature `Tv` from pressure `p`, temperature `T`, specific humidity `q`, and total water mass fraction `qt`:
+Calculating and virtual (density) temperature `Tv` from pressure `p`, temperature `T`, specific humidity `q`, and total water mass fraction `qt`:
 ```python
-rho = atmos.thermo.air_density(p, T, q, qt=qt)
-e = atmos.thermo.vapour_pressure(q, qt=qt)
 Tv = atmos.thermo.virtual_temperature(T, q, qt=qt)
 ```
 
-Converting from relative humidity with respect to ice `RHi` to dewpoint temperature `Td` given pressure `p` and temperature `T`:
+Converting from relative humidity with respect to ice `RHi` to dewpoint temperature `Td` given temperature `T`:
 ```python
 # Compute relative humidity with respect to liquid water
 RHl = atmos.moisture.convert_relative_humidity(T, RHi, 'ice', 'liquid')
