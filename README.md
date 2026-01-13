@@ -26,12 +26,18 @@ All of the functions in __atmos__ are vectorised to allow for fast processing of
 
 ### 3. Representation of saturation
 
-Another novel feature in __atmos__ is the treatment of saturation, which can be represented with respect to liquid, ice, or a combination of the two (via the `phase` argument) following [Warren (2025)](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4866).
+Another novel feature in __atmos__ is the treatment of saturation, which can be represented with respect to liquid, ice, or a combination of the two (via the `phase` argument) following [Warren (2025)](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4866). When using the mixed-phase option (`phase="mixed"`), liquid water and ice are assumed to coexist between temperatures of 0°C and -20°C, with the ice fraction (denoted `omega` in the code) increasing nonlinearly from 0 to 1 across this range. This temperature range can be adjusted by altering the values of `T_liq` and/or `T_ice` in atmos/constant.py.
+
+### 4. Ability to handle different vertical grids
+
+The functions in __atmos__ that perform vertical integration, averaging, or interpolation are designed to be agnostic of the vertical grid; so long as arrays of pressure and/or height are provided, the calculations should work. However, when working with data on pressure levels, it is important to provide surface/screen-level variables (specified using the `_sfc` keyword arguments) in addition to the pressure-level arrays. This will ensure that values below the surface are excluded from the calculations.
 
 
 ## Examples
 
-Below are a few examples of using __atmos__ functions. Note that all variables are assumed to be in SI units (i.e., m for heights, Pa for pressures, K for temperatures, kg/kg for mass fractions (specific humidities) and mixing ratios, fraction for relative humidities, m/s for wind velocities). For the `parcel` and `utils` functions, it is assumed by default that the first array dimension corresponds to the vertical axis and that pressure decreases and height increases along this axis.
+Below are a few examples of using __atmos__ functions. Note that all variables are assumed to be in SI units; i.e., m for heights, Pa for pressures, K for temperatures, kg/kg for mass fractions (specific humidities) and mixing ratios, m/s for wind velocities. Relative humidities are expressed as fractions rather than percentages. For functions that perform vertical integration, averaging, or interpolation, it is assumed that the first array dimension corresponds to the vertical axis (unless the `vertical_axis` keyword is specified) and that pressure decreases and height increases along this axis.
+
+### Basic thermodynamic variables
 
 Calculating saturation vapour pressure with respect to liquid water `esl`, ice `esi`, and mixed-phase condensate `esx` from temperature `T`:
 ```python
@@ -41,7 +47,7 @@ omega = atmos.thermo.ice_fraction(T)  # ice fraction assuming saturation at temp
 esx = atmos.thermo.saturation_vapour_pressure(T, phase="mixed", omega=omega)
 ```
 
-Calculating pseudo wet-bulb temperature `Twp` and isobaric/thermodynamic wet-bulb temperature `Twi` from pressure `p`, temperature `T`, and specific humidity `q`:
+Calculating pseudo (aka adiabatic) wet-bulb temperature `Twp` and isobaric (aka thermodynamic) wet-bulb temperature `Twi` from pressure `p`, temperature `T`, and specific humidity `q`:
 ```python
 Twp = atmos.thermo.pseudo_wet_bulb_temperature(p, T, q)
 Twi = atmos.thermo.isobaric_wet_bulb_temperature(p, T, q)
@@ -63,16 +69,20 @@ RHl = atmos.moisture.convert_relative_humidity(T, RHi, 'ice', 'liquid')
 Td = atmos.moisture.dewpoint_temperature_from_relative_humidity(T, RHl)
 ```
 
-Calculating mixed-layer CAPE and CIN and the associated lifting condensation level (LCL), level of free convection (LFC), level of maximum buoyancy (LMB), and equilibrium level (EL) given 1D profiles or arrays of pressure `p`, temperature `T` and specific humidity `q`:
+### Convective parameters
+
+Calculating surface-based (SB), mixed-layer (ML), and most-unstable (MU) CAPE and CIN and the associated lifting condensation level (LCL), level of free convection (LFC), level of maximum buoyancy (LMB), and equilibrium level (EL) given arrays of pressure `p`, temperature `T` and specific humidity `q`:
 ```python
-CAPE, CIN, LCLp, LFCp, LMBp, ELp = atmos.parcel.mixed_layer_parcel(p, T, q)
+SBCAPE, SBCIN, SBLCLp, SBLFCp, SBLMBp, SBELp = atmos.parcel.surface_based_parcel(p, T, q)
+MLCAPE, MLCIN, MLLCLp, MLLFCp, MLLMBp, MLELp = atmos.parcel.mixed_layer_parcel(p, T, q)
+MUCAPE, MUCIN, MULPLp, MULCLp, MULFCp, MULMBp, MUELp = atmos.parcel.most_unstable_parcel(p, T, q)
 ```
-The levels output by this function are pressures. Given a corresponding profile/array of height `z`, these can be converted to heights using the `utils.height_of_pressure_level` function. For example, the height of the LCL can be calculated as:
+Note that the MU parcel function also outputs the lifted parcel level (LPL), which is the starting level of the parcel ascent (for the SB and ML parcels, this is the lowest level). The levels output by these function are all pressures. Given a corresponding array of heights `z`, levels can be converted to heights using the `utils` function `height_of_pressure_level`. For example, the height of the MLLCL can be calculated as:
 ```python
-LCLz = atmos.utils.height_of_pressure_level(p, z, LCLp)
+MLLCLz = atmos.utils.height_of_pressure_level(p, z, MLLCLp)
 ```
 
-Calculating 0-6 km bulk wind difference (BWD):
+Calculating 0-6 km bulk wind difference (BWD06) given arrays of height `z`, zonal wind `u`, and meridional wind `v`:
 ```python
 # Compute BWD components
 BWD06u, BWD06v = atmos.kinematic.bulk_wind_difference(z, u, v, 0.0, 6000.0)
@@ -80,6 +90,27 @@ BWD06u, BWD06v = atmos.kinematic.bulk_wind_difference(z, u, v, 0.0, 6000.0)
 # Compute BWD magnitude
 BWD06 = np.hypot(BWD06u, BWD06v)
 ```
+
+Calculating effective storm-relative helicity (ESRH):
+```python
+# Use the MU parcel function with the "max_cape" option to get the effective inflow
+# base (EIB) and top (EIT)
+*_, EIBp, EITp = atmos.parcel.most_unstable_parcel(p, T, q, mu_parcel="max_cape")
+
+# Convert from pressure to height
+EIBz = atmos.utils.height_of_pressure_level(p, z, EIBp)
+EITz = atmos.utils.height_of_pressure_level(p, z, EITp)
+
+# Compute Bunkers left and right storm motion vectors:
+u_bl, v_bl, u_br, v_br = atmos.kinematic.bunkers_storm_motion(z, u, v)
+
+# Compute ESRH for Bunkers left storm motion vector:
+ESRH_bl = atmos.kinematic.storm_relative_helicity(z, u, v, u_bl, v_bl, EIBz, EITz)
+
+# Compute ESRH for Bunkers right storm motion vector:
+ESRH_br = atmos.kinematic.storm_relative_helicity(z, u, v, u_br, v_br, EIBz, EITz)
+```
+
 
 ## Developer notes
 
