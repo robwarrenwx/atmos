@@ -1772,7 +1772,7 @@ def dry_potential_temperature(p, T):
     return thd
 
 
-def moist_potential_temperature(p, T, q):
+def moist_potential_temperature(p, T, q, qt=None, omega=0.0):
     """
     Computes potential temperature of moist air.
 
@@ -1780,6 +1780,9 @@ def moist_potential_temperature(p, T, q):
         p (float or ndarray): pressure (Pa)
         T (float or ndarray): temperature (K)
         q (float or ndarray): specific humidity (kg/kg)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+            (default is None, which implies qt = q)
+        omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
         thm (float or ndarray): potential temperature of moist air (K)
@@ -1787,8 +1790,8 @@ def moist_potential_temperature(p, T, q):
     """
 
     # Set effective gas constant and specific heat
-    Rm = effective_gas_constant(q)
-    cpm = effective_specific_heat(q)
+    Rm = effective_gas_constant(q, qt=qt)
+    cpm = effective_specific_heat(q, qt=qt, omega=omega)
 
     # Compute potential temperature of moist air
     thm = T * (p_ref / p) ** (Rm / cpm)
@@ -1796,7 +1799,7 @@ def moist_potential_temperature(p, T, q):
     return thm
 
 
-def potential_temperature(p, T, q=None):
+def potential_temperature(p, T, q=None, qt=None, omega=0.0):
     """
     Computes potential temperature for dry or moist air.
 
@@ -1805,6 +1808,9 @@ def potential_temperature(p, T, q=None):
         T (float or ndarray): temperature (K)
         q (float or ndarray, optional): specific humidity (kg/kg) (default is
             None, in which case dry potential temperature is returned)
+        qt (float or ndarray, optional): total water mass fraction (kg/kg)
+            (default is None, which implies qt = q)
+        omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
         th (float or ndarray): potential temperature (K)
@@ -1814,12 +1820,12 @@ def potential_temperature(p, T, q=None):
     if q is None:
         th = dry_potential_temperature(p, T)
     else:
-        th = moist_potential_temperature(p, T, q)
+        th = moist_potential_temperature(p, T, q, qt=qt, omega=omega)
 
     return th
 
 
-def virtual_potential_temperature(p, T, q, qt=None):
+def virtual_potential_temperature(p, T, q, qt=None, omega=0.0):
     """
     Computes virtual (or density) potential temperature.
 
@@ -1829,6 +1835,7 @@ def virtual_potential_temperature(p, T, q, qt=None):
         q (float or ndarray): specific humidity (kg/kg)
         qt (float or ndarray, optional): total water mass fraction (kg/kg)
             (default is None, which implies qt = q)
+        omega (float or ndarray, optional): ice fraction (default is 0.0)
 
     Returns:
         thv (float or ndarray): virtual potential temperature (K)
@@ -1836,8 +1843,8 @@ def virtual_potential_temperature(p, T, q, qt=None):
     """
 
     # Set effective gas constant and specific heat
-    Rm = effective_gas_constant(q)
-    cpm = effective_specific_heat(q)
+    Rm = effective_gas_constant(q, qt=qt)
+    cpm = effective_specific_heat(q, qt=qt, omega=omega)
 
     # Compute the virtual temperature
     Tv = virtual_temperature(T, q, qt=qt)
