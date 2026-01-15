@@ -31,6 +31,11 @@ Functions for calculating the following thermodynamic variables:
 * ice-liquid water potential temperature, thil
 * wet-bulb potential temperature, thw
 * saturated wet-bulb potential temperature, thws
+* precipitable water, PW
+* saturation fraction, SF
+* integrated vapour transport, IVT
+* geopotential height, Z
+* hydrostatic pressure, P
 
 References:
 * Ambaum, M. H., 2020: Accurate, simple equation for saturated vapour
@@ -66,6 +71,7 @@ References:
 
 
 import numpy as np
+import warnings
 #from scipy.special import lambertw
 from atmos.constant import (g, Rd, Rv, eps, cpd, cpv, cpl, cpi, p_ref,
                             T0, es0, Lv0, Lf0, Ls0, T_liq, T_ice)
@@ -2121,6 +2127,349 @@ def saturation_wet_bulb_potential_temperature(p, T, phase='liquid',
         thws = thws.item()
 
     return thws
+
+
+def precipitable_water(p, q, p_sfc=None, q_sfc=None, p_bot=None, p_top=None,
+                       vertical_axis=0):
+    """
+    Computes precipitable water (a.k.a. column water vapour) from profiles of
+    pressure and specific humidity.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        p_bot (float or ndarray, optional): pressure at which to start vertical
+            integration (Pa) (default is None)
+        p_top (float or ndarray, optional): pressure at which to stop vertical
+            integration (Pa) (default is None)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        PW (float or ndarray): precipitable water (kg/m2)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        q = np.atleast_2d(q).T
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        q_sfc = q[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+
+    # If p_bot is not specified, use surface
+    if p_bot is None:
+        p_bot = p_sfc
+    elif np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+
+    # If p_top is not specified, use top level
+    if p_top is None:
+        p_top = p[-1]
+    elif np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 pressure and specific humidity
+    p2 = p_sfc.copy()
+    q2 = q_sfc.copy()
+
+    # Initialise precipitable water
+    PW = np.zeros_like(p_sfc)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        q1 = q2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] <= p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        q2 = np.where(above_sfc, q[k], q_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            q1[cross_bot] = (1 - weight) * q1[cross_bot] + \
+                weight * q2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 > p_top) & (p2 < p_top)
+        if np.any(cross_top):
+            # reset level 2 as p_top
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            q2[cross_top] = (1 - weight) * q1[cross_top] + \
+                weight * q2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # If within layer, update PW
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        PW[in_layer] += (1 / g) * 0.5 * (q1[in_layer] + q2[in_layer]) * \
+            (p1[in_layer] - p2[in_layer])
+
+    return PW.squeeze()  # remove dimensions of length 1
+
+
+def saturation_fraction(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
+                        p_bot=None, p_top=None, phase='liquid',
+                        vertical_axis=0):
+    """
+    Computes saturation fraction (a.k.a. column relative humidity) from
+    profiles of pressure, temperature, and specific humidity.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        T (ndarray): temperature profile(s) (K)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        T_sfc (float or ndarray, optional): surface temperature (K)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        p_bot (float or ndarray, optional): pressure at which to start vertical
+            integration (Pa) (default is None)
+        p_top (float or ndarray, optional): pressure at which to stop vertical
+            integration (Pa) (default is None)
+        phase (str, optional): condensed water phase (valid options are
+            'liquid', 'ice', or 'mixed'; default is 'liquid')
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        SF (float or ndarray): saturation fraction
+
+    """
+
+    # Compute saturation specific humidity
+    omega = ice_fraction(T, phase=phase)
+    qs = saturation_specific_humidity(p, T, phase=phase, omega=omega)
+    if p_sfc is None:
+        qs_sfc = None
+    else:
+        qs_sfc = saturation_specific_humidity(p_sfc, T_sfc, phase=phase,
+                                              omega=omega)
+
+    # Compute precipitable water
+    PW = precipitable_water(p, q, p_sfc=p_sfc, q_sfc=q_sfc, p_bot=p_bot,
+                            p_top=p_top, vertical_axis=vertical_axis)
+
+    # Compute saturation precipitable water
+    SPW = precipitable_water(p, qs, p_sfc=p_sfc, q_sfc=qs_sfc, p_bot=p_bot,
+                             p_top=p_top, vertical_axis=vertical_axis)
+
+    # Compute saturation fraction
+    SF = PW / SPW
+
+    return SF
+
+
+def integrated_vapour_transport(p, q, u, v, p_sfc=None, q_sfc=None, u_sfc=None,
+                                v_sfc=None, p_bot=None, p_top=None,
+                                vertical_axis=0):
+    """
+    Computes components of integrated vapour transport (IVT) vector from
+    profiles of pressure, specific humidity, and zonal and meridional wind.
+
+    Args:
+        p (ndarray): pressure profile(s) (Pa)
+        q (ndarray): specific humidity profile(s) (kg/kg)
+        u (ndarray): eastward component of wind (m/s)
+        v (ndarray): northward component of wind (m/s)
+        p_sfc (float or ndarray, optional): surface pressure (Pa)
+        q_sfc (float or ndarray, optional): surface specific humidity (kg/kg)
+        u_sfc (float or ndarray, optional): eastward component of surface wind
+            (m/s)
+        v_sfc (float or ndarray, optional): northward component of surface wind
+            (m/s)
+        p_bot (float or ndarray, optional): pressure at which to start vertical
+            integration (Pa) (default is None)
+        p_top (float or ndarray, optional): pressure at which to stop vertical
+            integration (Pa) (default is None)
+        vertical_axis (int, optional): profile array axis corresponding to
+            vertical dimension (default is 0)
+
+    Returns:
+        IVTu (float or ndarray): eastward component of IVT (kg/m/s)
+        IVTv (float or ndarray): northward component of IVT (kg/m/s)
+
+    """
+
+    # Reorder profile array dimensions if needed
+    if vertical_axis != 0:
+        p = np.moveaxis(p, vertical_axis, 0)
+        q = np.moveaxis(q, vertical_axis, 0)
+        u = np.moveaxis(u, vertical_axis, 0)
+        v = np.moveaxis(v, vertical_axis, 0)
+
+    # Make sure that profile arrays are at least 2D
+    if p.ndim == 1:
+        p = np.atleast_2d(p).T  # transpose to preserve vertical axis
+        q = np.atleast_2d(q).T
+        u = np.atleast_2d(u).T
+        v = np.atleast_2d(v).T
+
+    # If surface-level fields not provided, use lowest level values
+    if p_sfc is None:
+        bottom = 'lowest level'
+        k_start = 1  # start loop from second level
+        p_sfc = p[0]
+        q_sfc = q[0]
+        u_sfc = u[0]
+        v_sfc = v[0]
+    else:
+        bottom = 'surface'
+        k_start = 0  # start loop from first level
+
+    # Make sure that surface fields are at least 1D
+    p_sfc = np.atleast_1d(p_sfc)
+    q_sfc = np.atleast_1d(q_sfc)
+    u_sfc = np.atleast_1d(u_sfc)
+    v_sfc = np.atleast_1d(v_sfc)
+
+    # If p_bot is not specified, use surface
+    if p_bot is None:
+        p_bot = p_sfc
+    elif np.isscalar(p_bot):
+        p_bot = np.full_like(p_sfc, p_bot)
+
+    # If p_top is not specified, use top level
+    if p_top is None:
+        p_top = p[-1]
+    elif np.isscalar(p_top):
+        p_top = np.full_like(p_sfc, p_top)
+
+    # Check if bottom of layer is above top of layer
+    if np.any(p_bot < p_top):
+        n_pts = np.count_nonzero(p_bot < p_top)
+        raise ValueError(f'p_bot is above p_top for {n_pts} points')
+
+    # Check if bottom of layer is below surface
+    if np.any(p_bot > p_sfc):
+        n_pts = np.count_nonzero(p_bot > p_sfc)
+        warnings.warn(f'p_bot is below {bottom} for {n_pts} points')
+
+    # Check if top of layer is above highest level
+    if np.any(p_top < p[-1]):
+        n_pts = np.count_nonzero(p_top < p[-1])
+        warnings.warn(f'p_top is above highest level for {n_pts} points')
+
+    # Note the number of vertical levels
+    n_lev = p.shape[0]
+
+    # Initialise level 2 fields
+    p2 = p_sfc.copy()
+    q2 = q_sfc.copy()
+    u2 = u_sfc.copy()
+    v2 = v_sfc.copy()
+
+    # Initialise IVT components
+    IVTu = np.zeros_like(p_sfc)
+    IVTv = np.zeros_like(p_sfc)
+
+    # Loop over levels
+    for k in range(k_start, n_lev):
+
+        # Update level 1 fields
+        p1 = p2.copy()
+        q1 = q2.copy()
+        u1 = u2.copy()
+        v1 = v2.copy()
+        if np.all(p1 <= p_top):
+            # can break out of loop
+            break
+
+        # Update level 2 fields
+        above_sfc = (p[k] <= p_sfc)
+        p2 = np.where(above_sfc, p[k], p_sfc)
+        q2 = np.where(above_sfc, q[k], q_sfc)
+        u2 = np.where(above_sfc, u[k], u_sfc)
+        v2 = np.where(above_sfc, v[k], v_sfc)
+        if np.all(p2 >= p_bot):
+            # can skip this level
+            continue
+
+        # If crossing bottom of layer, reset level 1
+        cross_bot = (p1 > p_bot) & (p2 < p_bot)
+        if np.any(cross_bot):
+            weight = np.log(p1[cross_bot] / p_bot[cross_bot]) / \
+                np.log(p1[cross_bot] / p2[cross_bot])
+            q1[cross_bot] = (1 - weight) * q1[cross_bot] + \
+                weight * q2[cross_bot]
+            u1[cross_bot] = (1 - weight) * u1[cross_bot] + \
+                weight * u2[cross_bot]
+            v1[cross_bot] = (1 - weight) * v1[cross_bot] + \
+                weight * v2[cross_bot]
+            p1[cross_bot] = p_bot[cross_bot]
+
+        # If crossing top of layer, reset level 2
+        cross_top = (p1 > p_top) & (p2 < p_top)
+        if np.any(cross_top):
+            weight = np.log(p1[cross_top] / p_top[cross_top]) / \
+                np.log(p1[cross_top] / p2[cross_top])
+            q2[cross_top] = (1 - weight) * q1[cross_top] + \
+                weight * q2[cross_top]
+            u2[cross_top] = (1 - weight) * u1[cross_top] + \
+                weight * u2[cross_top]
+            v2[cross_top] = (1 - weight) * v1[cross_top] + \
+                weight * v2[cross_top]
+            p2[cross_top] = p_top[cross_top]
+
+        # If within layer, update IVT components
+        in_layer = (p1 <= p_bot) & (p2 >= p_top)
+        IVTu[in_layer] += (1 / g) * 0.5 * (
+            q1[in_layer] * u1[in_layer] + q2[in_layer] * u2[in_layer]
+            ) * (p1[in_layer] - p2[in_layer])
+        IVTv[in_layer] += (1 / g) * 0.5 * (
+            q1[in_layer] * v1[in_layer] + q2[in_layer] * v2[in_layer]
+            ) * (p1[in_layer] - p2[in_layer])
+
+    return IVTu.squeeze(), IVTv.squeeze()  # remove dimensions of length 1
 
 
 def geopotential_height(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
