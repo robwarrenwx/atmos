@@ -50,8 +50,7 @@ def wind_direction(u, v):
     if np.any(calm_mask):
         wdir[calm_mask] = 0.
         
-    if wdir.size == 1:
-        wdir = wdir.item()
+    wdir = wdir.squeeze()
 
     return wdir
     
@@ -218,10 +217,7 @@ def bulk_wind_difference(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         BWDu[is_nan] = np.nan
         BWDv[is_nan] = np.nan
 
-    if BWDu.size == 1:
-        return BWDu.item(), BWDv.item()
-    else:
-        return BWDu, BWDv
+    return BWDu.squeeze(), BWDv.squeeze()
 
 
 def bunkers_storm_motion(z, u, v, z_sfc=None, u_sfc=None, v_sfc=None,
@@ -495,7 +491,4 @@ def storm_relative_helicity(z, u, v, u_storm, v_storm, z_bot, z_top,
     if np.any(is_nan):
         SRH[is_nan] = np.nan
 
-    if SRH.size == 1:
-        return SRH.item()
-    else:
-        return SRH
+    return SRH.squeeze()

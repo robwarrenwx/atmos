@@ -627,14 +627,14 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
             LMB[update_el] = p_lmb[update_el]
             EL[update_el] = p_el[update_el]
 
-    if CAPE.size == 1 and output_scalars:
+    if output_scalars:
         # convert outputs to scalars
-        CAPE = CAPE.item()
-        CIN = CIN.item()
-        LCL = LCL.item()
-        LFC = LFC.item()
-        LMB = LMB.item()
-        EL = EL.item()
+        CAPE = CAPE.squeeze()
+        CIN = CIN.squeeze()
+        LCL = LCL.squeeze()
+        LFC = LFC.squeeze()
+        LMB = LMB.squeeze()
+        EL = EL.squeeze()
 
     return CAPE, CIN, LCL, LFC, LMB, EL
 
@@ -1001,19 +1001,18 @@ def most_unstable_parcel(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
         is_eit = in_eil & in_eil_prev & np.isfinite(EIB) & np.isnan(EIT)
         EIT[is_eit] = p_lpl[is_eit]
             
-        if CAPE.size == 1:
-            # convert outputs to scalars
-            CAPE = CAPE.item()
-            CIN = CIN.item()
-            LPL = LPL.item()
-            LCL = LCL.item()
-            LFC = LFC.item()
-            LMB = LMB.item()
-            EL = EL.item()
-            EIB = EIB.item()
-            EIT = EIT.item()
-            Tpi = Tpi.item()
-            qpi = qpi.item()
+        # convert outputs to scalars
+        CAPE = CAPE.squeeze()
+        CIN = CIN.squeeze()
+        LPL = LPL.squeeze()
+        LCL = LCL.squeeze()
+        LFC = LFC.squeeze()
+        LMB = LMB.squeeze()
+        EL = EL.squeeze()
+        EIB = EIB.squeeze()
+        EIT = EIT.squeeze()
+        Tpi = Tpi.squeeze()
+        qpi = qpi.squeeze()
 
         if return_parcel_properties:
             return CAPE, CIN, LPL, LCL, LFC, LMB, EL, EIB, EIT, Tpi, qpi
@@ -1475,12 +1474,12 @@ def parcel_descent(p, T, q, p_dpl, Tp_dpl, k_dpl=None,
     # Note the final downdraft parcel temperature
     Tpf = Tp2
 
-    if DCAPE.size == 1 and output_scalars:
+    if output_scalars:
         # convert outputs to scalars
-        DCAPE = DCAPE.item()
-        DCIN = DCIN.item()
-        DEL = DEL.item()
-        Tpf = Tpf.item()
+        DCAPE = DCAPE.squeeze()
+        DCIN = DCIN.squeeze()
+        DEL = DEL.squeeze()
+        Tpf = Tpf.squeeze()
 
     return DCAPE, DCIN, DEL, Tpf
 
@@ -1723,7 +1722,4 @@ def lifted_index(pi, pf, Ti, Tf, qi, qf=None, phase='liquid',
     # Mask points where final pressure exceeds initial pressure
     LI[pf > pi] = np.nan
 
-    if LI.size == 1:
-        return LI.item()
-    else:
-        return LI
+    return LI.squeeze()

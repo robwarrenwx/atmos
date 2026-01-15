@@ -917,10 +917,7 @@ def ice_fraction(Tstar, phase='mixed'):
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if Tstar.size == 1:
-        omega = omega.item()
-
-    return omega
+    return omega.squeeze()
 
 
 def ice_fraction_derivative(Tstar, phase='mixed'):
@@ -952,10 +949,7 @@ def ice_fraction_derivative(Tstar, phase='mixed'):
     else:
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if Tstar.size == 1:
-        domega_dTstar = domega_dTstar.item()
-
-    return domega_dTstar
+    return domega_dTstar.squeeze()
 
 
 def ice_fraction_at_saturation(p, T, q, phase='mixed', saturation='isobaric'):
@@ -1449,8 +1443,8 @@ def pseudo_wet_bulb_temperature(p, T, q, phase='liquid', polynomial=True,
     # introduced by polynomial fits or numerical integration)
     Tw = np.minimum(Tw, T)
 
-    if not np.isscalar(Tw) and Tw.size == 1:
-        Tw = Tw.item()
+    if not np.isscalar(Tw):
+        Tw = Tw.squeeze()
 
     return Tw
 
@@ -2088,8 +2082,8 @@ def wet_bulb_potential_temperature(p, T, q, phase='liquid', polynomial=True,
 
         raise ValueError("phase must be one of 'liquid', 'ice', or 'mixed'")
 
-    if not np.isscalar(thw) and thw.size == 1:
-        thw = thw.item()
+    if not np.isscalar(thw):
+        thw = thw.squeeze()
 
     return thw
 
@@ -2255,7 +2249,7 @@ def precipitable_water(p, q, p_sfc=None, q_sfc=None, p_bot=None, p_top=None,
         PW[in_layer] += (1 / g) * 0.5 * (q1[in_layer] + q2[in_layer]) * \
             (p1[in_layer] - p2[in_layer])
 
-    return PW.squeeze()  # remove dimensions of length 1
+    return PW.squeeze()
 
 
 def saturation_fraction(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,
@@ -2469,7 +2463,7 @@ def integrated_vapour_transport(p, q, u, v, p_sfc=None, q_sfc=None, u_sfc=None,
             q1[in_layer] * v1[in_layer] + q2[in_layer] * v2[in_layer]
             ) * (p1[in_layer] - p2[in_layer])
 
-    return IVTu.squeeze(), IVTv.squeeze()  # remove dimensions of length 1
+    return IVTu.squeeze(), IVTv.squeeze()
 
 
 def geopotential_height(p, T, q, p_sfc=None, T_sfc=None, q_sfc=None,

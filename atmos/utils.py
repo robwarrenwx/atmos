@@ -103,10 +103,7 @@ def height_of_pressure_level(p, z, pi, p_sfc=None, z_sfc=None,
     if np.any(pi_at_sfc):
         zi[pi_at_sfc] = z_sfc[pi_at_sfc]
 
-    if zi.size == 1:
-        return zi.item()
-    else:
-        return zi
+    return zi.squeeze()
 
 
 def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
@@ -209,10 +206,7 @@ def pressure_of_height_level(z, p, zi, z_sfc=None, p_sfc=None,
     if np.any(zi_at_sfc):
         pi[zi_at_sfc] = p_sfc[zi_at_sfc]
 
-    if pi.size == 1:
-        return pi.item()
-    else:
-        return pi
+    return pi.squeeze()
 
 
 def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
@@ -317,10 +311,7 @@ def height_of_temperature_level(z, T, Ti, z_sfc=None, T_sfc=None,
             zi[crossed] = (1 - weight) * z1[crossed] + weight * z2[crossed]
             found[crossed] = True
 
-    if zi.size == 1:
-        return zi.item()
-    else:
-        return zi
+    return zi.squeeze()
 
 
 def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
@@ -423,10 +414,7 @@ def pressure_of_temperature_level(p, T, Ti, p_sfc=None, T_sfc=None,
             pi[crossed] = p1[crossed] ** (1 - weight) * p2[crossed] ** weight
             found[crossed] = True
 
-    if pi.size == 1:
-        return pi.item()
-    else:
-        return pi
+    return pi.squeeze()
 
 
 def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
@@ -536,10 +524,7 @@ def interpolate_scalar_to_height_level(z, s, zi, z_sfc=None, s_sfc=None,
     if np.any(zi_at_sfc):
         si[zi_at_sfc] = s_sfc[zi_at_sfc]
 
-    if si.size == 1:
-        return si.item()
-    else:
-        return si
+    return si.squeeze()
 
 
 def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
@@ -667,10 +652,7 @@ def interpolate_vector_to_height_level(z, u, v, zi, z_sfc=None, u_sfc=None,
         ui[zi_at_sfc] = u_sfc[zi_at_sfc]
         vi[zi_at_sfc] = v_sfc[zi_at_sfc]
 
-    if ui.size == 1:
-        return ui.item(), vi.item()
-    else:
-        return ui, vi
+    return ui.squeeze(), vi.squeeze()
 
 
 def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
@@ -779,10 +761,7 @@ def interpolate_scalar_to_pressure_level(p, s, pi, p_sfc=None, s_sfc=None,
     if np.any(pi_at_sfc):
         si[pi_at_sfc] = s_sfc[pi_at_sfc]
     
-    if si.size == 1:
-        return si.item()
-    else:
-        return si
+    return si.squeeze()
 
 
 def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
@@ -909,10 +888,7 @@ def interpolate_vector_to_pressure_level(p, u, v, pi, p_sfc=None, u_sfc=None,
         ui[pi_at_sfc] = u_sfc[pi_at_sfc]
         vi[pi_at_sfc] = v_sfc[pi_at_sfc]
 
-    if ui.size == 1:
-        return ui.item(), vi.item()
-    else:
-        return ui, vi
+    return ui.squeeze(), vi.squeeze()
 
 
 def height_layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
@@ -1067,10 +1043,7 @@ def height_layer_mean_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
     # Compute layer mean
     s_mean = s_int / w_int
 
-    if s_mean.size == 1:
-        return s_mean.item()
-    else:
-        return s_mean
+    return s_mean.squeeze()
 
 
 def height_layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
@@ -1246,10 +1219,7 @@ def height_layer_mean_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
     u_mean = u_int / w_int
     v_mean = v_int / w_int
 
-    if u_mean.size == 1:
-        return u_mean.item(), v_mean.item()
-    else:
-        return u_mean, v_mean
+    return u_mean.squeeze(), v_mean.squeeze()
 
 
 def pressure_layer_mean_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
@@ -1409,10 +1379,7 @@ def pressure_layer_mean_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
     # Compute layer mean
     s_mean = s_int / w_int
 
-    if s_mean.size == 1:
-        return s_mean.item()
-    else:
-        return s_mean
+    return s_mean.squeeze()
 
 
 def pressure_layer_mean_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
@@ -1594,10 +1561,7 @@ def pressure_layer_mean_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
     u_mean = u_int / w_int
     v_mean = v_int / w_int
 
-    if u_mean.size == 1:
-        return u_mean.item(), v_mean.item()
-    else:
-        return u_mean, v_mean
+    return u_mean.squeeze(), v_mean.squeeze()
 
 
 def height_layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
@@ -1749,10 +1713,7 @@ def height_layer_maxmin_scalar(z, s, z_bot, z_top, z_sfc=None, s_sfc=None,
         sx[is_unset] = np.nan
         zx[is_unset] = np.nan
 
-    if sx.size == 1:
-        return sx.item(), zx.item()
-    else:
-        return sx, zx
+    return sx.squeeze(), zx.squeeze()
 
 
 def height_layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
@@ -1936,10 +1897,7 @@ def height_layer_maxmin_vector(z, u, v, z_bot, z_top, z_sfc=None, u_sfc=None,
         vx[is_unset] = np.nan
         zx[is_unset] = np.nan
 
-    if Vx.size == 1:
-        return ux.item(), vx.item(), zx.item()
-    else:
-        return ux, vx, zx
+    return ux.squeeze(), vx.squeeze(), zx.squeeze()
 
 
 def pressure_layer_maxmin_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
@@ -2091,10 +2049,7 @@ def pressure_layer_maxmin_scalar(p, s, p_bot, p_top, p_sfc=None, s_sfc=None,
         sx[is_unset] = np.nan
         px[is_unset] = np.nan
 
-    if sx.size == 1:
-        return sx.item(), px.item()
-    else:
-        return sx, px
+    return sx.squeeze(), px.squeeze()
 
 
 def pressure_layer_maxmin_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
@@ -2278,7 +2233,4 @@ def pressure_layer_maxmin_vector(p, u, v, p_bot, p_top, p_sfc=None, u_sfc=None,
         vx[is_unset] = np.nan
         px[is_unset] = np.nan
 
-    if Vx.size == 1:
-        return ux.item(), vx.item(), px.item()
-    else:
-        return ux, vx, px
+    return ux.squeeze(), vx.squeeze(), px.squeeze()
