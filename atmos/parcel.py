@@ -179,13 +179,13 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         raise ValueError(f"""Incompatible profile and surface arrays: 
                          {p.shape}, {p_sfc.shape}""")
 
-    # Check that LPL is not below the surface
+    # Check if LPL is below the surface
     lpl_below_sfc = (p_lpl > p_sfc)
     if np.any(lpl_below_sfc):
         n_pts = np.count_nonzero(lpl_below_sfc)
         warnings.warn(f'LPL is below {bottom} at {n_pts} points')
     
-    # Check that LPL is not above top level
+    # Check if LPL is above the top level
     lpl_above_top = (p_lpl < p[-1])
     if np.any(lpl_above_top):
         n_pts = np.count_nonzero(lpl_above_top)
@@ -209,6 +209,12 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     p_lcl = p_lcl.astype(p_lpl.dtype)
     Tp_lcl = Tp_lcl.astype(p_lpl.dtype)
 
+    # Check if LCL is above the top level
+    lcl_above_top = (p_lcl < p[-1])
+    if np.any(lcl_above_top):
+        n_pts = np.count_nonzero(lcl_above_top)
+        warnings.warn(f'LCL above top level for {n_pts} points')
+
     # Save LCL
     LCL = p_lcl
 
@@ -219,15 +225,6 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     else:
         # equal to initial specific humidity
         qt = qp_lpl
-
-    # Check that LCL is below top level
-    lcl_above_top = (p_lcl < p[-1])
-    if np.any(lcl_above_top):
-        n_pts = np.count_nonzero(lcl_above_top)
-        warnings.warn(f'LCL above top level for {n_pts} points')
-        k_stop = n_lev-1  # stop loop a level early
-    else:
-        k_stop = n_lev
 
     # Create arrays for negative and positive areas
     neg_area = np.zeros_like(p_lpl)
@@ -276,8 +273,11 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
     #print(p_lcl, Tp_lcl)
     #print(Tp2, qp2, B2)
 
-    # Loop over levels, accounting for addition of extra level for LCL
-    for k in range(k_start, k_stop+1):
+    # Initialise mask indicating where extra level has been added for the LCL
+    extra_level = np.zeros_like(p_lpl, dtype=bool)
+
+    # Loop over levels, accounting for addition of extra level for the LCL
+    for k in range(k_start, n_lev+1):
 
         # Update level 1 fields
         p1 = p2.copy()
@@ -296,16 +296,14 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
         p1_above_lcl = np.logical_not(p1_below_lcl)
 
         # Set level 2 environmental fields
-        if np.any(p1_below_lcl):
-            # use level k below LCL
-            p2[p1_below_lcl] = p[k][p1_below_lcl]
-            T2[p1_below_lcl] = T[k][p1_below_lcl]
-            q2[p1_below_lcl] = q[k][p1_below_lcl]
-        if np.any(p1_above_lcl):
-            # use level k-1 above LCL to account for additional level
-            p2[p1_above_lcl] = p[k-1][p1_above_lcl]
-            T2[p1_above_lcl] = T[k-1][p1_above_lcl]
-            q2[p1_above_lcl] = q[k-1][p1_above_lcl]
+        if k == n_lev:
+            p2 = p[k-1]
+            T2 = T[k-1]
+            q2 = q[k-1]
+        else:
+            p2 = np.where(extra_level, p[k-1], p[k])
+            T2 = np.where(extra_level, T[k-1], T[k])
+            q2 = np.where(extra_level, q[k-1], q[k])
 
         # Reset level 2 environmental fields to surface values where
         # level 2 is below the surface
@@ -382,6 +380,9 @@ def parcel_ascent(p, T, q, p_lpl, Tp_lpl, qp_lpl, k_lpl=None, p_sfc=None,
 
             # Use LCL pressure
             p2[cross_lcl] = p_lcl[cross_lcl]
+
+            # Update extra level mask
+            extra_level[cross_lcl] = True
 
         # Find points undergoing dry (unsaturated) and wet (saturated) ascent
         dry_ascent = p1_above_lpl & p1_below_lcl
