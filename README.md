@@ -35,7 +35,27 @@ Another novel feature in __atmos__ is the treatment of saturation, which can be 
 
 The functions in __atmos__ that perform vertical integration, averaging, or interpolation are designed to be agnostic of the vertical grid; so long as arrays of pressure and/or height are provided, the calculations should work. However, when working with data on pressure levels, it is important to provide surface/screen-level variables (specified using the `_sfc` keyword arguments) in addition to the pressure-level arrays. This will ensure that values below the surface are excluded from the calculations.
 
+## Installation
+It is recommended to activate and use a virtual environment. The library requires a minimum of python `3.11` to install more recent versions of the dependencies (`numba` and `numpy`).
 
+Clone this repository:
+
+```bash
+git clone https://github.com/AusClimateService/atmos.git
+cd atmos
+```
+
+
+
+Install using `pip`:
+```bash
+pip install -e .
+```
+
+Or `uv`:
+```bash
+uv pip install -e .
+```
 ## Examples
 
 Below are a few examples of using __atmos__ functions. Note that all variables are assumed to be in SI units; i.e., m for heights, Pa for pressures, K for temperatures, kg/kg for mass fractions (specific humidities) and mixing ratios, m/s for wind velocities. Relative humidities are expressed as fractions rather than percentages. For functions that perform vertical integration, averaging, or interpolation, it is assumed that the first array dimension corresponds to the vertical axis (unless the `vertical_axis` keyword is specified) and that pressure decreases and height increases along this axis. By default, saturation is calculated with respect to liquid water only.
